@@ -9,7 +9,8 @@ pub const description = descriptions.Description{
 };
 
 pub fn execute(context: Context) u8 {
-    _ = context;
+    _ = context.checkForHelpOrVersion(description);
+
     return 1;
 }
 

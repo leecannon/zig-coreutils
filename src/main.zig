@@ -14,28 +14,13 @@ pub fn main() u8 {
         .std_out = std.io.getStdOut().writer(),
     };
 
-    const basename = blk: {
-        const name_or_err = arg_iter.next(&arena.allocator) orelse {
-            // no name given?
-            // TODO: Handle error, is this even possible?
-            return 1;
-        };
-
-        const name = name_or_err catch |err| switch (err) {
-            error.OutOfMemory => {
-                // TODO: Handle error
-                return 1;
-            },
-            error.InvalidCmdLine => {
-                // TODO: Handle error
-                return 1;
-            },
-        };
-
-        break :blk std.fs.path.basename(name);
+    const name = context.getNextArg() orelse {
+        // no name given?
+        // TODO: Handle error, is this even possible?
+        return 1;
     };
 
-    if (descriptions.executeSubcommand(context, basename)) |ret_val| {
+    if (descriptions.executeSubcommand(context, std.fs.path.basename(name))) |ret_val| {
         return ret_val;
     }
 

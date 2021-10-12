@@ -6,6 +6,9 @@ pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
 
     const main_exe = b.addExecutable("zig-coreutils", "src/main.zig");
+    main_exe.single_threaded = true;
+    main_exe.link_function_sections = true;
+    main_exe.want_lto = true;
     main_exe.setTarget(target);
     main_exe.setBuildMode(mode);
     main_exe.install();
