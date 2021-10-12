@@ -1,4 +1,5 @@
 const std = @import("std");
+const descriptions = @import("src/descriptions.zig");
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
@@ -14,8 +15,8 @@ pub fn build(b: *std.build.Builder) void {
     run_test_step.dependOn(&test_step.step);
     b.default_step = run_test_step;
 
-    inline for (utilities) |util| {
-        const exe = b.addExecutable(util.@"0", "src/main.zig");
+    inline for (descriptions.DESCRIPTIONS) |desc| {
+        const exe = b.addExecutable(desc.name, "src/main.zig");
         exe.setTarget(target);
         exe.setBuildMode(mode);
 
@@ -25,12 +26,7 @@ pub fn build(b: *std.build.Builder) void {
             run_cmd.addArgs(args);
         }
 
-        const run_step = b.step("run_" ++ util.@"0", util.@"1");
+        const run_step = b.step("run_" ++ desc.name, "Run " ++ desc.name);
         run_step.dependOn(&run_cmd.step);
     }
 }
-
-const utilities = .{
-    .{ "true", "sdwd" },
-    .{ "false", "sdwd" },
-};

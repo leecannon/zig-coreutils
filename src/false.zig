@@ -1,6 +1,15 @@
 const std = @import("std");
+const Context = @import("Context.zig");
+const descriptions = @import("descriptions.zig");
 
-pub fn execute() u8 {
+pub const description = descriptions.Description{
+    .name = "false",
+    .usage = "",
+    .execute = execute,
+};
+
+pub fn execute(context: Context) u8 {
+    _ = context;
     return 1;
 }
 

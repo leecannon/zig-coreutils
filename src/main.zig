@@ -1,8 +1,18 @@
 const std = @import("std");
+const Context = @import("Context.zig");
+const descriptions = @import("descriptions.zig");
 
 pub fn main() u8 {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     var arg_iter = std.process.args();
+
+    const context = Context{
+        .allocator = &arena.allocator,
+        .arg_iter = &arg_iter,
+        .std_err = std.io.getStdErr().writer(),
+        .std_in = std.io.getStdIn().writer(),
+        .std_out = std.io.getStdOut().writer(),
+    };
 
     const basename = blk: {
         const name_or_err = arg_iter.next(&arena.allocator) orelse {
@@ -25,18 +35,8 @@ pub fn main() u8 {
         break :blk std.fs.path.basename(name);
     };
 
-    // Note: This generates better code than ComptimeStringMap as the function call is non-virtual and
-    // the functions dont have to all match the same signature exactly
-    const len = basename.len;
-    if (len == 4) {
-        if (std.mem.eql(u8, basename, "true")) {
-            return @import("true.zig").execute();
-        }
-    }
-    if (len == 5) {
-        if (std.mem.eql(u8, basename, "false")) {
-            return @import("false.zig").execute();
-        }
+    if (descriptions.executeSubcommand(context, basename)) |ret_val| {
+        return ret_val;
     }
 
     // TODO: Handle Error
