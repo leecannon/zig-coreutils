@@ -24,12 +24,12 @@ pub fn main() main_return_value {
         .std_out = std.io.getStdOut(),
     };
 
-    const name = (context.getNextArg() catch |err| {
+    context.exe_path = (context.getNextArg() catch |err| {
         if (is_debug_or_test) return err;
         return 1;
     }) orelse unreachable;
 
-    return subcommands.executeSubcommand(&context, std.fs.path.basename(name)) catch |err| {
+    return subcommands.executeSubcommand(&context, std.fs.path.basename(context.exe_path)) catch |err| {
         switch (err) {
             error.NoSubcommand => {
                 // TODO: print error
@@ -40,6 +40,7 @@ pub fn main() main_return_value {
             error.InvalidCmdLine => {
                 // this is displayed to the user at the occurance of the error
             },
+            error.HelpOrVersion => return 0,
         }
 
         if (is_debug_or_test) return err;

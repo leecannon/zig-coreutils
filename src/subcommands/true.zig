@@ -4,7 +4,15 @@ const Subcommand = @import("../subcommands.zig").Subcommand;
 
 pub const subcommand = Subcommand{
     .name = "true",
-    .usage = "",
+    .usage = 
+    \\Usage: {0s} [ignored command line arguments]
+    \\   or: {0s} OPTION
+    \\Exit with a status code indicating success.
+    \\
+    \\     --help     display this help and exit
+    \\     --version  output version information and exit
+    \\
+    ,
     .execute = execute,
 };
 

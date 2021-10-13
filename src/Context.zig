@@ -7,6 +7,8 @@ const Context = @This();
 allocator: *std.mem.Allocator,
 arg_iter: *std.process.ArgIterator,
 
+exe_path: [:0]const u8 = undefined,
+
 std_err: std.fs.File,
 std_in: std.fs.File,
 std_out: std.fs.File,
@@ -55,24 +57,24 @@ pub inline fn getNextArg(context: *Context) !?[:0]const u8 {
     return context.arg_iter.nextPosix();
 }
 
-pub fn checkForHelpOrVersion(context: *Context, subcommand: Subcommand) !?[:0]const u8 {
+pub fn checkForHelpOrVersion(context: *Context, comptime subcommand: Subcommand) !?[:0]const u8 {
     const arg = (try context.getNextArg()) orelse return null;
 
     if (arg.len >= 2) {
         if (arg[0] == '-') {
             if (arg[1] == '-') {
                 if (std.mem.eql(u8, arg[2..], "help")) {
-                    context.std_out.writeAll(subcommand.usage) catch {};
-                    std.os.exit(0);
+                    context.std_out.writer().print(subcommand.usage, .{context.exe_path}) catch {};
+                    return error.HelpOrVersion;
                 }
                 if (std.mem.eql(u8, arg[2..], "version")) {
                     context.printVersion(subcommand);
-                    std.os.exit(0);
+                    return error.HelpOrVersion;
                 }
             } else {
                 if (std.mem.eql(u8, arg[1..], "h")) {
-                    context.std_out.writeAll(subcommand.usage) catch {};
-                    std.os.exit(0);
+                    context.std_out.writer().print(subcommand.usage, .{context.exe_path}) catch {};
+                    return error.HelpOrVersion;
                 }
             }
         }
