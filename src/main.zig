@@ -1,6 +1,6 @@
 const std = @import("std");
 const Context = @import("Context.zig");
-const descriptions = @import("descriptions.zig");
+const subcommands = @import("subcommands.zig");
 
 pub fn main() u8 {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -20,7 +20,7 @@ pub fn main() u8 {
         return 1;
     };
 
-    if (descriptions.executeSubcommand(context, std.fs.path.basename(name))) |ret_val| {
+    if (subcommands.executeSubcommand(context, std.fs.path.basename(name))) |ret_val| {
         return ret_val;
     }
 
