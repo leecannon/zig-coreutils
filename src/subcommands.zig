@@ -2,24 +2,29 @@ const std = @import("std");
 const Context = @import("Context.zig");
 
 pub const SUBCOMMANDS = [_]Subcommand{
-    @import("false.zig").subcommand,
-    @import("true.zig").subcommand,
+    @import("subcommands/false.zig").subcommand,
+    @import("subcommands/true.zig").subcommand,
 };
 
-pub fn executeSubcommand(context: Context, basename: []const u8) ?u8 {
+pub fn executeSubcommand(context: *Context, basename: []const u8) !u8 {
     comptime var len = 1;
     inline while (len <= longest_subcommand_name) : (len += 1) {
         inline for (comptime getSubcommandsWithNameLength(len)) |desc| {
             if (std.mem.eql(u8, desc.name, basename)) return desc.execute(context);
         }
     }
-    return null;
+    return error.NoSubcommand;
 }
 
 pub const Subcommand = struct {
     name: []const u8,
     usage: []const u8,
-    execute: fn (Context) u8,
+    execute: fn (*Context) Error!u8,
+
+    pub const Error = error{
+        OutOfMemory,
+        InvalidCmdLine,
+    };
 };
 
 fn getSubcommandsWithNameLength(comptime len: comptime_int) [numberOfSubcommandsWithNameLength(len)]Subcommand {

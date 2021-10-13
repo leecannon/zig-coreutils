@@ -1,5 +1,4 @@
 const std = @import("std");
-const subcommands = @import("src/subcommands.zig");
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
@@ -7,8 +6,12 @@ pub fn build(b: *std.build.Builder) void {
 
     const main_exe = b.addExecutable("zig-coreutils", "src/main.zig");
     main_exe.single_threaded = true;
-    main_exe.link_function_sections = true;
-    main_exe.want_lto = true;
+
+    if (mode != .Debug) {
+        main_exe.link_function_sections = true;
+        main_exe.want_lto = true;
+    }
+
     main_exe.setTarget(target);
     main_exe.setBuildMode(mode);
     main_exe.install();
@@ -17,19 +20,4 @@ pub fn build(b: *std.build.Builder) void {
     const run_test_step = b.step("test", "Run the tests");
     run_test_step.dependOn(&test_step.step);
     b.default_step = run_test_step;
-
-    inline for (subcommands.SUBCOMMANDS) |subcommand| {
-        const exe = b.addExecutable(subcommand.name, "src/main.zig");
-        exe.setTarget(target);
-        exe.setBuildMode(mode);
-
-        const run_cmd = exe.run();
-        //run_cmd.step.dependOn(b.getInstallStep());
-        if (b.args) |args| {
-            run_cmd.addArgs(args);
-        }
-
-        const run_step = b.step("run_" ++ subcommand.name, "Run " ++ subcommand.name);
-        run_step.dependOn(&run_cmd.step);
-    }
 }
