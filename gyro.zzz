@@ -1,0 +1,8 @@
+deps:
+  args:
+    src:
+      github:
+        user: MasterQ32
+        repo: zig-args
+        ref: master
+    root: args.zig
