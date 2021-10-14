@@ -1,5 +1,4 @@
 const std = @import("std");
-const Context = @import("Context.zig");
 const args = @import("args");
 
 pub const SUBCOMMANDS = [_]type{
@@ -7,23 +6,95 @@ pub const SUBCOMMANDS = [_]type{
     @import("subcommands/true.zig"),
 };
 
-pub fn executeSubcommand(context: *Context, basename: []const u8, arg_iter: *std.process.ArgIterator) !u8 {
+pub const ExecuteError = error{
+    NoSubcommand,
+    FailedToParseArguments,
+    HelpOrVersion,
+} || Error;
+
+pub const Error = error{
+    OutOfMemory,
+};
+
+pub fn executeSubcommand(context: anytype) ExecuteError!u8 {
     inline for (SUBCOMMANDS) |subcommand| {
-        if (std.mem.eql(u8, subcommand.name, basename)) return execute(subcommand, context, arg_iter);
+        if (std.mem.eql(u8, subcommand.name, context.basename)) return try execute(subcommand, context);
     }
 
     return error.NoSubcommand;
 }
 
-fn execute(comptime subcommand: type, context: *Context, arg_iter: *std.process.ArgIterator) !u8 {
+fn execute(comptime subcommand: type, context: anytype) !u8 {
     var errors = args.ErrorCollection.init(context.allocator);
     defer errors.deinit();
-
-    const options = args.parse(subcommand.options_def, arg_iter, context.allocator, .{ .collect = &errors }) catch |err| {
-        if (err == error.InvalidArguments) {
+    return internalExecute(
+        subcommand,
+        context.arg_iter,
+        context.exe_path,
+        .{
+            .allocator = context.allocator,
+            .std_err = context.std_err,
+            .std_in = context.std_in,
+            .std_out = context.std_out,
+        },
+        .{ .collect = &errors },
+    ) catch |err| switch (err) {
+        error.InvalidArguments => {
             // TODO: print error and usage
             // std.log.info("{any}", .{errors.errors()});
-            return @as(u8, 1);
+            return 1;
+        },
+        else => |narrow_err| return narrow_err,
+    };
+}
+
+pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, comptime settings: anytype) ExecuteError!u8 {
+    const SettingsType = @TypeOf(settings);
+    const std_in = if (@hasField(SettingsType, "std_in")) settings.std_in else VoidReader.reader();
+    const std_out = if (@hasField(SettingsType, "std_out")) settings.std_out else VoidWriter.writer();
+    const std_err = if (@hasField(SettingsType, "std_err")) settings.std_err else VoidWriter.writer();
+
+    var std_in_buffered = std.io.bufferedReader(std_in);
+    var std_out_buffered = std.io.bufferedWriter(std_out);
+
+    var arg_iter = SliceArgIterator{ .slice = arguments };
+
+    const result = internalExecute(
+        subcommand,
+        &arg_iter,
+        subcommand.name,
+        .{
+            .allocator = std.testing.allocator,
+            .std_err = std_err,
+            .std_in = std_in_buffered.reader(),
+            .std_out = std_out_buffered.writer(),
+        },
+        .silent,
+    ) catch |err| switch (err) {
+        error.InvalidArguments => unreachable, // this error type is only returned when using collect error handling
+        error.HelpOrVersion => {
+            // We are expected to flush stdout on `error.HelpOrVersion`
+            std_out_buffered.flush() catch {};
+            return error.HelpOrVersion;
+        },
+        else => |narrow_err| return narrow_err,
+    };
+    std_out_buffered.flush() catch {};
+    return result;
+}
+
+fn internalExecute(
+    comptime subcommand: type,
+    arg_iter: anytype,
+    exe_path: []const u8,
+    context: anytype,
+    error_handling: args.ErrorHandling,
+) !u8 {
+    const options = args.parse(subcommand.options_def, arg_iter, context.allocator, error_handling) catch |err| {
+        if (err == error.InvalidArguments and error_handling == .collect) {
+            // In the case of collect error handling, pass `error.InvalidArguments` up to notify the caller
+            // that there were errors collected
+            return error.InvalidArguments;
         }
 
         return error.FailedToParseArguments;
@@ -31,19 +102,65 @@ fn execute(comptime subcommand: type, context: *Context, arg_iter: *std.process.
     defer options.deinit();
 
     if (options.options.help) {
-        context.out().print(subcommand.usage, .{context.exe_path}) catch {};
+        context.std_out.print(subcommand.usage, .{exe_path}) catch {};
         return error.HelpOrVersion;
     }
     if (options.options.version) {
-        context.printVersion(subcommand.name);
+        context.std_out.print(
+            \\{s} (zig-coreutils) 0.0.1
+            \\MIT License Copyright (c) 2021 Lee Cannon
+            \\
+        , .{subcommand.name}) catch {};
         return error.HelpOrVersion;
     }
 
-    return subcommand.execute(context, options);
+    return try subcommand.execute(context, options);
 }
 
-pub const Error = error{
-    OutOfMemory,
+const SliceArgIterator = struct {
+    slice: []const []const u8,
+    index: usize = 0,
+
+    pub fn next(self: *SliceArgIterator, allocator: *std.mem.Allocator) ?(std.process.ArgIterator.NextError![:0]u8) {
+        if (self.index < self.slice.len) {
+            const ret = allocator.dupeZ(u8, self.slice[self.index]);
+            self.index += 1;
+            return ret;
+        }
+        return null;
+    }
+
+    pub fn skip(self: *SliceArgIterator) bool {
+        if (self.index < self.slice.len) {
+            self.index += 1;
+            return true;
+        }
+        return false;
+    }
+};
+
+const VoidReader = struct {
+    pub const Reader = std.io.Reader(void, error{}, read);
+    pub fn reader() Reader {
+        return .{ .context = {} };
+    }
+
+    fn read(_: void, buffer: []u8) error{}!usize {
+        _ = buffer;
+        return 0;
+    }
+};
+
+const VoidWriter = struct {
+    pub const Writer = std.io.Writer(void, error{}, write);
+    pub fn writer() Writer {
+        return .{ .context = {} };
+    }
+
+    fn write(_: void, bytes: []const u8) error{}!usize {
+        _ = bytes;
+        return bytes.len;
+    }
 };
 
 comptime {

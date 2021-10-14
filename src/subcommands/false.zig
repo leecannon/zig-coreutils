@@ -1,5 +1,4 @@
 const std = @import("std");
-const Context = @import("../Context.zig");
 const subcommands = @import("../subcommands.zig");
 
 pub const name = "false";
@@ -23,7 +22,21 @@ pub const options_def = struct {
     };
 };
 
-pub fn execute(context: *Context, options: anytype) subcommands.Error!u8 {
+// context
+// .{
+//     .allocator
+//     .std_err,
+//     .std_in,
+//     .std_out,
+// },
+
+// options
+// .{
+//     .options,
+//     .positionals,
+// },
+
+pub fn execute(context: anytype, options: anytype) subcommands.Error!u8 {
     _ = context;
     _ = options;
 
