@@ -1,10 +1,10 @@
 const std = @import("std");
 const Context = @import("../Context.zig");
-const Subcommand = @import("../subcommands.zig").Subcommand;
+const subcommands = @import("../subcommands.zig");
 
-pub const subcommand = Subcommand{
-    .name = "true",
-    .usage = 
+pub const name = "true";
+
+pub const usage =
     \\Usage: {0s} [ignored command line arguments]
     \\   or: {0s} OPTION
     \\Exit with a status code indicating success.
@@ -12,12 +12,10 @@ pub const subcommand = Subcommand{
     \\     --help     display this help and exit
     \\     --version  output version information and exit
     \\
-    ,
-    .execute = execute,
-};
+;
 
-pub fn execute(context: *Context) Subcommand.Error!u8 {
-    _ = try context.checkForHelpOrVersion(subcommand);
+pub fn execute(context: *Context) subcommands.Error!u8 {
+    _ = try context.checkForHelpOrVersion(@This());
 
     return 0;
 }

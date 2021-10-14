@@ -11,7 +11,7 @@ const main_return_value = if (is_debug_or_test)
         Overflow,
         InvalidCmdLine,
     } ||
-        subcommands.Subcommand.Error)!u8
+        subcommands.Error)!u8
 else
     u8;
 
@@ -29,21 +29,24 @@ pub fn main() main_return_value {
         return 1;
     };
 
-    var context = Context.init(
-        &arena.allocator,
-        args[1..],
-        args[0],
-        std.io.getStdErr(),
-        std.io.getStdIn(),
-        std.io.getStdOut(),
-    );
+    var context = Context{
+        .allocator = &arena.allocator,
+        .args = args[1..],
+        .exe_path = args[0],
+        .err = std.io.getStdErr().writer(),
+        .std_in_buffered = Context.BufferedReader{ .unbuffered_reader = std.io.getStdIn().reader() },
+        .std_out_buffered = Context.BufferedWriter{ .unbuffered_writer = std.io.getStdOut().writer() },
+    };
 
     const basename = std.fs.path.basename(context.exe_path);
     const result = subcommands.executeSubcommand(&context, basename) catch |err| {
         switch (err) {
             error.NoSubcommand => std.io.getStdErr().writer().print("ERROR: {s} subcommand not found\n", .{basename}) catch {},
             error.OutOfMemory => std.io.getStdErr().writeAll("ERROR: out of memory\n") catch {},
-            error.HelpOrVersion => return 0,
+            error.HelpOrVersion => {
+                context.flushStdOut();
+                return 0;
+            },
         }
 
         if (is_debug_or_test) return err;
