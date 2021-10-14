@@ -23,7 +23,6 @@ pub const Subcommand = struct {
 
     pub const Error = error{
         OutOfMemory,
-        InvalidCmdLine,
         HelpOrVersion,
     };
 };
