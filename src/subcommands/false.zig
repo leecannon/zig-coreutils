@@ -9,8 +9,8 @@ pub const usage =
     \\   or: {0s} OPTION
     \\Exit with a status code indicating failure.
     \\
-    \\     --help     display this help and exit
-    \\     --version  output version information and exit
+    \\     -h, --help  display this help and exit
+    \\     --version   output version information and exit
     \\
 ;
 
