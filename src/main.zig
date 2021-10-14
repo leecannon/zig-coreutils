@@ -6,11 +6,7 @@ const is_windows = builtin.os.tag == .windows;
 
 const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 const main_return_value = if (is_debug_or_test)
-    (error{
-        NoSubcommand,
-        FailedToParseArguments,
-    } ||
-        subcommands.Error)!u8
+    (error{NoSubcommand} || subcommands.Error)!u8
 else
     u8;
 
@@ -43,19 +39,24 @@ pub fn main() main_return_value {
     };
 
     const basename = std.fs.path.basename(exe_path);
-    const result = subcommands.executeSubcommand(&context, basename, &arg_iter) catch |err| {
-        switch (err) {
-            error.NoSubcommand => std.io.getStdErr().writer().print("ERROR: {s} subcommand not found\n", .{basename}) catch {},
-            error.OutOfMemory => std.io.getStdErr().writeAll("ERROR: out of memory\n") catch {},
-            error.HelpOrVersion => {
-                context.flushStdOut();
-                return 0;
-            },
-            error.FailedToParseArguments => {},
-        }
+    const result = subcommands.executeSubcommand(&context, basename, &arg_iter) catch |err| switch (err) {
+        error.HelpOrVersion => {
+            context.flushStdOut();
+            return 0;
+        },
+        error.FailedToParseArguments => {
+            // this error is emitted in the argument parsing code
+            return 1;
+        },
+        else => |narrow_err| {
+            switch (narrow_err) {
+                error.NoSubcommand => std.io.getStdErr().writer().print("ERROR: {s} subcommand not found\n", .{basename}) catch {},
+                error.OutOfMemory => std.io.getStdErr().writeAll("ERROR: out of memory\n") catch {},
+            }
 
-        if (is_debug_or_test) return err;
-        return 1;
+            if (is_debug_or_test) return narrow_err;
+            return 1;
+        },
     };
 
     // Only flush stdout if the command completed successfully

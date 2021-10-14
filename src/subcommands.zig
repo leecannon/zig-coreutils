@@ -28,12 +28,20 @@ fn execute(comptime subcommand: type, context: *Context, arg_iter: *std.process.
         return error.FailedToParseArguments;
     };
 
+    if (options.options.help) {
+        context.out().print(subcommand.usage, .{context.exe_path}) catch {};
+        return error.HelpOrVersion;
+    }
+    if (options.options.version) {
+        context.printVersion(subcommand.name);
+        return error.HelpOrVersion;
+    }
+
     return subcommand.execute(context, options);
 }
 
 pub const Error = error{
     OutOfMemory,
-    HelpOrVersion,
 };
 
 comptime {

@@ -24,14 +24,8 @@ pub const options_def = struct {
 };
 
 pub fn execute(context: *Context, options: anytype) subcommands.Error!u8 {
-    if (options.options.help) {
-        context.out().print(usage, .{context.exe_path}) catch {};
-        return error.HelpOrVersion;
-    }
-    if (options.options.version) {
-        context.printVersion(name);
-        return error.HelpOrVersion;
-    }
+    _ = context;
+    _ = options;
 
     return 1;
 }
