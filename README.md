@@ -1,5 +1,7 @@
 # zig-coreutils
 
+[![CI](https://github.com/leecannon/zig-coreutils/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/leecannon/zig-coreutils/actions/workflows/main.yml)
+
 ## Subcommands
 
 |   Name   | Not Started |   WIP   | Mostly Done | Done |
