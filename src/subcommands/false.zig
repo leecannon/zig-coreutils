@@ -14,8 +14,24 @@ pub const usage =
     \\
 ;
 
-pub fn execute(context: *Context) subcommands.Error!u8 {
-    _ = try context.checkForHelpOrVersion(@This());
+pub const options_def = struct {
+    help: bool = false,
+    version: bool = false,
+
+    pub const shorthands = .{
+        .h = "help",
+    };
+};
+
+pub fn execute(context: *Context, options: anytype) subcommands.Error!u8 {
+    if (options.options.help) {
+        context.out().print(usage, .{context.exe_path}) catch {};
+        return error.HelpOrVersion;
+    }
+    if (options.options.version) {
+        context.printVersion(name);
+        return error.HelpOrVersion;
+    }
 
     return 1;
 }
