@@ -10,20 +10,19 @@ const main_return_value = if (is_debug_or_test)
 else
     u8;
 
+var allocator_backing = if (is_debug_or_test)
+    std.heap.GeneralPurposeAllocator(.{}){}
+else
+    std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
 pub fn main() main_return_value {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    const allocator = &arena.allocator;
+    defer {
+        if (is_debug_or_test) {
+            _ = allocator_backing.deinit();
+        }
+    }
 
-    // const args = std.process.argsAlloc(&arena.allocator) catch |err| {
-    //     switch (err) {
-    //         error.Overflow => unreachable,
-    //         error.OutOfMemory => std.io.getStdErr().writeAll("ERROR: out of memory\n") catch {},
-    //         error.InvalidCmdLine => std.io.getStdErr().writeAll("ERROR: invalid command line encoding\n") catch {},
-    //     }
-
-    //     if (is_debug_or_test) return err;
-    //     return 1;
-    // };
+    const allocator = &allocator_backing.allocator;
 
     var arg_iter = std.process.args();
 

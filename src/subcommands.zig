@@ -17,6 +17,7 @@ pub fn executeSubcommand(context: *Context, basename: []const u8, arg_iter: *std
 
 fn execute(comptime subcommand: type, context: *Context, arg_iter: *std.process.ArgIterator) !u8 {
     var errors = args.ErrorCollection.init(context.allocator);
+    defer errors.deinit();
 
     const options = args.parse(subcommand.options_def, arg_iter, context.allocator, .{ .collect = &errors }) catch |err| {
         if (err == error.InvalidArguments) {
@@ -27,6 +28,7 @@ fn execute(comptime subcommand: type, context: *Context, arg_iter: *std.process.
 
         return error.FailedToParseArguments;
     };
+    defer options.deinit();
 
     if (options.options.help) {
         context.out().print(subcommand.usage, .{context.exe_path}) catch {};
