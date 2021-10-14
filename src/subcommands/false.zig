@@ -43,6 +43,17 @@ pub fn execute(context: anytype, options: anytype) subcommands.Error!u8 {
     return 1;
 }
 
+test "no args" {
+    try std.testing.expectEqual(
+        @as(u8, 1),
+        try subcommands.testExecute(
+            @This(),
+            &.{},
+            .{},
+        ),
+    );
+}
+
 comptime {
     std.testing.refAllDecls(@This());
 }
