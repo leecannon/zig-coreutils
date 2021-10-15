@@ -54,33 +54,23 @@ pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, com
     const std_out = if (@hasField(SettingsType, "std_out")) settings.std_out else VoidWriter.writer();
     const std_err = if (@hasField(SettingsType, "std_err")) settings.std_err else VoidWriter.writer();
 
-    var std_in_buffered = std.io.bufferedReader(std_in);
-    var std_out_buffered = std.io.bufferedWriter(std_out);
-
     var arg_iter = SliceArgIterator{ .slice = arguments };
 
-    const result = internalExecute(
+    return internalExecute(
         subcommand,
         &arg_iter,
         subcommand.name,
         .{
             .allocator = std.testing.allocator,
             .std_err = std_err,
-            .std_in = std_in_buffered.reader(),
-            .std_out = std_out_buffered.writer(),
+            .std_in = std_in,
+            .std_out = std_out,
         },
         .silent,
     ) catch |err| switch (err) {
         error.InvalidArguments => unreachable, // this error type is only returned when using collect error handling
-        error.HelpOrVersion => {
-            // We are expected to flush stdout on `error.HelpOrVersion`
-            std_out_buffered.flush() catch {};
-            return error.HelpOrVersion;
-        },
         else => |narrow_err| return narrow_err,
     };
-    std_out_buffered.flush() catch {};
-    return result;
 }
 
 fn internalExecute(
