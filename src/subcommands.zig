@@ -1,7 +1,9 @@
 const std = @import("std");
 const args = @import("args");
 
-const SUBCOMMANDS = [_]type{
+const log = std.log.scoped(.subcommand);
+
+pub const SUBCOMMANDS = [_]type{
     @import("subcommands/false.zig"),
     @import("subcommands/true.zig"),
 };

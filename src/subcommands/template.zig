@@ -2,6 +2,8 @@ const std = @import("std");
 const subcommands = @import("../subcommands.zig");
 const utils = @import("../utils.zig");
 
+const log = std.log.scoped(.template);
+
 pub const name = "template";
 
 pub const usage =
@@ -29,7 +31,9 @@ pub fn execute(
     positionals: [][:0]const u8,
 ) subcommands.Error!u8 {
     _ = allocator;
-    _ = positionals;
+
+    log.debug("called with options: {}", .{options});
+    log.debug("called with positionals: {s}", .{positionals});
 
     if (options.help) return utils.printHelp(@This(), io, exe_name);
     if (options.version) return utils.printVersion(@This(), io);

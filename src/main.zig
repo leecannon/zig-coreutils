@@ -14,6 +14,8 @@ var allocator_backing = if (is_debug_or_test)
 else
     std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
+const log = std.log.scoped(.main);
+
 pub fn main() main_return_value {
     defer {
         if (is_debug_or_test) {
@@ -28,6 +30,7 @@ pub fn main() main_return_value {
     const exe_path = (arg_iter.next(allocator) orelse unreachable) catch unreachable;
     defer allocator.free(exe_path);
     const basename = std.fs.path.basename(exe_path);
+    log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
@@ -55,7 +58,10 @@ pub fn main() main_return_value {
 
     // Only flush stdout if the command completed successfully
     // If we flush stdout after printing an error then the error message will not be the last thing printed
-    if (result == 0) std_out_buffered.flush() catch {};
+    if (result == 0) {
+        log.debug("flushing stdout buffer on successful execution", .{});
+        std_out_buffered.flush() catch |err| std.debug.panic("failed to flush stdout: {s}", .{@errorName(err)});
+    }
     return result;
 }
 
