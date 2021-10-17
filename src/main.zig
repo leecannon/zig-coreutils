@@ -27,30 +27,26 @@ pub fn main() main_return_value {
 
     const exe_path = (arg_iter.next(allocator) orelse unreachable) catch unreachable;
     defer allocator.free(exe_path);
+    const basename = std.fs.path.basename(exe_path);
 
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
 
-    const basename = std.fs.path.basename(exe_path);
     const result = subcommands.executeSubcommand(
+        allocator,
+        &arg_iter,
         .{
-            .allocator = allocator,
-            .exe_path = exe_path,
-            .basename = basename,
-            .arg_iter = &arg_iter,
-            .std_err = std.io.getStdErr().writer(),
-            .std_in = std_in_buffered.reader(),
-            .std_out = std_out_buffered.writer(),
+            .stderr = std.io.getStdErr().writer(),
+            .stdin = std_in_buffered.reader(),
+            .stdout = std_out_buffered.writer(),
         },
+        basename,
+        exe_path,
     ) catch |err| {
         switch (err) {
             error.NoSubcommand => std.io.getStdErr().writer().print("ERROR: {s} subcommand not found\n", .{basename}) catch {},
             error.OutOfMemory => std.io.getStdErr().writeAll("ERROR: out of memory\n") catch {},
             error.FailedToParseArguments => std.io.getStdErr().writeAll("ERROR: unexpected error while parsing arguments\n") catch {},
-            error.HelpOrVersion => {
-                std_out_buffered.flush() catch {};
-                return 0;
-            },
         }
 
         if (is_debug_or_test) return err;

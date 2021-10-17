@@ -1,7 +1,7 @@
 const std = @import("std");
 const args = @import("args");
 
-pub const SUBCOMMANDS = [_]type{
+const SUBCOMMANDS = [_]type{
     @import("subcommands/false.zig"),
     @import("subcommands/true.zig"),
 };
@@ -9,34 +9,47 @@ pub const SUBCOMMANDS = [_]type{
 pub const ExecuteError = error{
     NoSubcommand,
     FailedToParseArguments,
-    HelpOrVersion,
 } || Error;
 
 pub const Error = error{
     OutOfMemory,
 };
 
-pub fn executeSubcommand(context: anytype) ExecuteError!u8 {
+pub fn executeSubcommand(
+    allocator: *std.mem.Allocator,
+    arg_iter: anytype,
+    io: anytype,
+    basename: []const u8,
+    exe_path: []const u8,
+) ExecuteError!u8 {
     inline for (SUBCOMMANDS) |subcommand| {
-        if (std.mem.eql(u8, subcommand.name, context.basename)) return try execute(subcommand, context);
+        if (std.mem.eql(u8, subcommand.name, basename)) return try execute(
+            subcommand,
+            allocator,
+            arg_iter,
+            io,
+            exe_path,
+        );
     }
 
     return error.NoSubcommand;
 }
 
-fn execute(comptime subcommand: type, context: anytype) !u8 {
-    var errors = args.ErrorCollection.init(context.allocator);
+fn execute(
+    comptime subcommand: type,
+    allocator: *std.mem.Allocator,
+    arg_iter: anytype,
+    io: anytype,
+    exe_path: []const u8,
+) !u8 {
+    var errors = args.ErrorCollection.init(allocator);
     defer errors.deinit();
     return internalExecute(
         subcommand,
-        context.arg_iter,
-        context.exe_path,
-        .{
-            .allocator = context.allocator,
-            .std_err = context.std_err,
-            .std_in = context.std_in,
-            .std_out = context.std_out,
-        },
+        allocator,
+        arg_iter,
+        io,
+        exe_path,
         .{ .collect = &errors },
     ) catch |err| switch (err) {
         error.InvalidArguments => {
@@ -50,22 +63,22 @@ fn execute(comptime subcommand: type, context: anytype) !u8 {
 
 pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, comptime settings: anytype) ExecuteError!u8 {
     const SettingsType = @TypeOf(settings);
-    const std_in = if (@hasField(SettingsType, "std_in")) settings.std_in else VoidReader.reader();
-    const std_out = if (@hasField(SettingsType, "std_out")) settings.std_out else VoidWriter.writer();
-    const std_err = if (@hasField(SettingsType, "std_err")) settings.std_err else VoidWriter.writer();
+    const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
+    const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
+    const stderr = if (@hasField(SettingsType, "stderr")) settings.stderr else VoidWriter.writer();
 
     var arg_iter = SliceArgIterator{ .slice = arguments };
 
     return internalExecute(
         subcommand,
+        std.testing.allocator,
         &arg_iter,
-        subcommand.name,
         .{
-            .allocator = std.testing.allocator,
-            .std_err = std_err,
-            .std_in = std_in,
-            .std_out = std_out,
+            .stderr = stderr,
+            .stdin = stdin,
+            .stdout = stdout,
         },
+        subcommand.name,
         .silent,
     ) catch |err| switch (err) {
         error.InvalidArguments => unreachable, // this error type is only returned when using collect error handling
@@ -75,12 +88,13 @@ pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, com
 
 fn internalExecute(
     comptime subcommand: type,
+    allocator: *std.mem.Allocator,
     arg_iter: anytype,
+    io: anytype,
     exe_path: []const u8,
-    context: anytype,
     error_handling: args.ErrorHandling,
 ) !u8 {
-    const options = args.parse(subcommand.options_def, arg_iter, context.allocator, error_handling) catch |err| {
+    const options = args.parse(subcommand.OptionsDefinition, arg_iter, allocator, error_handling) catch |err| {
         if (err == error.InvalidArguments and error_handling == .collect) {
             // In the case of collect error handling, pass `error.InvalidArguments` up to notify the caller
             // that there were errors collected
@@ -91,20 +105,7 @@ fn internalExecute(
     };
     defer options.deinit();
 
-    if (options.options.help) {
-        context.std_out.print(subcommand.usage, .{exe_path}) catch {};
-        return error.HelpOrVersion;
-    }
-    if (options.options.version) {
-        context.std_out.print(
-            \\{s} (zig-coreutils) 0.0.1
-            \\MIT License Copyright (c) 2021 Lee Cannon
-            \\
-        , .{subcommand.name}) catch {};
-        return error.HelpOrVersion;
-    }
-
-    return try subcommand.execute(context, options);
+    return try subcommand.execute(allocator, io, exe_path, options.options, options.positionals);
 }
 
 const SliceArgIterator = struct {

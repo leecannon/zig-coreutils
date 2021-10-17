@@ -1,5 +1,6 @@
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
+const utils = @import("../utils.zig");
 
 pub const name = "template";
 
@@ -13,32 +14,25 @@ pub const usage =
     \\
 ;
 
-pub const options_def = struct {
-    help: bool = false,
-    version: bool = false,
-
-    pub const shorthands = .{
-        .h = "help",
-    };
-};
-
-// context
+// io
 // .{
-//     .allocator
-//     .std_err,
-//     .std_in,
-//     .std_out,
+//     .stderr: std.io.Writer,
+//     .stdin: std.io.Reader,
+//     .stdout: std.io.Writer,
 // },
 
-// options
-// .{
-//     .options,
-//     .positionals,
-// },
+pub fn execute(
+    allocator: *std.mem.Allocator,
+    io: anytype,
+    exe_name: []const u8,
+    options: OptionsDefinition,
+    positionals: [][:0]const u8,
+) subcommands.Error!u8 {
+    _ = allocator;
+    _ = positionals;
 
-pub fn execute(context: anytype, options: anytype) subcommands.Error!u8 {
-    _ = context;
-    _ = options;
+    if (options.help) return utils.printHelp(@This(), io, exe_name);
+    if (options.version) return utils.printVersion(@This(), io);
 
     return 0;
 }
