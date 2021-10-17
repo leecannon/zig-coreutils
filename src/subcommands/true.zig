@@ -50,7 +50,7 @@ pub fn execute(
     return 0;
 }
 
-test "no args" {
+test "true no args" {
     try std.testing.expectEqual(
         @as(u8, 0),
         try subcommands.testExecute(
@@ -59,6 +59,14 @@ test "no args" {
             .{},
         ),
     );
+}
+
+test "true help" {
+    try utils.testHelp(@This());
+}
+
+test "true version" {
+    try utils.testVersion(@This());
 }
 
 comptime {
