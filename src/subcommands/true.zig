@@ -1,6 +1,6 @@
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
-const utils = @import("../utils.zig");
+const shared = @import("../shared.zig");
 
 const log = std.log.scoped(.@"true");
 
@@ -44,8 +44,8 @@ pub fn execute(
     log.debug("called with options: {}", .{options});
     log.debug("called with positionals: {s}", .{positionals});
 
-    if (options.help) return utils.printHelp(@This(), io, exe_name);
-    if (options.version) return utils.printVersion(@This(), io);
+    if (options.help) return shared.printHelp(@This(), io, exe_name);
+    if (options.version) return shared.printVersion(@This(), io);
 
     return 0;
 }
@@ -62,11 +62,11 @@ test "true no args" {
 }
 
 test "true help" {
-    try utils.testHelp(@This());
+    try shared.testHelp(@This());
 }
 
 test "true version" {
-    try utils.testVersion(@This());
+    try shared.testVersion(@This());
 }
 
 comptime {

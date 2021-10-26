@@ -1,7 +1,7 @@
 const std = @import("std");
 const subcommands = @import("subcommands.zig");
 
-const log = std.log.scoped(.utils);
+const log = std.log.scoped(.shared);
 
 pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u8 {
     log.debug("printing help for " ++ subcommand.name, .{});
