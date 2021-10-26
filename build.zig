@@ -2,7 +2,7 @@ const std = @import("std");
 const deps = @import("deps.zig");
 const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
 
-const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 1 };
+const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 2 };
 
 pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
