@@ -84,7 +84,6 @@ pub const ArgIterator = struct {
         if (self.index >= self.input.len) return null;
 
         const current_arg = self.input[self.index];
-        log.debug("current argument: {s}", .{current_arg});
 
         if (self.sub_index) |sub_index| {
             const char = current_arg[sub_index];
@@ -94,9 +93,9 @@ pub const ArgIterator = struct {
             if (self.sub_index == current_arg.len) {
                 self.sub_index = null;
                 self.index += 1;
-                log.debug("shorthand sub-index {} is {c} - last shorthand in this group", .{ sub_index, char });
+                log.debug("\"{s}\" - shorthand sub-index {} is '{c}' - last shorthand in this group", .{ current_arg, sub_index, char });
             } else {
-                log.debug("shorthand sub-index {} is {c}", .{ sub_index, char });
+                log.debug("\"{s}\" - shorthand sub-index {} is '{c}'", .{ current_arg, sub_index, char });
             }
 
             return Arg{ .shorthand = char };
@@ -104,18 +103,19 @@ pub const ArgIterator = struct {
 
         // the length checks in the below ifs allow '-' and '--' to fall through as positional arguments
         if (current_arg.len > 1 and current_arg[0] == '-') {
-
-            // using an else block for the below if allows '--' to fall through as a positional argument
             if (current_arg.len > 2 and current_arg[1] == '-') {
                 // longhand argument e.g. '--help'
 
                 const longhand = current_arg[2..];
 
-                log.debug("longhand argument: {s}", .{longhand});
+                log.debug("longhand argument \"{s}\"", .{longhand});
 
                 self.index += 1;
                 return Arg{ .longhand = longhand };
-            } else {
+            }
+
+            // this check allows '--' to fall through as a positional argument
+            if (current_arg[1] != '-') {
                 // one or more shorthand aruments e.g. '-h' or '-abc'
                 const char = current_arg[1];
 
@@ -123,17 +123,17 @@ pub const ArgIterator = struct {
                 // if there are not move to the next argument
                 if (current_arg.len > 2) {
                     self.sub_index = 2;
-                    log.debug("shorthand sub-index: 1 is {c} - first shorthand in this group", .{char});
+                    log.debug("\"{s}\" - shorthand sub-index 1 is '{c}' - first shorthand in this group", .{ current_arg, char });
                 } else {
                     self.index += 1;
-                    log.debug("shorthand is {c} - only shorthand in this group", .{char});
+                    log.debug("\"{s}\" - shorthand is '{c}' - only shorthand in this group", .{ current_arg, char });
                 }
 
                 return Arg{ .shorthand = char };
             }
         }
 
-        log.debug("positional index: {} is {s}", .{ self.index, current_arg });
+        log.debug("positional \"{s}\"", .{current_arg});
         self.index += 1;
         return Arg{ .positional = current_arg };
     }
