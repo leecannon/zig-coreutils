@@ -1,5 +1,4 @@
 const std = @import("std");
-const deps = @import("deps.zig");
 const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
 
 const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 2 };
@@ -71,7 +70,6 @@ pub fn build(b: *std.build.Builder) !void {
     const main_exe = b.addExecutable("zig-coreutils", "src/main.zig");
     main_exe.single_threaded = true;
     main_exe.addOptions("options", options);
-    deps.pkgs.addAllTo(main_exe);
 
     if (mode != .Debug) {
         main_exe.link_function_sections = true;
@@ -84,9 +82,12 @@ pub fn build(b: *std.build.Builder) !void {
 
     const test_step = b.addTest("src/main.zig");
     test_step.addOptions("options", options);
-    deps.pkgs.addAllTo(test_step);
     const run_test_step = b.step("test", "Run the tests");
     run_test_step.dependOn(&test_step.step);
+
+    // as this is set as the default step also get it to trigger an install of the main exe
+    test_step.step.dependOn(b.getInstallStep());
+
     b.default_step = run_test_step;
 
     inline for (SUBCOMMANDS) |subcommand| {
@@ -94,7 +95,6 @@ pub fn build(b: *std.build.Builder) !void {
         run_subcommand.addOptions("options", options);
 
         run_subcommand.single_threaded = true;
-        deps.pkgs.addAllTo(run_subcommand);
         if (mode != .Debug) {
             run_subcommand.link_function_sections = true;
             run_subcommand.want_lto = true;

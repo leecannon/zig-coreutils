@@ -4,11 +4,9 @@ on:
   push:
     paths:
       - '**.zig'
-      - 'gyro.zzz'
   pull_request:
      paths:
       - '**.zig'
-      - 'gyro.zzz'
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
@@ -21,10 +19,9 @@ jobs:
       - uses: goto-bus-stop/setup-zig@v1.3.0
         with:
           version: master
-      - uses: mattnite/setup-gyro@v1.1.0
       
       - name: build
-        run: gyro build
+        run: zig build
   lint:
     runs-on: ubuntu-latest
     steps:

@@ -4,8 +4,14 @@ const builtin = @import("builtin");
 const is_windows = builtin.os.tag == .windows;
 
 const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
-const main_return_value = if (is_debug_or_test)
-    subcommands.ExecuteError!u8
+
+const MainErrorSet = error{
+    Overflow,
+    InvalidCmdLine,
+} || subcommands.ExecuteError;
+
+const MainReturnValue = if (is_debug_or_test)
+    MainErrorSet!u8
 else
     u8;
 
@@ -17,7 +23,7 @@ else
 
 const log = std.log.scoped(.main);
 
-pub fn main() main_return_value {
+pub fn main() MainReturnValue {
     defer {
         if (is_debug_or_test) {
             _ = gpa.deinit();
@@ -26,10 +32,14 @@ pub fn main() main_return_value {
 
     const allocator = &gpa.allocator;
 
-    var arg_iter = std.process.args();
+    const arguments = std.process.argsAlloc(allocator) catch |err| {
+        std.io.getStdErr().writer().print("ERROR: unable to access arguments: {s}\n", .{@errorName(err)}) catch {};
+        if (is_debug_or_test) return err;
+        return 1;
+    };
+    defer std.process.argsFree(allocator, arguments);
 
-    const exe_path = (arg_iter.next(allocator) orelse unreachable) catch unreachable;
-    defer allocator.free(exe_path);
+    const exe_path = arguments[0];
     const basename = std.fs.path.basename(exe_path);
     log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 
@@ -38,7 +48,7 @@ pub fn main() main_return_value {
 
     const result = subcommands.executeSubcommand(
         allocator,
-        &arg_iter,
+        arguments[1..],
         .{
             .stderr = std.io.getStdErr().writer(),
             .stdin = std_in_buffered.reader(),
@@ -50,7 +60,6 @@ pub fn main() main_return_value {
         switch (err) {
             error.NoSubcommand => std.io.getStdErr().writer().print("ERROR: {s} subcommand not found\n", .{basename}) catch {},
             error.OutOfMemory => std.io.getStdErr().writeAll("ERROR: out of memory\n") catch {},
-            error.FailedToParseArguments => std.io.getStdErr().writeAll("ERROR: unexpected error while parsing arguments\n") catch {},
         }
 
         if (is_debug_or_test) return err;

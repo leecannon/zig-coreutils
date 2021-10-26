@@ -16,6 +16,38 @@ pub const usage =
     \\
 ;
 
+pub const Options = struct {};
+
+pub fn parseOptions(
+    io: anytype,
+    options: *Options,
+    args: *shared.ArgIterator,
+    exe_name: []const u8,
+) ?u8 {
+    _ = options;
+
+    while (args.next()) |arg| {
+        switch (arg) {
+            .longhand => |longhand| {
+                if (std.mem.eql(u8, longhand, "help")) {
+                    return shared.printHelp(@This(), io, exe_name);
+                }
+                if (std.mem.eql(u8, longhand, "version")) {
+                    return shared.printVersion(@This(), io);
+                }
+            },
+            .shorthand => |shorthand| {
+                if (shorthand == 'h') {
+                    return shared.printHelp(@This(), io, exe_name);
+                }
+            },
+            .positional => {},
+        }
+    }
+
+    return null;
+}
+
 // io
 // .{
 //     .stderr: std.io.Writer,
@@ -26,17 +58,12 @@ pub const usage =
 pub fn execute(
     allocator: *std.mem.Allocator,
     io: anytype,
-    exe_name: []const u8,
-    options: OptionsDefinition,
-    positionals: [][:0]const u8,
+    options: *Options,
 ) subcommands.Error!u8 {
     _ = allocator;
+    _ = io;
 
     log.debug("called with options: {}", .{options});
-    log.debug("called with positionals: {s}", .{positionals});
-
-    if (options.help) return shared.printHelp(@This(), io, exe_name);
-    if (options.version) return shared.printVersion(@This(), io);
 
     return 0;
 }
