@@ -1,5 +1,6 @@
 const std = @import("std");
 const subcommands = @import("subcommands.zig");
+const options = @import("options");
 
 const log = std.log.scoped(.shared);
 
@@ -15,11 +16,7 @@ pub fn printVersion(comptime subcommand: type, io: anytype) u8 {
     return 0;
 }
 
-const version_string =
-    \\{s} (zig-coreutils) 0.0.1
-    \\MIT License Copyright (c) 2021 Lee Cannon
-    \\
-;
+const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2021 Lee Cannon\n";
 
 pub fn testHelp(comptime subcommand: type) !void {
     const expected = try std.fmt.allocPrint(std.testing.allocator, subcommand.usage, .{subcommand.name});
