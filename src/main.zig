@@ -9,21 +9,22 @@ const main_return_value = if (is_debug_or_test)
 else
     u8;
 
-var allocator_backing = if (is_debug_or_test)
+var allocator_backing = if (!is_debug_or_test) std.heap.ArenaAllocator.init(std.heap.page_allocator) else {};
+var gpa = if (is_debug_or_test)
     std.heap.GeneralPurposeAllocator(.{}){}
 else
-    std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    std.heap.stackFallback(std.mem.page_size, &allocator_backing.allocator);
 
 const log = std.log.scoped(.main);
 
 pub fn main() main_return_value {
     defer {
         if (is_debug_or_test) {
-            _ = allocator_backing.deinit();
+            _ = gpa.deinit();
         }
     }
 
-    const allocator = &allocator_backing.allocator;
+    const allocator = &gpa.allocator;
 
     var arg_iter = std.process.args();
 
