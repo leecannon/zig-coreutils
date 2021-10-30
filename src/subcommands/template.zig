@@ -19,17 +19,24 @@ pub const usage =
 pub const Options = struct {};
 
 pub fn parseOptions(
+    allocator: *std.mem.Allocator,
     io: anytype,
     options: *Options,
-    args: *shared.ArgIterator,
+    args: anytype,
     exe_name: []const u8,
-) ?u8 {
+) !?u8 {
     _ = options;
 
     const z = shared.trace.begin(@src());
     defer z.end();
 
-    while (args.next()) |arg| {
+    var opt_arg: ?shared.Arg = try args.next(allocator);
+
+    // this mess is all because of windows
+    while (opt_arg) |arg| : ({
+        arg.deinit(allocator);
+        opt_arg = try args.next(allocator);
+    }) {
         switch (arg) {
             .longhand => |longhand| {
                 if (std.mem.eql(u8, longhand, "help")) {

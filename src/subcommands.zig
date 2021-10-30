@@ -1,5 +1,6 @@
 const std = @import("std");
 const shared = @import("shared.zig");
+const builtin = @import("builtin");
 
 const log = std.log.scoped(.subcommand);
 
@@ -14,11 +15,12 @@ pub const ExecuteError = error{
 
 pub const Error = error{
     OutOfMemory,
+    UnableToParseArguments,
 };
 
 pub fn executeSubcommand(
     allocator: *std.mem.Allocator,
-    arguments: []const []const u8,
+    arg_iter: *std.process.ArgIterator,
     io: anytype,
     basename: []const u8,
     exe_path: []const u8,
@@ -30,7 +32,7 @@ pub fn executeSubcommand(
         if (std.mem.eql(u8, subcommand.name, basename)) return execute(
             subcommand,
             allocator,
-            arguments,
+            arg_iter,
             io,
             exe_path,
         );
@@ -42,18 +44,18 @@ pub fn executeSubcommand(
 fn execute(
     comptime subcommand: type,
     allocator: *std.mem.Allocator,
-    arguments: []const []const u8,
+    arg_iter: anytype,
     io: anytype,
     exe_path: []const u8,
 ) Error!u8 {
     const z = shared.trace.begin(@src());
     defer z.end();
 
-    var arg_iterator = shared.ArgIterator.init(arguments);
+    var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
 
     var options: subcommand.Options = .{};
 
-    if (subcommand.parseOptions(io, &options, &arg_iterator, exe_path)) |return_code| {
+    if (try subcommand.parseOptions(allocator, io, &options, &arg_iterator, exe_path)) |return_code| {
         return return_code;
     }
 
@@ -69,10 +71,12 @@ pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, set
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
     const stderr = if (@hasField(SettingsType, "stderr")) settings.stderr else VoidWriter.writer();
 
+    var arg_iter = SliceArgIterator{ .slice = arguments };
+
     return execute(
         subcommand,
         std.testing.allocator,
-        arguments,
+        &arg_iter,
         .{
             .stderr = stderr,
             .stdin = stdin,
@@ -81,6 +85,23 @@ pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, set
         subcommand.name,
     );
 }
+
+const SliceArgIterator = struct {
+    slice: []const []const u8,
+    index: usize = 0,
+
+    pub inline fn next(self: *SliceArgIterator, allocator: *std.mem.Allocator) ?(std.process.ArgIterator.NextError![]const u8) {
+        return allocator.dupe(u8, self.nextPosix());
+    }
+
+    pub fn nextPosix(self: *SliceArgIterator) ?[]const u8 {
+        if (self.index < self.slice.len) {
+            defer self.index += 1;
+            return self.slice[self.index];
+        }
+        return null;
+    }
+};
 
 const VoidReader = struct {
     pub const Reader = std.io.Reader(void, error{}, read);

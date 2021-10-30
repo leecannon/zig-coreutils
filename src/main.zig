@@ -10,6 +10,7 @@ const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 const MainErrorSet = error{
     Overflow,
     InvalidCmdLine,
+    Unexpected,
 } || subcommands.ExecuteError;
 
 const MainReturnValue = if (is_debug_or_test)
@@ -43,7 +44,7 @@ pub fn main() MainReturnValue {
 
     const allocator = if (ENABLE_TRACY) &tracy_allocator.allocator else &gpa.allocator;
 
-    const argument_info = ArgumentInfo.fetch(allocator) catch |err| {
+    var argument_info = ArgumentInfo.fetch(allocator) catch |err| {
         if (is_debug_or_test) return err;
         return 1;
     };
@@ -54,7 +55,7 @@ pub fn main() MainReturnValue {
 
     const result = subcommands.executeSubcommand(
         allocator,
-        argument_info.arguments,
+        &argument_info.arg_iter,
         .{
             .stderr = std.io.getStdErr().writer(),
             .stdin = std_in_buffered.reader(),
@@ -66,6 +67,7 @@ pub fn main() MainReturnValue {
         switch (err) {
             error.NoSubcommand => std.io.getStdErr().writer().print("ERROR: {s} subcommand not found\n", .{argument_info.basename}) catch {},
             error.OutOfMemory => std.io.getStdErr().writeAll("ERROR: out of memory\n") catch {},
+            error.UnableToParseArguments => std.io.getStdErr().writeAll("ERROR: unable to parse arguments\n") catch {},
         }
 
         if (is_debug_or_test) return err;
@@ -83,39 +85,29 @@ pub fn main() MainReturnValue {
 
 const ArgumentInfo = struct {
     basename: []const u8,
-    exe_path: []const u8,
-    arguments: []const []const u8,
-
-    raw_args: []const [:0]u8,
+    exe_path: [:0]const u8,
+    arg_iter: std.process.ArgIterator,
 
     pub fn fetch(allocator: *std.mem.Allocator) !ArgumentInfo {
-        const z = shared.trace.begin(@src());
-        defer z.end();
+        var arg_iter = try std.process.argsWithAllocator(allocator);
 
-        const arg_z = shared.trace.beginNamed(@src(), "argsAlloc");
-        errdefer arg_z.end();
-
-        const arguments = std.process.argsAlloc(allocator) catch |err| {
-            std.io.getStdErr().writer().print("ERROR: unable to access arguments: {s}\n", .{@errorName(err)}) catch {};
-            return err;
-        };
-
-        arg_z.end();
-
-        const exe_path = arguments[0];
+        const exe_path = if (builtin.os.tag == .windows)
+            try (arg_iter.next(allocator) orelse @panic("no arguments"))
+        else
+            arg_iter.nextPosix() orelse @panic("no arguments");
         const basename = std.fs.path.basename(exe_path);
         log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 
         return ArgumentInfo{
             .basename = basename,
             .exe_path = exe_path,
-            .arguments = arguments[1..],
-            .raw_args = arguments,
+            .arg_iter = arg_iter,
         };
     }
 
-    pub fn deinit(self: ArgumentInfo, allocator: *std.mem.Allocator) void {
-        std.process.argsFree(allocator, self.raw_args);
+    pub fn deinit(self: *ArgumentInfo, allocator: *std.mem.Allocator) void {
+        if (builtin.os.tag == .windows) allocator.free(self.exe_path);
+        self.arg_iter.deinit();
     }
 };
 
