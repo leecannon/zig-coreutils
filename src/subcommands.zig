@@ -23,6 +23,9 @@ pub fn executeSubcommand(
     basename: []const u8,
     exe_path: []const u8,
 ) ExecuteError!u8 {
+    const z = shared.trace.begin(@src());
+    defer z.end();
+
     inline for (SUBCOMMANDS) |subcommand| {
         if (std.mem.eql(u8, subcommand.name, basename)) return execute(
             subcommand,
@@ -43,6 +46,9 @@ fn execute(
     io: anytype,
     exe_path: []const u8,
 ) Error!u8 {
+    const z = shared.trace.begin(@src());
+    defer z.end();
+
     var arg_iterator = shared.ArgIterator.init(arguments);
 
     var options: subcommand.Options = .{};
@@ -55,6 +61,9 @@ fn execute(
 }
 
 pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, settings: anytype) Error!u8 {
+    const z = shared.trace.begin(@src());
+    defer z.end();
+
     const SettingsType = @TypeOf(settings);
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();

@@ -26,6 +26,15 @@ pub fn parseOptions(
 ) ?u8 {
     _ = options;
 
+    const z = shared.trace.begin(@src());
+    defer z.end();
+
+    z.setName("this is parse options");
+    z.setColor(0xFF0000);
+    z.setValue(42);
+
+    shared.trace.message("this is a message");
+
     while (args.next()) |arg| {
         switch (arg) {
             .longhand => |longhand| {
@@ -62,6 +71,9 @@ pub fn execute(
 ) subcommands.Error!u8 {
     _ = allocator;
     _ = io;
+
+    const z = shared.trace.begin(@src());
+    defer z.end();
 
     log.debug("called with options: {}", .{options});
 

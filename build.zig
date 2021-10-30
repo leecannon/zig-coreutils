@@ -7,7 +7,11 @@ pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
 
+    const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
+
     const options = b.addOptions();
+    options.addOption(bool, "trace", trace);
+
     const version = v: {
         const version_string = b.fmt(
             "{d}.{d}.{d}",
@@ -68,20 +72,30 @@ pub fn build(b: *std.build.Builder) !void {
     options.addOption([:0]const u8, "version", try b.allocator.dupeZ(u8, version));
 
     const main_exe = b.addExecutable("zig-coreutils", "src/main.zig");
+    main_exe.setTarget(target);
+    main_exe.setBuildMode(mode);
+
     main_exe.single_threaded = true;
-    main_exe.addOptions("options", options);
 
     if (mode != .Debug) {
         main_exe.link_function_sections = true;
         main_exe.want_lto = true;
     }
 
-    main_exe.setTarget(target);
-    main_exe.setBuildMode(mode);
     main_exe.install();
+
+    main_exe.addOptions("options", options);
+
+    if (trace) {
+        includeTracy(main_exe);
+    }
 
     const test_step = b.addTest("src/main.zig");
     test_step.addOptions("options", options);
+    if (trace) {
+        includeTracy(test_step);
+    }
+
     const run_test_step = b.step("test", "Run the tests");
     run_test_step.dependOn(&test_step.step);
 
@@ -92,15 +106,21 @@ pub fn build(b: *std.build.Builder) !void {
 
     inline for (SUBCOMMANDS) |subcommand| {
         const run_subcommand = b.addExecutable(subcommand.name, "src/main.zig");
-        run_subcommand.addOptions("options", options);
+        run_subcommand.setTarget(target);
+        run_subcommand.setBuildMode(mode);
 
         run_subcommand.single_threaded = true;
+
         if (mode != .Debug) {
             run_subcommand.link_function_sections = true;
             run_subcommand.want_lto = true;
         }
-        run_subcommand.setTarget(target);
-        run_subcommand.setBuildMode(mode);
+
+        run_subcommand.addOptions("options", options);
+
+        if (trace) {
+            includeTracy(run_subcommand);
+        }
 
         const run_cmd = run_subcommand.run();
         if (b.args) |args| {
@@ -109,5 +129,19 @@ pub fn build(b: *std.build.Builder) !void {
 
         const run_step = b.step(subcommand.name, "Run '" ++ subcommand.name ++ "'");
         run_step.dependOn(&run_cmd.step);
+    }
+}
+
+fn includeTracy(exe: *std.build.LibExeObjStep) void {
+    exe.linkLibC();
+    exe.linkLibCpp();
+    exe.addIncludeDir("tracy");
+    exe.addCSourceFile("tracy/TracyClient.cpp", &.{ "-DTRACY_ENABLE", "-fno-sanitize=undefined", "" });
+
+    if (exe.target.isWindows()) {
+        exe.linkSystemLibrary("Advapi32");
+        exe.linkSystemLibrary("User32");
+        exe.linkSystemLibrary("Ws2_32");
+        exe.linkSystemLibrary("DbgHelp");
     }
 }

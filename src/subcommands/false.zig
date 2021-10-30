@@ -26,6 +26,9 @@ pub fn parseOptions(
 ) ?u8 {
     _ = options;
 
+    const z = shared.trace.begin(@src());
+    defer z.end();
+
     while (args.next()) |arg| {
         switch (arg) {
             .longhand => |longhand| {
@@ -62,6 +65,9 @@ pub fn execute(
 ) subcommands.Error!u8 {
     _ = allocator;
     _ = io;
+
+    const z = shared.trace.begin(@src());
+    defer z.end();
 
     log.debug("called with options: {}", .{options});
 
