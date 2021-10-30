@@ -130,21 +130,33 @@ pub fn ArgIterator(comptime T: type) type {
                 return Arg{ .shorthand = char };
             }
 
-            const current_arg: []const u8 = if (builtin.os.tag == .windows)
+            const current_arg = if (builtin.os.tag == .windows)
                 (self.arg_iter.next(allocator) orelse return null) catch return error.UnableToParseArguments
             else
                 self.arg_iter.nextPosix() orelse return null;
 
             // the length checks in the below ifs allow '-' and '--' to fall through as positional arguments
-            if (current_arg.len > 1 and current_arg[0] == '-') {
+            if (current_arg.len > 1 and current_arg[0] == '-') longhand_shorthand_blk: {
                 if (current_arg.len > 2 and current_arg[1] == '-') {
                     // longhand argument e.g. '--help'
 
-                    const longhand = current_arg[2..];
+                    const entire_longhand = current_arg[2.. :0];
 
-                    log.debug("longhand argument \"{s}\"", .{longhand});
+                    if (std.mem.indexOfScalar(u8, entire_longhand, '=')) |equal_index| {
+                        // if equal_index is zero then the argument starts with '--=' which we do not count as a valid
+                        // version of either longhand argument type nor a shorthand argument, so break out to make it positional
+                        if (equal_index == 0) break :longhand_shorthand_blk;
 
-                    return Arg{ .longhand = longhand };
+                        const longhand = entire_longhand[0..equal_index];
+                        const value = entire_longhand[equal_index + 1 ..];
+
+                        log.debug("longhand argument with value \"{s}\" = \"{s}\"", .{ longhand, value });
+
+                        return Arg{ .longhand_with_value = .{ .longhand = longhand, .value = value } };
+                    }
+
+                    log.debug("longhand argument \"{s}\"", .{entire_longhand});
+                    return Arg{ .longhand = entire_longhand };
                 }
 
                 // this check allows '--' to fall through as a positional argument
@@ -177,15 +189,25 @@ pub fn ArgIterator(comptime T: type) type {
 
 pub const Arg = union(enum) {
     shorthand: u8,
-    longhand: []const u8,
-    positional: []const u8,
+    longhand: [:0]const u8,
+    longhand_with_value: LonghandWithValue,
+    positional: [:0]const u8,
+
+    pub const LonghandWithValue = struct {
+        longhand: []const u8,
+        value: []const u8,
+    };
 
     pub fn deinit(self: Arg, allocator: *std.mem.Allocator) void {
         if (builtin.os.tag == .windows) {
             switch (self) {
                 .longhand => |longhand| {
                     // we need to do this ptr arithmetic as for longhand args the starting '--' is not included
-                    const corrected_ptr = (longhand.ptr - 2)[0..(longhand.len + 2)];
+                    const corrected_ptr = (longhand.ptr - 2)[0..(2 + longhand.len) :0];
+                    allocator.free(corrected_ptr);
+                },
+                .longhand_with_value => |longhand_with_value| {
+                    const corrected_ptr = (longhand_with_value.longhand.ptr - 2)[0..(2 + longhand_with_value.longhand.len + 1 + longhand_with_value.value.len) :0];
                     allocator.free(corrected_ptr);
                 },
                 .positional => |positional| allocator.free(positional),

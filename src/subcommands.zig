@@ -62,7 +62,7 @@ fn execute(
     return subcommand.execute(allocator, io, &options);
 }
 
-pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, settings: anytype) Error!u8 {
+pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) Error!u8 {
     const z = shared.trace.begin(@src());
     defer z.end();
 
@@ -87,14 +87,14 @@ pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, set
 }
 
 const SliceArgIterator = struct {
-    slice: []const []const u8,
+    slice: []const [:0]const u8,
     index: usize = 0,
 
-    pub inline fn next(self: *SliceArgIterator, allocator: *std.mem.Allocator) ?(std.process.ArgIterator.NextError![]const u8) {
-        return allocator.dupe(u8, self.nextPosix());
+    pub inline fn next(self: *SliceArgIterator, allocator: *std.mem.Allocator) ?(std.process.ArgIterator.NextError![:0]const u8) {
+        return allocator.dupeZ(u8, self.nextPosix());
     }
 
-    pub fn nextPosix(self: *SliceArgIterator) ?[]const u8 {
+    pub fn nextPosix(self: *SliceArgIterator) ?[:0]const u8 {
         if (self.index < self.slice.len) {
             defer self.index += 1;
             return self.slice[self.index];

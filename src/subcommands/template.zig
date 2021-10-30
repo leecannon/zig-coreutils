@@ -51,6 +51,7 @@ pub fn parseOptions(
                     return shared.printHelp(@This(), io, exe_name);
                 }
             },
+            .longhand_with_value => {},
             .positional => {},
         }
     }
