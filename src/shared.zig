@@ -5,10 +5,10 @@ const builtin = @import("builtin");
 
 const log = std.log.scoped(.shared);
 
-pub const trace = @import("trace.zig");
+pub const tracy = @import("tracy.zig");
 
 pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u8 {
-    const z = trace.beginNamed(@src(), "help");
+    const z = tracy.traceNamed(@src(), "help");
     defer z.end();
 
     log.debug("printing help for " ++ subcommand.name, .{});
@@ -17,7 +17,7 @@ pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u
 }
 
 pub fn printVersion(comptime subcommand: type, io: anytype) u8 {
-    const z = trace.beginNamed(@src(), "version");
+    const z = tracy.traceNamed(@src(), "version");
     defer z.end();
 
     log.debug("printing version for " ++ subcommand.name, .{});
@@ -101,7 +101,7 @@ pub fn ArgIterator(comptime T: type) type {
         }
 
         pub fn next(self: *Self, allocator: *std.mem.Allocator) error{UnableToParseArguments}!?Arg {
-            const z = trace.beginNamed(@src(), "next argument");
+            const z = tracy.traceNamed(@src(), "next argument");
             defer z.end();
 
             if (self.sub_arg) |sub_arg| {

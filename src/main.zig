@@ -24,16 +24,15 @@ var gpa = if (is_debug_or_test)
 else
     std.heap.stackFallback(std.mem.page_size, &allocator_backing.allocator);
 
-pub const ENABLE_TRACY = options.trace;
-pub const EMIT_CALLSTACK = true;
+pub const enable_tracy = options.trace;
 
-var tracy_allocator = if (ENABLE_TRACY) shared.trace.TracyAllocator(null).init(&gpa.allocator) else {};
+var tracy_allocator = if (enable_tracy) shared.tracy.TracyAllocator(null).init(&gpa.allocator) else {};
 
 const log = std.log.scoped(.main);
 
 pub fn main() MainReturnValue {
-    const main_z = shared.trace.beginNamed(@src(), "main");
-    shared.trace.frameMark();
+    const main_z = shared.tracy.traceNamed(@src(), "main");
+    shared.tracy.frameMark();
 
     defer {
         if (is_debug_or_test) {
@@ -42,7 +41,7 @@ pub fn main() MainReturnValue {
         main_z.end();
     }
 
-    const allocator = if (ENABLE_TRACY) &tracy_allocator.allocator else &gpa.allocator;
+    const allocator = if (enable_tracy) &tracy_allocator.allocator else &gpa.allocator;
 
     var argument_info = ArgumentInfo.fetch(allocator) catch |err| {
         if (is_debug_or_test) return err;
@@ -50,7 +49,7 @@ pub fn main() MainReturnValue {
     };
     defer argument_info.deinit(allocator);
 
-    const io_buffers_z = shared.trace.beginNamed(@src(), "io buffers");
+    const io_buffers_z = shared.tracy.traceNamed(@src(), "io buffers");
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
     io_buffers_z.end();
@@ -79,7 +78,7 @@ pub fn main() MainReturnValue {
     // Only flush stdout if the command completed successfully
     // If we flush stdout after printing an error then the error message will not be the last thing printed
     if (result == 0) {
-        const flush_z = shared.trace.beginNamed(@src(), "stdout flush");
+        const flush_z = shared.tracy.traceNamed(@src(), "stdout flush");
         defer flush_z.end();
 
         log.debug("flushing stdout buffer on successful execution", .{});
@@ -94,7 +93,7 @@ const ArgumentInfo = struct {
     arg_iter: std.process.ArgIterator,
 
     pub fn fetch(allocator: *std.mem.Allocator) !ArgumentInfo {
-        const z = shared.trace.beginNamed(@src(), "fetch argument info");
+        const z = shared.tracy.traceNamed(@src(), "fetch argument info");
         defer z.end();
 
         var arg_iter = try std.process.argsWithAllocator(allocator);

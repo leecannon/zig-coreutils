@@ -34,7 +34,7 @@ pub fn execute(
     args: anytype,
     exe_name: []const u8,
 ) subcommands.Error!u8 {
-    const z = shared.trace.beginNamed(@src(), name);
+    const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
     var opt_arg: ?shared.Arg = try args.next(allocator);

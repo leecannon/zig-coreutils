@@ -25,7 +25,7 @@ pub fn execute(
     basename: []const u8,
     exe_path: []const u8,
 ) ExecuteError!u8 {
-    const z = shared.trace.beginNamed(@src(), "execute");
+    const z = shared.tracy.traceNamed(@src(), "execute");
     defer z.end();
 
     inline for (SUBCOMMANDS) |subcommand| {
@@ -48,7 +48,7 @@ fn executeSubcommand(
     io: anytype,
     exe_path: []const u8,
 ) Error!u8 {
-    const z = shared.trace.beginNamed(@src(), "execute subcommand");
+    const z = shared.tracy.traceNamed(@src(), "execute subcommand");
     defer z.end();
 
     var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
