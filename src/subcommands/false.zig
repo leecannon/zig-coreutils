@@ -16,18 +16,25 @@ pub const usage =
     \\
 ;
 
-pub const Options = struct {};
+// io
+// .{
+//     .stderr: std.io.Writer,
+//     .stdin: std.io.Reader,
+//     .stdout: std.io.Writer,
+// },
 
-pub fn parseOptions(
+// args
+// struct {
+//     fn next(self: *Self, allocator: *std.mem.Allocator) !?std.shared.Arg,
+// }
+
+pub fn execute(
     allocator: *std.mem.Allocator,
     io: anytype,
-    options: *Options,
     args: anytype,
     exe_name: []const u8,
-) !?u8 {
-    _ = options;
-
-    const z = shared.trace.begin(@src());
+) subcommands.Error!u8 {
+    const z = shared.trace.beginNamed(@src(), name);
     defer z.end();
 
     var opt_arg: ?shared.Arg = try args.next(allocator);
@@ -55,28 +62,7 @@ pub fn parseOptions(
         }
     }
 
-    return null;
-}
-
-// io
-// .{
-//     .stderr: std.io.Writer,
-//     .stdin: std.io.Reader,
-//     .stdout: std.io.Writer,
-// },
-
-pub fn execute(
-    allocator: *std.mem.Allocator,
-    io: anytype,
-    options: *Options,
-) subcommands.Error!u8 {
-    _ = allocator;
-    _ = io;
-
-    const z = shared.trace.begin(@src());
-    defer z.end();
-
-    log.debug("called with options: {}", .{options});
+    log.debug("false called", .{});
 
     return 1;
 }

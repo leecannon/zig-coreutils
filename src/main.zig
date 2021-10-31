@@ -32,14 +32,14 @@ var tracy_allocator = if (ENABLE_TRACY) shared.trace.TracyAllocator(null).init(&
 const log = std.log.scoped(.main);
 
 pub fn main() MainReturnValue {
-    const z = shared.trace.begin(@src());
+    const main_z = shared.trace.beginNamed(@src(), "main");
     shared.trace.frameMark();
 
     defer {
         if (is_debug_or_test) {
             _ = gpa.deinit();
         }
-        z.end();
+        main_z.end();
     }
 
     const allocator = if (ENABLE_TRACY) &tracy_allocator.allocator else &gpa.allocator;
@@ -50,10 +50,12 @@ pub fn main() MainReturnValue {
     };
     defer argument_info.deinit(allocator);
 
+    const io_buffers_z = shared.trace.beginNamed(@src(), "io buffers");
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
+    io_buffers_z.end();
 
-    const result = subcommands.executeSubcommand(
+    const result = subcommands.execute(
         allocator,
         &argument_info.arg_iter,
         .{
@@ -77,6 +79,9 @@ pub fn main() MainReturnValue {
     // Only flush stdout if the command completed successfully
     // If we flush stdout after printing an error then the error message will not be the last thing printed
     if (result == 0) {
+        const flush_z = shared.trace.beginNamed(@src(), "stdout flush");
+        defer flush_z.end();
+
         log.debug("flushing stdout buffer on successful execution", .{});
         std_out_buffered.flush() catch |err| std.debug.panic("failed to flush stdout: {s}", .{@errorName(err)});
     }
@@ -89,6 +94,9 @@ const ArgumentInfo = struct {
     arg_iter: std.process.ArgIterator,
 
     pub fn fetch(allocator: *std.mem.Allocator) !ArgumentInfo {
+        const z = shared.trace.beginNamed(@src(), "fetch argument info");
+        defer z.end();
+
         var arg_iter = try std.process.argsWithAllocator(allocator);
 
         const exe_path = if (builtin.os.tag == .windows)

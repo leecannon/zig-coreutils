@@ -18,18 +18,18 @@ pub const Error = error{
     UnableToParseArguments,
 };
 
-pub fn executeSubcommand(
+pub fn execute(
     allocator: *std.mem.Allocator,
     arg_iter: *std.process.ArgIterator,
     io: anytype,
     basename: []const u8,
     exe_path: []const u8,
 ) ExecuteError!u8 {
-    const z = shared.trace.begin(@src());
+    const z = shared.trace.beginNamed(@src(), "execute");
     defer z.end();
 
     inline for (SUBCOMMANDS) |subcommand| {
-        if (std.mem.eql(u8, subcommand.name, basename)) return execute(
+        if (std.mem.eql(u8, subcommand.name, basename)) return executeSubcommand(
             subcommand,
             allocator,
             arg_iter,
@@ -41,31 +41,21 @@ pub fn executeSubcommand(
     return error.NoSubcommand;
 }
 
-fn execute(
+fn executeSubcommand(
     comptime subcommand: type,
     allocator: *std.mem.Allocator,
     arg_iter: anytype,
     io: anytype,
     exe_path: []const u8,
 ) Error!u8 {
-    const z = shared.trace.begin(@src());
+    const z = shared.trace.beginNamed(@src(), "execute subcommand");
     defer z.end();
 
     var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
-
-    var options: subcommand.Options = .{};
-
-    if (try subcommand.parseOptions(allocator, io, &options, &arg_iterator, exe_path)) |return_code| {
-        return return_code;
-    }
-
-    return subcommand.execute(allocator, io, &options);
+    return subcommand.execute(allocator, io, &arg_iterator, exe_path);
 }
 
 pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) Error!u8 {
-    const z = shared.trace.begin(@src());
-    defer z.end();
-
     const SettingsType = @TypeOf(settings);
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
@@ -73,7 +63,7 @@ pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, s
 
     var arg_iter = SliceArgIterator{ .slice = arguments };
 
-    return execute(
+    return executeSubcommand(
         subcommand,
         std.testing.allocator,
         &arg_iter,

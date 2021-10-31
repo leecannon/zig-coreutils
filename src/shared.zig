@@ -8,7 +8,7 @@ const log = std.log.scoped(.shared);
 pub const trace = @import("trace.zig");
 
 pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u8 {
-    const z = trace.begin(@src());
+    const z = trace.beginNamed(@src(), "help");
     defer z.end();
 
     log.debug("printing help for " ++ subcommand.name, .{});
@@ -17,7 +17,7 @@ pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u
 }
 
 pub fn printVersion(comptime subcommand: type, io: anytype) u8 {
-    const z = trace.begin(@src());
+    const z = trace.beginNamed(@src(), "version");
     defer z.end();
 
     log.debug("printing version for " ++ subcommand.name, .{});
@@ -28,9 +28,6 @@ pub fn printVersion(comptime subcommand: type, io: anytype) u8 {
 const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2021 Lee Cannon\n";
 
 pub fn testHelp(comptime subcommand: type) !void {
-    const z = trace.begin(@src());
-    defer z.end();
-
     const expected = try std.fmt.allocPrint(std.testing.allocator, subcommand.usage, .{subcommand.name});
     defer std.testing.allocator.free(expected);
 
@@ -64,9 +61,6 @@ pub fn testHelp(comptime subcommand: type) !void {
 }
 
 pub fn testVersion(comptime subcommand: type) !void {
-    const z = trace.begin(@src());
-    defer z.end();
-
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
@@ -107,7 +101,7 @@ pub fn ArgIterator(comptime T: type) type {
         }
 
         pub fn next(self: *Self, allocator: *std.mem.Allocator) error{UnableToParseArguments}!?Arg {
-            const z = trace.begin(@src());
+            const z = trace.beginNamed(@src(), "next argument");
             defer z.end();
 
             if (self.sub_arg) |sub_arg| {
