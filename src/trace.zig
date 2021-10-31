@@ -112,7 +112,7 @@ pub inline fn message(comptime msg: [:0]const u8) void {
 // This function only accepts comptime known strings, see `messageColorCopy` for runtime strings
 pub inline fn messageColor(comptime msg: [:0]const u8, color: u32) void {
     if (!ENABLE_TRACY) return;
-    tracy.___tracy_emit_messageLC(msg.ptr, if (EMIT_CALLSTACK) CALLSTACK_DEPTH else 0, color);
+    tracy.___tracy_emit_messageLC(msg.ptr, color, if (EMIT_CALLSTACK) CALLSTACK_DEPTH else 0);
 }
 
 pub inline fn messageCopy(msg: []const u8) void {
@@ -122,12 +122,7 @@ pub inline fn messageCopy(msg: []const u8) void {
 
 pub inline fn messageColorCopy(msg: [:0]const u8, color: u32) void {
     if (!ENABLE_TRACY) return;
-    tracy.___tracy_emit_messageC(msg.ptr, msg.len, if (EMIT_CALLSTACK) CALLSTACK_DEPTH else 0, color);
-}
-
-pub inline fn setThreadName(comptime msg: [:0]const u8) void {
-    if (!ENABLE_TRACY) return;
-    tracy.___tracy_set_thread_name(msg.ptr);
+    tracy.___tracy_emit_messageC(msg.ptr, msg.len, color, if (EMIT_CALLSTACK) CALLSTACK_DEPTH else 0);
 }
 
 pub inline fn frameMark() void {
@@ -159,9 +154,9 @@ inline fn alloc(ptr: [*]u8, len: usize) void {
     if (!ENABLE_TRACY) return;
 
     if (EMIT_CALLSTACK) {
-        tracy.___tracy_emit_memory_alloc(ptr, len, 0);
-    } else {
         tracy.___tracy_emit_memory_alloc_callstack(ptr, len, CALLSTACK_DEPTH, 0);
+    } else {
+        tracy.___tracy_emit_memory_alloc(ptr, len, 0);
     }
 }
 
@@ -169,9 +164,9 @@ inline fn allocNamed(ptr: [*]u8, len: usize, comptime name: [:0]const u8) void {
     if (!ENABLE_TRACY) return;
 
     if (EMIT_CALLSTACK) {
-        tracy.___tracy_emit_memory_alloc_named(ptr, len, 0, name.ptr);
-    } else {
         tracy.___tracy_emit_memory_alloc_callstack_named(ptr, len, CALLSTACK_DEPTH, 0, name.ptr);
+    } else {
+        tracy.___tracy_emit_memory_alloc_named(ptr, len, 0, name.ptr);
     }
 }
 
@@ -179,19 +174,21 @@ inline fn free(ptr: [*]u8) void {
     if (!ENABLE_TRACY) return;
 
     if (EMIT_CALLSTACK) {
-        tracy.___tracy_emit_memory_free(ptr, 0);
-    } else {
         tracy.___tracy_emit_memory_free_callstack(ptr, CALLSTACK_DEPTH, 0);
+    } else {
+        tracy.___tracy_emit_memory_free(ptr, 0);
     }
 }
 
 inline fn freeNamed(ptr: [*]u8, comptime name: [:0]const u8) void {
     if (!ENABLE_TRACY) return;
 
+    // @fence(.Release);
+
     if (EMIT_CALLSTACK) {
-        tracy.___tracy_emit_memory_free_named(ptr, 0, name.ptr);
-    } else {
         tracy.___tracy_emit_memory_free_callstack_named(ptr, CALLSTACK_DEPTH, 0, name.ptr);
+    } else {
+        tracy.___tracy_emit_memory_free_named(ptr, 0, name.ptr);
     }
 }
 
@@ -222,7 +219,7 @@ pub fn TracyAllocator(comptime name: ?[:0]const u8) type {
                     alloc(data.ptr, data.len);
                 }
             } else |_| {
-                message("allocation failed");
+                messageColor("allocation failed", 0xFF0000);
             }
             return result;
         }
@@ -248,7 +245,7 @@ pub fn TracyAllocator(comptime name: ?[:0]const u8) type {
 
                 return resized_len;
             } else |err| {
-                message("allocation resize failed");
+                messageColor("allocation resize failed", 0xFF0000);
                 return err;
             }
         }
