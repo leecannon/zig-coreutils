@@ -18,21 +18,23 @@ const MainReturnValue = if (is_debug_or_test)
 else
     u8;
 
-var allocator_backing = if (!is_debug_or_test) std.heap.ArenaAllocator.init(std.heap.page_allocator) else {};
-var gpa = if (is_debug_or_test)
-    std.heap.GeneralPurposeAllocator(.{}){}
-else
-    std.heap.stackFallback(std.mem.page_size, &allocator_backing.allocator);
-
 pub const enable_tracy = options.trace;
-
-var tracy_allocator = if (enable_tracy) shared.tracy.TracyAllocator(null).init(&gpa.allocator) else {};
+pub const tracy_enable_callstack = true;
 
 const log = std.log.scoped(.main);
 
 pub fn main() MainReturnValue {
     const main_z = shared.tracy.traceNamed(@src(), "main");
+    // this causes the frame to start with our main instead of `std.start`
     shared.tracy.frameMark();
+
+    var allocator_backing = if (!is_debug_or_test) std.heap.ArenaAllocator.init(std.heap.page_allocator) else {};
+    var gpa = if (is_debug_or_test)
+        std.heap.GeneralPurposeAllocator(.{}){}
+    else
+        std.heap.stackFallback(std.mem.page_size, &allocator_backing.allocator);
+
+    var tracy_allocator = if (enable_tracy) shared.tracy.TracyAllocator(null).init(&gpa.allocator) else {};
 
     defer {
         if (is_debug_or_test) {

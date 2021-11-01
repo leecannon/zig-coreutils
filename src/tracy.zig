@@ -109,6 +109,8 @@ pub fn TracyAllocator(comptime name: ?[:0]const u8) type {
         allocator: std.mem.Allocator,
         parent_allocator: *std.mem.Allocator,
 
+        first_allocation: bool = true,
+
         const Self = @This();
 
         pub fn init(allocator: *std.mem.Allocator) Self {
@@ -123,6 +125,20 @@ pub fn TracyAllocator(comptime name: ?[:0]const u8) type {
 
         fn allocFn(allocator: *std.mem.Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) std.mem.Allocator.Error![]u8 {
             const self = @fieldParentPtr(Self, "allocator", allocator);
+
+            if (self.first_allocation) {
+                // this is to prevent a visual glitch with tracys graph when the application makes very few allocations
+                var ptr: [*]u8 = @intToPtr([*]u8, 1);
+                if (name) |n| {
+                    allocNamed(ptr, 0, n);
+                    freeNamed(ptr, 0);
+                } else {
+                    alloc(ptr, 0);
+                    free(ptr);
+                }
+                self.first_allocation = false;
+            }
+
             const result = self.parent_allocator.allocFn(self.parent_allocator, len, ptr_align, len_align, ret_addr);
             if (result) |data| {
                 if (data.len != 0) {
