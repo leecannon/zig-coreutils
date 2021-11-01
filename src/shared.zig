@@ -100,7 +100,7 @@ pub fn ArgIterator(comptime T: type) type {
             }
         }
 
-        pub fn next(self: *Self, allocator: *std.mem.Allocator) error{UnableToParseArguments}!?Arg {
+        pub fn next(self: *Self, allocator: *std.mem.Allocator) error{ UnableToParseArguments, Help, Version }!?Arg {
             const z = tracy.traceNamed(@src(), "next argument");
             defer z.end();
 
@@ -150,6 +150,14 @@ pub fn ArgIterator(comptime T: type) type {
                     }
 
                     log.debug("longhand argument \"{s}\"", .{entire_longhand});
+
+                    if (std.mem.eql(u8, entire_longhand, "help")) {
+                        return error.Help;
+                    }
+                    if (std.mem.eql(u8, entire_longhand, "version")) {
+                        return error.Version;
+                    }
+
                     return Arg{ .longhand = entire_longhand };
                 }
 
@@ -169,6 +177,10 @@ pub fn ArgIterator(comptime T: type) type {
                         if (builtin.os.tag == .windows) {
                             allocator.free(current_arg);
                         }
+                    }
+
+                    if (char == 'h') {
+                        return error.Help;
                     }
 
                     return Arg{ .shorthand = char };

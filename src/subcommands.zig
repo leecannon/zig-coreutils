@@ -11,12 +11,19 @@ pub const SUBCOMMANDS = [_]type{
 
 pub const ExecuteError = error{
     NoSubcommand,
-} || Error;
+} || SubcommandErrors;
 
-pub const Error = error{
+const SubcommandErrors = error{
     OutOfMemory,
     UnableToParseArguments,
 };
+
+const SubcommandNonErrors = error{
+    Help,
+    Version,
+};
+
+pub const Error = SubcommandErrors || SubcommandNonErrors;
 
 pub fn execute(
     allocator: *std.mem.Allocator,
@@ -47,15 +54,19 @@ fn executeSubcommand(
     arg_iter: anytype,
     io: anytype,
     exe_path: []const u8,
-) Error!u8 {
+) SubcommandErrors!u8 {
     const z = shared.tracy.traceNamed(@src(), "execute subcommand");
     defer z.end();
 
     var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
-    return subcommand.execute(allocator, io, &arg_iterator, exe_path);
+    return subcommand.execute(allocator, io, &arg_iterator) catch |err| switch (err) {
+        error.Help => shared.printHelp(subcommand, io, exe_path),
+        error.Version => shared.printVersion(subcommand, io),
+        else => |narrow_err| narrow_err,
+    };
 }
 
-pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) Error!u8 {
+pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) SubcommandErrors!u8 {
     const SettingsType = @TypeOf(settings);
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();

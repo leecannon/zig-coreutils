@@ -25,17 +25,18 @@ pub const usage =
 
 // args
 // struct {
-//     fn next(self: *Self, allocator: *std.mem.Allocator) !?std.shared.Arg,
+//     fn next(self: *Self, allocator: *std.mem.Allocator) !?shared.Arg,
 // }
 
 pub fn execute(
     allocator: *std.mem.Allocator,
     io: anytype,
     args: anytype,
-    exe_name: []const u8,
 ) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
+
+    _ = io;
 
     var opt_arg: ?shared.Arg = try args.next(allocator);
 
@@ -44,19 +45,8 @@ pub fn execute(
         opt_arg = try args.next(allocator);
     }) {
         switch (arg) {
-            .longhand => |longhand| {
-                if (std.mem.eql(u8, longhand, "help")) {
-                    return shared.printHelp(@This(), io, exe_name);
-                }
-                if (std.mem.eql(u8, longhand, "version")) {
-                    return shared.printVersion(@This(), io);
-                }
-            },
-            .shorthand => |shorthand| {
-                if (shorthand == 'h') {
-                    return shared.printHelp(@This(), io, exe_name);
-                }
-            },
+            .longhand => {},
+            .shorthand => {},
             .longhand_with_value => {},
             .positional => {},
         }
