@@ -58,7 +58,7 @@ fn executeSubcommand(
     const z = shared.tracy.traceNamed(@src(), "execute subcommand");
     defer z.end();
 
-    var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
+    var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter, allocator);
     return subcommand.execute(allocator, io, &arg_iterator) catch |err| switch (err) {
         error.Help => shared.printHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),

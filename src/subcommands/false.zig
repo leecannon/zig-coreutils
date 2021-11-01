@@ -25,7 +25,10 @@ pub const usage =
 
 // args
 // struct {
-//     fn next(self: *Self, allocator: *std.mem.Allocator) !?shared.Arg,
+//     fn next(self: *Self) !?shared.Arg,
+//
+//     // intended to only be called for the first argument
+//     fn nextWithHelpOrVersion(self: *Self) !?shared.Arg,
 // }
 
 pub fn execute(
@@ -38,11 +41,11 @@ pub fn execute(
 
     _ = io;
 
-    var opt_arg: ?shared.Arg = try args.next(allocator);
+    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion();
 
     while (opt_arg) |arg| : ({
         arg.deinit(allocator);
-        opt_arg = try args.next(allocator);
+        opt_arg = try args.next();
     }) {
         switch (arg) {
             .longhand => {},

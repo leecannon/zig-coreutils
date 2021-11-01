@@ -82,25 +82,29 @@ pub fn testVersion(comptime subcommand: type) !void {
 pub fn ArgIterator(comptime T: type) type {
     return struct {
         arg_iter: T,
+        allocator: *std.mem.Allocator,
 
         sub_arg: ?[]const u8 = null,
         sub_index: usize = 1,
 
         const Self = @This();
 
-        pub fn init(arg_iter: T) Self {
-            return .{ .arg_iter = arg_iter };
+        pub fn init(arg_iter: T, allocator: *std.mem.Allocator) Self {
+            return .{
+                .arg_iter = arg_iter,
+                .allocator = allocator,
+            };
         }
 
-        pub fn deinit(self: *Self, allocator: *std.mem.Allocator) void {
+        pub fn deinit(self: *Self) void {
             if (builtin.os.tag == .windows) {
                 if (self.sub_arg) |sub_arg| {
-                    allocator.free(sub_arg);
+                    self.allocator.free(sub_arg);
                 }
             }
         }
 
-        pub fn next(self: *Self, allocator: *std.mem.Allocator) error{ UnableToParseArguments, Help, Version }!?Arg {
+        pub fn next(self: *Self) error{UnableToParseArguments}!?Arg {
             const z = tracy.traceNamed(@src(), "next argument");
             defer z.end();
 
@@ -113,7 +117,7 @@ pub fn ArgIterator(comptime T: type) type {
                 if (new_index == sub_arg.len) {
                     log.debug("\"{s}\" - shorthand sub-index {} is '{c}' - last shorthand in this group", .{ sub_arg, sub_index, char });
                     if (builtin.os.tag == .windows) {
-                        allocator.free(sub_arg);
+                        self.allocator.free(sub_arg);
                     }
                     self.sub_arg = null;
                 } else {
@@ -125,7 +129,7 @@ pub fn ArgIterator(comptime T: type) type {
             }
 
             const current_arg = if (builtin.os.tag == .windows)
-                (self.arg_iter.next(allocator) orelse return null) catch return error.UnableToParseArguments
+                (self.arg_iter.next(self.allocator) orelse return null) catch return error.UnableToParseArguments
             else
                 self.arg_iter.nextPosix() orelse return null;
 
@@ -150,14 +154,6 @@ pub fn ArgIterator(comptime T: type) type {
                     }
 
                     log.debug("longhand argument \"{s}\"", .{entire_longhand});
-
-                    if (std.mem.eql(u8, entire_longhand, "help")) {
-                        return error.Help;
-                    }
-                    if (std.mem.eql(u8, entire_longhand, "version")) {
-                        return error.Version;
-                    }
-
                     return Arg{ .longhand = entire_longhand };
                 }
 
@@ -175,12 +171,8 @@ pub fn ArgIterator(comptime T: type) type {
                     } else {
                         log.debug("\"{s}\" - shorthand is '{c}' - only shorthand in this group", .{ current_arg, char });
                         if (builtin.os.tag == .windows) {
-                            allocator.free(current_arg);
+                            self.allocator.free(current_arg);
                         }
-                    }
-
-                    if (char == 'h') {
-                        return error.Help;
                     }
 
                     return Arg{ .shorthand = char };
@@ -189,6 +181,33 @@ pub fn ArgIterator(comptime T: type) type {
 
             log.debug("positional \"{s}\"", .{current_arg});
             return Arg{ .positional = current_arg };
+        }
+
+        pub fn nextWithHelpOrVersion(self: *Self) error{ UnableToParseArguments, Help, Version }!?Arg {
+            const z = tracy.traceNamed(@src(), "next argument with help or version");
+            defer z.end();
+
+            const arg = (try self.next()) orelse return null;
+            errdefer arg.deinit(self.allocator);
+
+            switch (arg) {
+                .longhand => |longhand| {
+                    if (std.mem.eql(u8, longhand, "help")) {
+                        return error.Help;
+                    }
+                    if (std.mem.eql(u8, longhand, "version")) {
+                        return error.Version;
+                    }
+                },
+                .shorthand => |shorthand| {
+                    if (shorthand == 'h') {
+                        return error.Help;
+                    }
+                },
+                else => {},
+            }
+
+            return arg;
         }
     };
 }
