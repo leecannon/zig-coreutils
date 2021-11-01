@@ -41,18 +41,9 @@ pub fn execute(
 
     _ = io;
 
-    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion();
-
-    while (opt_arg) |arg| : ({
+    // Only the first argument is checked for help or version
+    if (try args.nextWithHelpOrVersion()) |arg| {
         arg.deinit(allocator);
-        opt_arg = try args.next();
-    }) {
-        switch (arg) {
-            .longhand => {},
-            .shorthand => {},
-            .longhand_with_value => {},
-            .positional => {},
-        }
     }
 
     log.debug("true called", .{});
