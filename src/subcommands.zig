@@ -5,6 +5,7 @@ const builtin = @import("builtin");
 const log = std.log.scoped(.subcommand);
 
 pub const SUBCOMMANDS = [_]type{
+    @import("subcommands/basename.zig"),
     @import("subcommands/false.zig"),
     @import("subcommands/true.zig"),
 };
@@ -34,6 +35,8 @@ pub fn execute(
 ) ExecuteError!u8 {
     const z = shared.tracy.traceNamed(@src(), "execute");
     defer z.end();
+    z.addText(basename);
+    z.addText(exe_path);
 
     inline for (SUBCOMMANDS) |subcommand| {
         if (std.mem.eql(u8, subcommand.name, basename)) return executeSubcommand(
@@ -59,7 +62,7 @@ fn executeSubcommand(
     defer z.end();
 
     var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter, allocator);
-    return subcommand.execute(allocator, io, &arg_iterator) catch |err| switch (err) {
+    return subcommand.execute(allocator, io, &arg_iterator, exe_path) catch |err| switch (err) {
         error.Help => shared.printHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),
         else => |narrow_err| narrow_err,
@@ -85,6 +88,88 @@ pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, s
         },
         subcommand.name,
     );
+}
+
+pub fn testError(
+    comptime subcommand: type,
+    arguments: []const [:0]const u8,
+    settings: anytype,
+    expected_error: []const u8,
+) !void {
+    const SettingsType = @TypeOf(settings);
+    if (@hasField(SettingsType, "stderr")) @compileError("there is already a stderr defined on this settings type");
+    const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
+    const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
+
+    var stderr = std.ArrayList(u8).init(std.testing.allocator);
+    defer stderr.deinit();
+
+    try std.testing.expectEqual(
+        @as(u8, 1),
+        try testExecute(
+            subcommand,
+            arguments,
+            .{
+                .stderr = stderr.writer(),
+                .stdin = stdin,
+                .stdout = stdout,
+            },
+        ),
+    );
+
+    try std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_error) != null);
+}
+
+pub fn testHelp(comptime subcommand: type) !void {
+    const expected = try std.fmt.allocPrint(std.testing.allocator, subcommand.usage, .{subcommand.name});
+    defer std.testing.allocator.free(expected);
+
+    var out = std.ArrayList(u8).init(std.testing.allocator);
+    defer out.deinit();
+
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try testExecute(
+            subcommand,
+            &.{"--help"},
+            .{ .stdout = out.writer() },
+        ),
+    );
+
+    try std.testing.expectEqualStrings(expected, out.items);
+
+    out.deinit();
+    out = std.ArrayList(u8).init(std.testing.allocator);
+
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try testExecute(
+            subcommand,
+            &.{"-h"},
+            .{ .stdout = out.writer() },
+        ),
+    );
+
+    try std.testing.expectEqualStrings(expected, out.items);
+}
+
+pub fn testVersion(comptime subcommand: type) !void {
+    var out = std.ArrayList(u8).init(std.testing.allocator);
+    defer out.deinit();
+
+    try std.testing.expectEqual(
+        @as(u8, 0),
+        try testExecute(
+            subcommand,
+            &.{"--version"},
+            .{ .stdout = out.writer() },
+        ),
+    );
+
+    const expected = try std.fmt.allocPrint(std.testing.allocator, shared.version_string, .{subcommand.name});
+    defer std.testing.allocator.free(expected);
+
+    try std.testing.expectEqualStrings(expected, out.items);
 }
 
 const SliceArgIterator = struct {

@@ -98,38 +98,9 @@ pub fn build(b: *std.build.Builder) !void {
 
     const run_test_step = b.step("test", "Run the tests");
     run_test_step.dependOn(&test_step.step);
-
     // as this is set as the default step also get it to trigger an install of the main exe
     test_step.step.dependOn(b.getInstallStep());
-
     b.default_step = run_test_step;
-
-    inline for (SUBCOMMANDS) |subcommand| {
-        const run_subcommand = b.addExecutable(subcommand.name, "src/main.zig");
-        run_subcommand.setTarget(target);
-        run_subcommand.setBuildMode(mode);
-
-        run_subcommand.single_threaded = true;
-
-        if (mode != .Debug) {
-            run_subcommand.link_function_sections = true;
-            run_subcommand.want_lto = true;
-        }
-
-        run_subcommand.addOptions("options", options);
-
-        if (trace) {
-            includeTracy(run_subcommand);
-        }
-
-        const run_cmd = run_subcommand.run();
-        if (b.args) |args| {
-            run_cmd.addArgs(args);
-        }
-
-        const run_step = b.step(subcommand.name, "Run '" ++ subcommand.name ++ "'");
-        run_step.dependOn(&run_cmd.step);
-    }
 }
 
 fn includeTracy(exe: *std.build.LibExeObjStep) void {

@@ -56,21 +56,28 @@ pub fn main() MainReturnValue {
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
     io_buffers_z.end();
 
+    const stderr_writer = std.io.getStdErr().writer();
+    const io = .{
+        .stderr = stderr_writer,
+        .stdin = std_in_buffered.reader(),
+        .stdout = std_out_buffered.writer(),
+    };
+
     const result = subcommands.execute(
         allocator,
         &argument_info.arg_iter,
-        .{
-            .stderr = std.io.getStdErr().writer(),
-            .stdin = std_in_buffered.reader(),
-            .stdout = std_out_buffered.writer(),
-        },
+        io,
         argument_info.basename,
         argument_info.exe_path,
     ) catch |err| {
         switch (err) {
-            error.NoSubcommand => std.io.getStdErr().writer().print("ERROR: {s} subcommand not found\n", .{argument_info.basename}) catch {},
-            error.OutOfMemory => std.io.getStdErr().writeAll("ERROR: out of memory\n") catch {},
-            error.UnableToParseArguments => std.io.getStdErr().writeAll("ERROR: unable to parse arguments\n") catch {},
+            error.NoSubcommand => blk: {
+                stderr_writer.writeByte('\'') catch break :blk;
+                stderr_writer.writeAll(argument_info.basename) catch break :blk;
+                stderr_writer.writeAll("' subcommand not found\n") catch break :blk;
+            },
+            error.OutOfMemory => stderr_writer.writeAll("out of memory\n") catch {},
+            error.UnableToParseArguments => stderr_writer.writeAll("unable to parse arguments\n") catch {},
         }
 
         if (is_debug_or_test) return err;
@@ -84,7 +91,10 @@ pub fn main() MainReturnValue {
         defer flush_z.end();
 
         log.debug("flushing stdout buffer on successful execution", .{});
-        std_out_buffered.flush() catch |err| std.debug.panic("failed to flush stdout: {s}", .{@errorName(err)});
+        std_out_buffered.flush() catch |err| {
+            shared.unableToWriteTo("stdout", io, err);
+            return 1;
+        };
     }
     return result;
 }
@@ -101,9 +111,9 @@ const ArgumentInfo = struct {
         var arg_iter = try std.process.argsWithAllocator(allocator);
 
         const exe_path = if (builtin.os.tag == .windows)
-            try (arg_iter.next(allocator) orelse @panic("no arguments"))
+            try (arg_iter.next(allocator) orelse unreachable)
         else
-            arg_iter.nextPosix() orelse @panic("no arguments");
+            arg_iter.nextPosix() orelse unreachable;
         const basename = std.fs.path.basename(exe_path);
         log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 

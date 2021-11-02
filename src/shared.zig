@@ -1,6 +1,6 @@
 const std = @import("std");
 const subcommands = @import("subcommands.zig");
-const options = @import("options");
+const build_options = @import("options");
 const builtin = @import("builtin");
 
 const log = std.log.scoped(.shared);
@@ -8,7 +8,7 @@ const log = std.log.scoped(.shared);
 pub const tracy = @import("tracy.zig");
 
 pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u8 {
-    const z = tracy.traceNamed(@src(), "help");
+    const z = tracy.traceNamed(@src(), "print help");
     defer z.end();
 
     log.debug("printing help for " ++ subcommand.name, .{});
@@ -17,7 +17,7 @@ pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u
 }
 
 pub fn printVersion(comptime subcommand: type, io: anytype) u8 {
-    const z = tracy.traceNamed(@src(), "version");
+    const z = tracy.traceNamed(@src(), "print version");
     defer z.end();
 
     log.debug("printing version for " ++ subcommand.name, .{});
@@ -25,67 +25,54 @@ pub fn printVersion(comptime subcommand: type, io: anytype) u8 {
     return 0;
 }
 
-const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2021 Lee Cannon\n";
-
-pub fn testHelp(comptime subcommand: type) !void {
-    const expected = try std.fmt.allocPrint(std.testing.allocator, subcommand.usage, .{subcommand.name});
-    defer std.testing.allocator.free(expected);
-
-    var out = std.ArrayList(u8).init(std.testing.allocator);
-    defer out.deinit();
-
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try subcommands.testExecute(
-            subcommand,
-            &.{"--help"},
-            .{ .stdout = out.writer() },
-        ),
-    );
-
-    try std.testing.expectEqualStrings(expected, out.items);
-
-    out.deinit();
-    out = std.ArrayList(u8).init(std.testing.allocator);
-
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try subcommands.testExecute(
-            subcommand,
-            &.{"-h"},
-            .{ .stdout = out.writer() },
-        ),
-    );
-
-    try std.testing.expectEqualStrings(expected, out.items);
+pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyerror) void {
+    io.stderr.writeAll("unable to write to " ++ destination ++ ": ") catch return;
+    io.stderr.writeAll(@errorName(err)) catch return;
+    io.stderr.writeByte('\n') catch return;
 }
 
-pub fn testVersion(comptime subcommand: type) !void {
-    var out = std.ArrayList(u8).init(std.testing.allocator);
-    defer out.deinit();
+pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []const u8, error_message: []const u8) u8 {
+    const z = tracy.traceNamed(@src(), "print error");
+    defer z.end();
+    z.addText(error_message);
 
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try subcommands.testExecute(
-            subcommand,
-            &.{"--version"},
-            .{ .stdout = out.writer() },
-        ),
-    );
+    log.debug("printing error for " ++ subcommand.name, .{});
 
-    const expected = try std.fmt.allocPrint(std.testing.allocator, version_string, .{subcommand.name});
-    defer std.testing.allocator.free(expected);
+    output: {
+        io.stderr.writeAll(exe_path) catch break :output;
+        io.stderr.writeAll(": ") catch break :output;
+        io.stderr.writeAll(error_message) catch break :output;
+        io.stderr.writeAll("\nTry '") catch break :output;
+        io.stderr.writeAll(exe_path) catch break :output;
+        io.stderr.writeAll(" --help' for more information\n") catch break :output;
+    }
 
-    try std.testing.expectEqualStrings(expected, out.items);
+    return 1;
 }
+
+pub fn printInvalidUsageAlloc(
+    comptime subcommand: type,
+    allocator: *std.mem.Allocator,
+    io: anytype,
+    exe_path: []const u8,
+    comptime msg: []const u8,
+    args: anytype,
+) !u8 {
+    const z = tracy.traceNamed(@src(), "print error alloc");
+    defer z.end();
+
+    const error_message = try std.fmt.allocPrint(allocator, msg, args);
+    defer allocator.free(error_message);
+
+    return printInvalidUsage(subcommand, io, exe_path, error_message);
+}
+
+pub const version_string = "{s} (zig-coreutils) " ++ build_options.version ++ "\nMIT License Copyright (c) 2021 Lee Cannon\n";
 
 pub fn ArgIterator(comptime T: type) type {
     return struct {
         arg_iter: T,
         allocator: *std.mem.Allocator,
-
-        sub_arg: ?[]const u8 = null,
-        sub_index: usize = 1,
 
         const Self = @This();
 
@@ -104,41 +91,37 @@ pub fn ArgIterator(comptime T: type) type {
             }
         }
 
-        pub fn next(self: *Self) error{UnableToParseArguments}!?Arg {
-            const z = tracy.traceNamed(@src(), "next argument");
+        pub fn nextRaw(self: *Self) error{UnableToParseArguments}!?WrappedString {
+            const z = tracy.traceNamed(@src(), "raw next arg");
             defer z.end();
 
-            if (self.sub_arg) |sub_arg| {
-                const sub_index = self.sub_index;
-                const new_index = sub_index + 1;
+            const arg = if (builtin.os.tag == .windows)
+                (self.arg_iter.next(self.allocator) orelse return null) catch return error.UnableToParseArguments
+            else
+                self.arg_iter.nextPosix() orelse return null;
 
-                const char = sub_arg[sub_index];
+            z.addText(arg);
 
-                if (new_index == sub_arg.len) {
-                    log.debug("\"{s}\" - shorthand sub-index {} is '{c}' - last shorthand in this group", .{ sub_arg, sub_index, char });
-                    if (builtin.os.tag == .windows) {
-                        self.allocator.free(sub_arg);
-                    }
-                    self.sub_arg = null;
-                } else {
-                    log.debug("\"{s}\" - shorthand sub-index {} is '{c}'", .{ sub_arg, sub_index, char });
-                    self.sub_index = new_index;
-                }
+            return WrappedString{ .value = arg };
+        }
 
-                return Arg{ .shorthand = char };
-            }
+        pub fn next(self: *Self) error{UnableToParseArguments}!?Arg {
+            const z = tracy.traceNamed(@src(), "next arg");
+            defer z.end();
 
             const current_arg = if (builtin.os.tag == .windows)
                 (self.arg_iter.next(self.allocator) orelse return null) catch return error.UnableToParseArguments
             else
                 self.arg_iter.nextPosix() orelse return null;
 
+            z.addText(current_arg);
+
             // the length checks in the below ifs allow '-' and '--' to fall through as positional arguments
             if (current_arg.len > 1 and current_arg[0] == '-') longhand_shorthand_blk: {
                 if (current_arg.len > 2 and current_arg[1] == '-') {
                     // longhand argument e.g. '--help'
 
-                    const entire_longhand = current_arg[2.. :0];
+                    const entire_longhand = current_arg[2..];
 
                     if (std.mem.indexOfScalar(u8, entire_longhand, '=')) |equal_index| {
                         // if equal_index is zero then the argument starts with '--=' which we do not count as a valid
@@ -146,51 +129,36 @@ pub fn ArgIterator(comptime T: type) type {
                         if (equal_index == 0) break :longhand_shorthand_blk;
 
                         const longhand = entire_longhand[0..equal_index];
-                        const value = entire_longhand[equal_index + 1 ..];
+                        const value = entire_longhand[equal_index + 1 .. :0];
 
                         log.debug("longhand argument with value \"{s}\" = \"{s}\"", .{ longhand, value });
 
-                        return Arg{ .longhand_with_value = .{ .longhand = longhand, .value = value } };
+                        return Arg.init(current_arg, .{ .longhand_with_value = .{ .longhand = longhand, .value = value } });
                     }
 
                     log.debug("longhand argument \"{s}\"", .{entire_longhand});
-                    return Arg{ .longhand = entire_longhand };
+                    return Arg.init(current_arg, .{ .longhand = entire_longhand });
                 }
 
                 // this check allows '--' to fall through as a positional argument
                 if (current_arg[1] != '-') {
-                    // one or more shorthand aruments e.g. '-h' or '-abc'
-                    const char = current_arg[1];
-
-                    // If there are multiple shorthand arguments joined together e.g. '-abc' prime `sub_index`
-                    // if there are not move to the next argument
-                    if (current_arg.len > 2) {
-                        self.sub_index = 2;
-                        self.sub_arg = current_arg;
-                        log.debug("\"{s}\" - shorthand sub-index 1 is '{c}' - first shorthand in this group", .{ current_arg, char });
-                    } else {
-                        log.debug("\"{s}\" - shorthand is '{c}' - only shorthand in this group", .{ current_arg, char });
-                        if (builtin.os.tag == .windows) {
-                            self.allocator.free(current_arg);
-                        }
-                    }
-
-                    return Arg{ .shorthand = char };
+                    log.debug("shorthand argument \"{s}\"", .{current_arg});
+                    return Arg.init(current_arg, .{ .shorthand = .{ .value = current_arg } });
                 }
             }
 
             log.debug("positional \"{s}\"", .{current_arg});
-            return Arg{ .positional = current_arg };
+            return Arg.init(current_arg, .positional);
         }
 
         pub fn nextWithHelpOrVersion(self: *Self) error{ UnableToParseArguments, Help, Version }!?Arg {
-            const z = tracy.traceNamed(@src(), "next argument with help or version");
+            const z = tracy.traceNamed(@src(), "next arg with help/version");
             defer z.end();
 
-            const arg = (try self.next()) orelse return null;
+            var arg = (try self.next()) orelse return null;
             errdefer arg.deinit(self.allocator);
 
-            switch (arg) {
+            switch (arg.arg_type) {
                 .longhand => |longhand| {
                     if (std.mem.eql(u8, longhand, "help")) {
                         return error.Help;
@@ -199,10 +167,13 @@ pub fn ArgIterator(comptime T: type) type {
                         return error.Version;
                     }
                 },
-                .shorthand => |shorthand| {
-                    if (shorthand == 'h') {
-                        return error.Help;
+                .shorthand => |*shorthand| {
+                    while (shorthand.nextNoSkip()) |char| {
+                        if (char == 'h') {
+                            return error.Help;
+                        }
                     }
+                    shorthand.reset();
                 },
                 else => {},
             }
@@ -212,33 +183,96 @@ pub fn ArgIterator(comptime T: type) type {
     };
 }
 
-pub const Arg = union(enum) {
-    shorthand: u8,
-    longhand: [:0]const u8,
-    longhand_with_value: LonghandWithValue,
-    positional: [:0]const u8,
+pub const Arg = struct {
+    wrapped_str: WrappedString,
+    arg_type: ArgType,
 
-    pub const LonghandWithValue = struct {
-        longhand: []const u8,
-        value: []const u8,
-    };
+    pub fn init(value: [:0]const u8, arg_type: ArgType) Arg {
+        return .{ .wrapped_str = WrappedString{ .value = value }, .arg_type = arg_type };
+    }
 
     pub fn deinit(self: Arg, allocator: *std.mem.Allocator) void {
+        self.wrapped_str.deinit(allocator);
+    }
+
+    pub fn dupeValue(self: Arg, allocator: *std.mem.Allocator) !WrappedString {
         if (builtin.os.tag == .windows) {
-            switch (self) {
-                .longhand => |longhand| {
-                    // we need to do this ptr arithmetic as for longhand args the starting '--' is not included
-                    const corrected_ptr = (longhand.ptr - 2)[0..(2 + longhand.len) :0];
-                    allocator.free(corrected_ptr);
-                },
-                .longhand_with_value => |longhand_with_value| {
-                    const corrected_ptr = (longhand_with_value.longhand.ptr - 2)[0..(2 + longhand_with_value.longhand.len + 1 + longhand_with_value.value.len) :0];
-                    allocator.free(corrected_ptr);
-                },
-                .positional => |positional| allocator.free(positional),
-                .shorthand => {},
-            }
+            return WrappedString{ .value = try allocator.dupeZ(u8, self.value) };
         }
+        return WrappedString{ .value = self.value };
+    }
+
+    pub const ArgType = union(enum) {
+        shorthand: Shorthand,
+        longhand: []const u8,
+        longhand_with_value: LonghandWithValue,
+        positional: void,
+
+        pub const LonghandWithValue = struct {
+            longhand: []const u8,
+            value: [:0]const u8,
+
+            pub fn dupeValue(self: LonghandWithValue, allocator: *std.mem.Allocator) !WrappedString {
+                if (builtin.os.tag == .windows) {
+                    return WrappedString{ .value = try allocator.dupeZ(u8, self.value) };
+                }
+                return WrappedString{ .value = self.value };
+            }
+        };
+
+        pub const Shorthand = struct {
+            value: []const u8,
+            index: usize = 1,
+
+            pub fn next(self: *Shorthand) ?u8 {
+                var index = self.index;
+                defer self.index = index;
+
+                while (index < self.value.len) {
+                    defer index += 1;
+
+                    const char = self.value[index];
+
+                    if (char == 'h' or char == 'v') {
+                        continue;
+                    } else {
+                        log.debug("\"{s}\" - shorthand sub-index {} is '{c}'", .{ self.value, index, char });
+                    }
+
+                    return char;
+                }
+
+                return null;
+            }
+
+            fn nextNoSkip(self: *Shorthand) ?u8 {
+                if (self.index >= self.value.len) return null;
+                const char = self.value[self.index];
+                if (char == 'h' or char == 'v') log.debug("\"{s}\" - shorthand sub-index {} is '{c}'", .{ self.value, self.index, char });
+                self.index += 1;
+                return char;
+            }
+
+            pub fn reset(self: *Shorthand) void {
+                self.index = 1;
+            }
+        };
+    };
+};
+
+pub const WrappedString = struct {
+    value: [:0]const u8,
+
+    pub fn deinit(self: WrappedString, allocator: *std.mem.Allocator) void {
+        if (builtin.os.tag == .windows) {
+            allocator.free(self.value);
+        }
+    }
+
+    pub fn format(value: WrappedString, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.writeAll(value.value);
     }
 };
 

@@ -29,17 +29,16 @@ pub const usage =
 //
 //     // intended to only be called for the first argument
 //     fn nextWithHelpOrVersion(self: *Self) !?shared.Arg,
+//
+//     fn nextRaw(self: *Self) !?shared.WrappedString,
 // }
 
-pub fn execute(
-    allocator: *std.mem.Allocator,
-    io: anytype,
-    args: anytype,
-) subcommands.Error!u8 {
+pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
     _ = io;
+    _ = exe_path;
 
     // Only the first argument is checked for help or version
     if (try args.nextWithHelpOrVersion()) |arg| {
@@ -63,11 +62,11 @@ test "false no args" {
 }
 
 test "false help" {
-    try shared.testHelp(@This());
+    try subcommands.testHelp(@This());
 }
 
 test "false version" {
-    try shared.testVersion(@This());
+    try subcommands.testVersion(@This());
 }
 
 comptime {
