@@ -7,6 +7,11 @@ pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
 
+    if (target.isWindows()) {
+        std.debug.print("Windows is not supported", .{});
+        return error.UnsupportedOperatingSystem;
+    }
+
     const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
 
     const options = b.addOptions();

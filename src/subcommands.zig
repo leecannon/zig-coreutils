@@ -61,7 +61,7 @@ fn executeSubcommand(
     const z = shared.tracy.traceNamed(@src(), "execute subcommand");
     defer z.end();
 
-    var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter, allocator);
+    var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
     return subcommand.execute(allocator, io, &arg_iterator, exe_path) catch |err| switch (err) {
         error.Help => shared.printHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),
@@ -69,7 +69,7 @@ fn executeSubcommand(
     };
 }
 
-pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) SubcommandErrors!u8 {
+pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, settings: anytype) SubcommandErrors!u8 {
     const SettingsType = @TypeOf(settings);
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
@@ -92,7 +92,7 @@ pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, s
 
 pub fn testError(
     comptime subcommand: type,
-    arguments: []const [:0]const u8,
+    arguments: []const []const u8,
     settings: anytype,
     expected_error: []const u8,
 ) !void {
@@ -173,14 +173,10 @@ pub fn testVersion(comptime subcommand: type) !void {
 }
 
 const SliceArgIterator = struct {
-    slice: []const [:0]const u8,
+    slice: []const []const u8,
     index: usize = 0,
 
-    pub inline fn next(self: *SliceArgIterator, allocator: *std.mem.Allocator) ?(std.process.ArgIterator.NextError![:0]const u8) {
-        return allocator.dupeZ(u8, self.nextPosix());
-    }
-
-    pub fn nextPosix(self: *SliceArgIterator) ?[:0]const u8 {
+    pub fn nextPosix(self: *SliceArgIterator) ?[]const u8 {
         if (self.index < self.slice.len) {
             defer self.index += 1;
             return self.slice[self.index];

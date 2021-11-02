@@ -29,29 +29,25 @@ pub const usage =
 
 // args
 // struct {
-//     fn next(self: *Self) !?shared.Arg,
+//     fn next(self: *Self) ?shared.Arg,
 //
 //     // intended to only be called for the first argument
 //     fn nextWithHelpOrVersion(self: *Self) !?shared.Arg,
 //
-//     fn nextRaw(self: *Self) !?shared.WrappedString,
+//     fn nextRaw(self: *Self) ?[]const u8,
 // }
 
 pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) !u8 {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
-    var arg: shared.Arg = (try args.nextWithHelpOrVersion()) orelse {
-        return shared.printInvalidUsage(@This(), io, exe_path, "missing operand");
-    };
-    defer arg.deinit(allocator);
+    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion();
 
     var zero: bool = false;
     var multiple: bool = false;
-    var opt_multiple_suffix: ?shared.WrappedString = null;
-    defer if (opt_multiple_suffix) |multiple_suffix| multiple_suffix.deinit(allocator);
+    var opt_multiple_suffix: ?[]const u8 = null;
 
-    while (true) {
+    while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
                 if (std.mem.eql(u8, longhand, "zero")) {
@@ -81,7 +77,7 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
             .longhand_with_value => |longhand_with_value| {
                 if (std.mem.eql(u8, longhand_with_value.longhand, "suffix")) {
                     multiple = true;
-                    opt_multiple_suffix = try longhand_with_value.dupeValue(allocator);
+                    opt_multiple_suffix = longhand_with_value.value;
                     log.debug("got suffix longhand with value = {s}", .{longhand_with_value.value});
                 } else {
                     return try shared.printInvalidUsageAlloc(
@@ -97,15 +93,14 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
             .positional => {
                 if (multiple) {
                     return try multipleArguments(
-                        allocator,
                         io,
                         args,
-                        arg.wrapped_str,
+                        arg.raw,
                         zero,
                         opt_multiple_suffix,
                     );
                 }
-                return try singleArgument(allocator, io, args, exe_path, arg.wrapped_str.value, zero);
+                return try singleArgument(allocator, io, args, exe_path, arg.raw, zero);
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
@@ -116,7 +111,7 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
                         multiple = true;
                         log.debug("got multiple shorthand", .{});
                     } else if (char == 's') {
-                        opt_multiple_suffix = (try args.nextRaw()) orelse {
+                        opt_multiple_suffix = args.nextRaw() orelse {
                             return shared.printInvalidUsage(
                                 @This(),
                                 io,
@@ -125,7 +120,7 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
                             );
                         };
                         multiple = true;
-                        log.debug("got suffix shorthand with value = {s}", .{(opt_multiple_suffix orelse unreachable).value});
+                        log.debug("got suffix shorthand with value = {s}", .{opt_multiple_suffix orelse unreachable});
                     } else {
                         return try shared.printInvalidUsageAlloc(
                             @This(),
@@ -139,14 +134,9 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
                 }
             },
         }
-
-        arg.deinit(allocator);
-        arg = (try args.next()) orelse {
-            return shared.printInvalidUsage(@This(), io, exe_path, "missing operand");
-        };
     }
 
-    return 0;
+    return shared.printInvalidUsage(@This(), io, exe_path, "missing operand");
 }
 
 pub fn singleArgument(
@@ -161,34 +151,29 @@ pub fn singleArgument(
     defer z.end();
     z.addText(first_arg);
 
-    const opt_suffix: ?shared.WrappedString = blk: {
+    const opt_suffix: ?[]const u8 = blk: {
         const suffix_zone = shared.tracy.traceNamed(@src(), "get suffix");
         defer suffix_zone.end();
 
-        const arg = (try args.nextRaw()) orelse break :blk null;
+        const arg = args.nextRaw() orelse break :blk null;
 
-        if (try args.nextRaw()) |additional_arg| {
-            defer {
-                additional_arg.deinit(allocator);
-                arg.deinit(allocator);
-            }
-
+        if (args.nextRaw()) |additional_arg| {
             return try shared.printInvalidUsageAlloc(
                 @This(),
                 allocator,
                 io,
                 exe_path,
                 "extra operand '{s}'",
-                .{additional_arg.value},
+                .{additional_arg},
             );
         }
 
-        suffix_zone.addText(arg.value);
+        suffix_zone.addText(arg);
 
         break :blk arg;
     };
 
-    log.info("singleArgument called, first_arg='{s}', zero={}, suffix='{}'", .{ first_arg, zero, opt_suffix });
+    log.info("singleArgument called, first_arg='{s}', zero={}, suffix='{s}'", .{ first_arg, zero, opt_suffix });
 
     const basename = getBasename(first_arg, opt_suffix);
     log.debug("got basename: '{s}'", .{basename});
@@ -207,29 +192,33 @@ pub fn singleArgument(
 }
 
 pub fn multipleArguments(
-    allocator: *std.mem.Allocator,
     io: anytype,
     args: anytype,
-    first_arg: shared.WrappedString,
+    first_arg: []const u8,
     zero: bool,
-    opt_suffix: ?shared.WrappedString,
+    opt_suffix: ?[]const u8,
 ) !u8 {
     const z = shared.tracy.traceNamed(@src(), "multiple arguments");
     defer z.end();
 
-    log.info("multipleArguments called, first_arg='{}', zero={}, suffix='{}'", .{ first_arg, zero, opt_suffix });
-
-    var opt_arg: ?shared.WrappedString = first_arg;
-    var is_first_arg: bool = false;
+    log.info("multipleArguments called, first_arg='{s}', zero={}, suffix='{s}'", .{ first_arg, zero, opt_suffix });
 
     const end_byte: u8 = if (zero) 0 else '\n';
 
-    while (opt_arg) |arg| : (opt_arg = try args.nextRaw()) {
+    var opt_arg: ?[]const u8 = first_arg;
+
+    var arg_frame = shared.tracy.namedFrame("arg");
+    defer arg_frame.end();
+
+    while (opt_arg) |arg| : ({
+        arg_frame.mark();
+        opt_arg = args.nextRaw();
+    }) {
         const argument_zone = shared.tracy.traceNamed(@src(), "process arg");
         defer argument_zone.end();
-        argument_zone.addText(arg.value);
+        argument_zone.addText(arg);
 
-        const basename = getBasename(arg.value, opt_suffix);
+        const basename = getBasename(arg, opt_suffix);
         log.debug("got basename: '{s}'", .{basename});
 
         io.stdout.writeAll(basename) catch |err| {
@@ -241,21 +230,15 @@ pub fn multipleArguments(
             shared.unableToWriteTo("stdout", io, err);
             return 1;
         };
-
-        if (is_first_arg) {
-            is_first_arg = false;
-        } else {
-            arg.deinit(allocator);
-        }
     }
 
     return 0;
 }
 
-fn getBasename(buf: []const u8, opt_suffix: ?shared.WrappedString) []const u8 {
+fn getBasename(buf: []const u8, opt_suffix: ?[]const u8) []const u8 {
     const basename = std.fs.path.basename(buf);
     return if (opt_suffix) |suffix|
-        if (std.mem.lastIndexOf(u8, basename, suffix.value)) |end_index|
+        if (std.mem.lastIndexOf(u8, basename, suffix)) |end_index|
             basename[0..end_index]
         else
             basename

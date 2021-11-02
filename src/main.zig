@@ -3,27 +3,15 @@ const subcommands = @import("subcommands.zig");
 const shared = @import("shared.zig");
 const options = @import("options");
 const builtin = @import("builtin");
-const is_windows = builtin.os.tag == .windows;
 
 const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 
-const MainErrorSet = error{
-    Overflow,
-    InvalidCmdLine,
-    Unexpected,
-} || subcommands.ExecuteError;
-
-const MainReturnValue = if (is_debug_or_test)
-    MainErrorSet!u8
-else
-    u8;
-
 pub const enable_tracy = options.trace;
-pub const tracy_enable_callstack = true;
+pub const tracy_enable_callstack = false;
 
 const log = std.log.scoped(.main);
 
-pub fn main() MainReturnValue {
+pub fn main() if (is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
     const main_z = shared.tracy.traceNamed(@src(), "main");
     // this causes the frame to start with our main instead of `std.start`
     shared.tracy.frameMark();
@@ -45,11 +33,7 @@ pub fn main() MainReturnValue {
 
     const allocator = if (enable_tracy) &tracy_allocator.allocator else &gpa.allocator;
 
-    var argument_info = ArgumentInfo.fetch(allocator) catch |err| {
-        if (is_debug_or_test) return err;
-        return 1;
-    };
-    defer argument_info.deinit(allocator);
+    var argument_info = ArgumentInfo.fetch();
 
     const io_buffers_z = shared.tracy.traceNamed(@src(), "io buffers");
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
@@ -104,16 +88,13 @@ const ArgumentInfo = struct {
     exe_path: [:0]const u8,
     arg_iter: std.process.ArgIterator,
 
-    pub fn fetch(allocator: *std.mem.Allocator) !ArgumentInfo {
+    pub fn fetch() ArgumentInfo {
         const z = shared.tracy.traceNamed(@src(), "fetch argument info");
         defer z.end();
 
-        var arg_iter = try std.process.argsWithAllocator(allocator);
+        var arg_iter = std.process.args();
 
-        const exe_path = if (builtin.os.tag == .windows)
-            try (arg_iter.next(allocator) orelse unreachable)
-        else
-            arg_iter.nextPosix() orelse unreachable;
+        const exe_path = arg_iter.nextPosix() orelse unreachable;
         const basename = std.fs.path.basename(exe_path);
         log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 
@@ -122,11 +103,6 @@ const ArgumentInfo = struct {
             .exe_path = exe_path,
             .arg_iter = arg_iter,
         };
-    }
-
-    pub fn deinit(self: *ArgumentInfo, allocator: *std.mem.Allocator) void {
-        if (builtin.os.tag == .windows) allocator.free(self.exe_path);
-        self.arg_iter.deinit();
     }
 };
 

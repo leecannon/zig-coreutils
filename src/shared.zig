@@ -72,47 +72,32 @@ pub const version_string = "{s} (zig-coreutils) " ++ build_options.version ++ "\
 pub fn ArgIterator(comptime T: type) type {
     return struct {
         arg_iter: T,
-        allocator: *std.mem.Allocator,
 
         const Self = @This();
 
-        pub fn init(arg_iter: T, allocator: *std.mem.Allocator) Self {
-            return .{
-                .arg_iter = arg_iter,
-                .allocator = allocator,
-            };
+        pub fn init(arg_iter: T) Self {
+            return .{ .arg_iter = arg_iter };
         }
 
-        pub fn deinit(self: *Self) void {
-            if (builtin.os.tag == .windows) {
-                if (self.sub_arg) |sub_arg| {
-                    self.allocator.free(sub_arg);
-                }
-            }
-        }
-
-        pub fn nextRaw(self: *Self) error{UnableToParseArguments}!?WrappedString {
+        // BUG: this function should return `?[:0]const u8` but that hits a compiler bug
+        // broken LLVM module found: Call parameter type does not match function signature!
+        pub fn nextRaw(self: *Self) ?[]const u8 {
             const z = tracy.traceNamed(@src(), "raw next arg");
             defer z.end();
 
-            const arg = if (builtin.os.tag == .windows)
-                (self.arg_iter.next(self.allocator) orelse return null) catch return error.UnableToParseArguments
-            else
-                self.arg_iter.nextPosix() orelse return null;
+            if (self.arg_iter.nextPosix()) |arg| {
+                z.addText(arg);
+                return arg;
+            }
 
-            z.addText(arg);
-
-            return WrappedString{ .value = arg };
+            return null;
         }
 
-        pub fn next(self: *Self) error{UnableToParseArguments}!?Arg {
+        pub fn next(self: *Self) ?Arg {
             const z = tracy.traceNamed(@src(), "next arg");
             defer z.end();
 
-            const current_arg = if (builtin.os.tag == .windows)
-                (self.arg_iter.next(self.allocator) orelse return null) catch return error.UnableToParseArguments
-            else
-                self.arg_iter.nextPosix() orelse return null;
+            const current_arg = self.arg_iter.nextPosix() orelse return null;
 
             z.addText(current_arg);
 
@@ -129,7 +114,7 @@ pub fn ArgIterator(comptime T: type) type {
                         if (equal_index == 0) break :longhand_shorthand_blk;
 
                         const longhand = entire_longhand[0..equal_index];
-                        const value = entire_longhand[equal_index + 1 .. :0];
+                        const value = entire_longhand[equal_index + 1 ..];
 
                         log.debug("longhand argument with value \"{s}\" = \"{s}\"", .{ longhand, value });
 
@@ -151,12 +136,11 @@ pub fn ArgIterator(comptime T: type) type {
             return Arg.init(current_arg, .positional);
         }
 
-        pub fn nextWithHelpOrVersion(self: *Self) error{ UnableToParseArguments, Help, Version }!?Arg {
+        pub fn nextWithHelpOrVersion(self: *Self) error{ Help, Version }!?Arg {
             const z = tracy.traceNamed(@src(), "next arg with help/version");
             defer z.end();
 
-            var arg = (try self.next()) orelse return null;
-            errdefer arg.deinit(self.allocator);
+            var arg = self.next() orelse return null;
 
             switch (arg.arg_type) {
                 .longhand => |longhand| {
@@ -184,22 +168,11 @@ pub fn ArgIterator(comptime T: type) type {
 }
 
 pub const Arg = struct {
-    wrapped_str: WrappedString,
+    raw: []const u8,
     arg_type: ArgType,
 
-    pub fn init(value: [:0]const u8, arg_type: ArgType) Arg {
-        return .{ .wrapped_str = WrappedString{ .value = value }, .arg_type = arg_type };
-    }
-
-    pub fn deinit(self: Arg, allocator: *std.mem.Allocator) void {
-        self.wrapped_str.deinit(allocator);
-    }
-
-    pub fn dupeValue(self: Arg, allocator: *std.mem.Allocator) !WrappedString {
-        if (builtin.os.tag == .windows) {
-            return WrappedString{ .value = try allocator.dupeZ(u8, self.value) };
-        }
-        return WrappedString{ .value = self.value };
+    pub fn init(value: []const u8, arg_type: ArgType) Arg {
+        return .{ .raw = value, .arg_type = arg_type };
     }
 
     pub const ArgType = union(enum) {
@@ -210,14 +183,7 @@ pub const Arg = struct {
 
         pub const LonghandWithValue = struct {
             longhand: []const u8,
-            value: [:0]const u8,
-
-            pub fn dupeValue(self: LonghandWithValue, allocator: *std.mem.Allocator) !WrappedString {
-                if (builtin.os.tag == .windows) {
-                    return WrappedString{ .value = try allocator.dupeZ(u8, self.value) };
-                }
-                return WrappedString{ .value = self.value };
-            }
+            value: []const u8,
         };
 
         pub const Shorthand = struct {
@@ -258,22 +224,6 @@ pub const Arg = struct {
             }
         };
     };
-};
-
-pub const WrappedString = struct {
-    value: [:0]const u8,
-
-    pub fn deinit(self: WrappedString, allocator: *std.mem.Allocator) void {
-        if (builtin.os.tag == .windows) {
-            allocator.free(self.value);
-        }
-    }
-
-    pub fn format(value: WrappedString, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-        _ = options;
-        try writer.writeAll(value.value);
-    }
 };
 
 comptime {

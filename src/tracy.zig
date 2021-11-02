@@ -228,6 +228,11 @@ pub fn Frame(comptime name: [:0]const u8) type {
         pub fn end(_: @This()) void {
             frameMarkEnd(name);
         }
+
+        pub fn mark(_: @This()) void {
+            frameMarkEnd(name);
+            frameMarkStart(name);
+        }
     };
 }
 

@@ -25,12 +25,12 @@ pub const usage =
 
 // args
 // struct {
-//     fn next(self: *Self) !?shared.Arg,
+//     fn next(self: *Self) ?shared.Arg,
 //
 //     // intended to only be called for the first argument
 //     fn nextWithHelpOrVersion(self: *Self) !?shared.Arg,
 //
-//     fn nextRaw(self: *Self) !?shared.WrappedString,
+//     fn nextRaw(self: *Self) ?[]const u8,
 // }
 
 pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) subcommands.Error!u8 {
@@ -39,13 +39,11 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
 
     _ = io;
     _ = exe_path;
+    _ = allocator;
 
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion();
 
-    while (opt_arg) |arg| : ({
-        arg.deinit(allocator);
-        opt_arg = try args.next();
-    }) {
+    while (opt_arg) |arg| : (opt_arg = args.next()) {
         switch (arg) {
             .longhand => {},
             .shorthand => {},
