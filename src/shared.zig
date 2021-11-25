@@ -3,6 +3,8 @@ const subcommands = @import("subcommands.zig");
 const build_options = @import("options");
 const builtin = @import("builtin");
 
+pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
+
 const log = std.log.scoped(.shared);
 
 pub const tracy = @import("tracy.zig");
@@ -62,7 +64,7 @@ pub fn printInvalidUsageAlloc(
     defer z.end();
 
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
-    defer allocator.free(error_message);
+    defer if (is_debug_or_test) allocator.free(error_message);
 
     return printInvalidUsage(subcommand, io, exe_path, error_message);
 }
