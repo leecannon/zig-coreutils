@@ -9,6 +9,7 @@ pub const name = "basename";
 pub const usage =
     \\Usage: {0s} NAME [SUFFIX]
     \\   or: {0s} OPTION... NAME...
+    \\
     \\Print NAME with any leading directory components removed.
     \\If specified, also remove a trailing SUFFIX.
     \\

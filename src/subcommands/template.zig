@@ -9,6 +9,7 @@ pub const name = "template";
 pub const usage =
     \\Usage: {0s} [ignored command line arguments]
     \\   or: {0s} OPTION
+    \\
     \\A template subcommand
     \\
     \\     -h, --help  display this help and exit
@@ -44,7 +45,7 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion();
 
     while (opt_arg) |arg| : (opt_arg = args.next()) {
-        switch (arg) {
+        switch (arg.arg_type) {
             .longhand => {},
             .shorthand => {},
             .longhand_with_value => {},

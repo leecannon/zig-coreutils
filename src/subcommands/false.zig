@@ -9,6 +9,7 @@ pub const name = "false";
 pub const usage =
     \\Usage: {0s} [ignored command line arguments]
     \\   or: {0s} OPTION
+    \\
     \\Exit with a status code indicating failure.
     \\
     \\     -h, --help  display this help and exit
