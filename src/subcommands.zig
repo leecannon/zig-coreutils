@@ -7,6 +7,7 @@ const log = std.log.scoped(.subcommand);
 pub const SUBCOMMANDS = [_]type{
     @import("subcommands/basename.zig"),
     @import("subcommands/false.zig"),
+    @import("subcommands/groups.zig"),
     @import("subcommands/true.zig"),
 };
 

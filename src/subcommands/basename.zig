@@ -19,6 +19,7 @@ pub const usage =
     \\  -z, --zero           end each output line with NUL, not newline
     \\      --help     display this help and exit
     \\      --version  output version information and exit
+    \\
 ;
 
 // io

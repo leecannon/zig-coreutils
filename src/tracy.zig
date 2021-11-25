@@ -1,58 +1,41 @@
 const std = @import("std");
 const root = @import("root");
 
-const enable = if (@hasDecl(root, "enable_tracy")) root.enable_tracy else false;
+pub const enable = if (@hasDecl(root, "enable_tracy")) root.enable_tracy else false;
 const enable_callstack = if (@hasDecl(root, "tracy_enable_callstack")) root.tracy_enable_callstack else false;
 const callstack_depth = if (@hasDecl(root, "tracy_callstack_depth")) root.tracy_callstack_depth else 20;
 
 const ___tracy_c_zone_context = extern struct {
     id: u32,
     active: c_int,
-
-    pub inline fn end(self: @This()) void {
-        ___tracy_emit_zone_end(self);
-    }
-
-    pub inline fn addText(self: @This(), text: []const u8) void {
-        ___tracy_emit_zone_text(self, text.ptr, text.len);
-    }
-
-    pub inline fn setName(self: @This(), name: []const u8) void {
-        ___tracy_emit_zone_name(self, name.ptr, name.len);
-    }
-
-    pub inline fn setColor(self: @This(), color: u32) void {
-        ___tracy_emit_zone_color(self, color);
-    }
-
-    pub inline fn setValue(self: @This(), value: u64) void {
-        ___tracy_emit_zone_value(self, value);
-    }
 };
 
-pub const Ctx = if (enable) ___tracy_c_zone_context else struct {
+pub const Ctx = struct {
+    ctx: if (enable) ___tracy_c_zone_context else void = if (enable) .{ .id = 0, .active = 0 } else {},
+
     pub inline fn end(self: @This()) void {
-        _ = self;
+        if (!enable) return;
+        ___tracy_emit_zone_end(self.ctx);
     }
 
     pub inline fn addText(self: @This(), text: []const u8) void {
-        _ = self;
-        _ = text;
+        if (!enable) return;
+        ___tracy_emit_zone_text(self.ctx, text.ptr, text.len);
     }
 
     pub inline fn setName(self: @This(), name: []const u8) void {
-        _ = self;
-        _ = name;
+        if (!enable) return;
+        ___tracy_emit_zone_name(self.ctx, name.ptr, name.len);
     }
 
     pub inline fn setColor(self: @This(), color: u32) void {
-        _ = self;
-        _ = color;
+        if (!enable) return;
+        ___tracy_emit_zone_color(self.ctx, color);
     }
 
     pub inline fn setValue(self: @This(), value: u64) void {
-        _ = self;
-        _ = value;
+        if (!enable) return;
+        ___tracy_emit_zone_value(self.ctx, value);
     }
 };
 
@@ -60,21 +43,21 @@ pub inline fn trace(comptime src: std.builtin.SourceLocation) Ctx {
     if (!enable) return .{};
 
     if (enable_callstack) {
-        return ___tracy_emit_zone_begin_callstack(&.{
+        return .{ .ctx = ___tracy_emit_zone_begin_callstack(&.{
             .name = null,
             .function = src.fn_name.ptr,
             .file = src.file.ptr,
             .line = src.line,
             .color = 0,
-        }, callstack_depth, 1);
+        }, callstack_depth, 1) };
     } else {
-        return ___tracy_emit_zone_begin(&.{
+        return .{ .ctx = ___tracy_emit_zone_begin(&.{
             .name = null,
             .function = src.fn_name.ptr,
             .file = src.file.ptr,
             .line = src.line,
             .color = 0,
-        }, 1);
+        }, 1) };
     }
 }
 
@@ -82,21 +65,21 @@ pub inline fn traceNamed(comptime src: std.builtin.SourceLocation, comptime name
     if (!enable) return .{};
 
     if (enable_callstack) {
-        return ___tracy_emit_zone_begin_callstack(&.{
+        return .{ .ctx = ___tracy_emit_zone_begin_callstack(&.{
             .name = name.ptr,
             .function = src.fn_name.ptr,
             .file = src.file.ptr,
             .line = src.line,
             .color = 0,
-        }, callstack_depth, 1);
+        }, callstack_depth, 1) };
     } else {
-        return ___tracy_emit_zone_begin(&.{
+        return .{ .ctx = ___tracy_emit_zone_begin(&.{
             .name = name.ptr,
             .function = src.fn_name.ptr,
             .file = src.file.ptr,
             .line = src.line,
             .color = 0,
-        }, 1);
+        }, 1) };
     }
 }
 

@@ -5,7 +5,7 @@ const options = @import("options");
 const builtin = @import("builtin");
 
 pub const enable_tracy = options.trace;
-pub const tracy_enable_callstack = false;
+pub const tracy_enable_callstack = true;
 
 const log = std.log.scoped(.main);
 

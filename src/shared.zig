@@ -4,6 +4,7 @@ const build_options = @import("options");
 const builtin = @import("builtin");
 
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
+pub const free_on_close = is_debug_or_test or tracy.enable;
 
 const log = std.log.scoped(.shared);
 
@@ -33,8 +34,41 @@ pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyer
     io.stderr.writeByte('\n') catch return;
 }
 
-pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []const u8, error_message: []const u8) u8 {
+pub fn printError(comptime subcommand: type, io: anytype, error_message: []const u8) u8 {
     const z = tracy.traceNamed(@src(), "print error");
+    defer z.end();
+    z.addText(error_message);
+
+    log.debug("printing error for " ++ subcommand.name, .{});
+
+    output: {
+        io.stderr.writeAll(subcommand.name) catch break :output;
+        io.stderr.writeAll(": ") catch break :output;
+        io.stderr.writeAll(error_message) catch break :output;
+        io.stderr.writeByte('\n') catch break :output;
+    }
+
+    return 1;
+}
+
+pub fn printErrorAlloc(
+    comptime subcommand: type,
+    allocator: *std.mem.Allocator,
+    io: anytype,
+    comptime msg: []const u8,
+    args: anytype,
+) !u8 {
+    const z = tracy.traceNamed(@src(), "print error alloc");
+    defer z.end();
+
+    const error_message = try std.fmt.allocPrint(allocator, msg, args);
+    defer if (free_on_close) allocator.free(error_message);
+
+    return printError(subcommand, io, error_message);
+}
+
+pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []const u8, error_message: []const u8) u8 {
+    const z = tracy.traceNamed(@src(), "print invalid usage");
     defer z.end();
     z.addText(error_message);
 
@@ -60,11 +94,11 @@ pub fn printInvalidUsageAlloc(
     comptime msg: []const u8,
     args: anytype,
 ) !u8 {
-    const z = tracy.traceNamed(@src(), "print error alloc");
+    const z = tracy.traceNamed(@src(), "print invalid usage alloc");
     defer z.end();
 
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
-    defer if (is_debug_or_test) allocator.free(error_message);
+    defer if (free_on_close) allocator.free(error_message);
 
     return printInvalidUsage(subcommand, io, exe_path, error_message);
 }
