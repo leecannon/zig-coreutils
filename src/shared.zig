@@ -53,7 +53,7 @@ pub fn printError(comptime subcommand: type, io: anytype, error_message: []const
 
 pub fn printErrorAlloc(
     comptime subcommand: type,
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     io: anytype,
     comptime msg: []const u8,
     args: anytype,
@@ -88,7 +88,7 @@ pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []con
 
 pub fn printInvalidUsageAlloc(
     comptime subcommand: type,
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     io: anytype,
     exe_path: []const u8,
     comptime msg: []const u8,

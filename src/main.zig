@@ -13,9 +13,9 @@ var allocator_backing = if (!shared.is_debug_or_test) std.heap.ArenaAllocator.in
 var gpa = if (shared.is_debug_or_test)
     std.heap.GeneralPurposeAllocator(.{}){}
 else
-    std.heap.stackFallback(std.mem.page_size, &allocator_backing.allocator);
+    std.heap.stackFallback(std.mem.page_size, allocator_backing.allocator());
 
-var tracy_allocator = if (enable_tracy) shared.tracy.TracyAllocator(null).init(&gpa.allocator) else {};
+var tracy_allocator = if (enable_tracy) shared.tracy.TracyAllocator(null).init(gpa.allocator()) else {};
 
 pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
     const main_z = shared.tracy.traceNamed(@src(), "main");
@@ -29,7 +29,7 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
         main_z.end();
     }
 
-    const allocator = if (enable_tracy) &tracy_allocator.allocator else &gpa.allocator;
+    const allocator = if (enable_tracy) tracy_allocator.allocator() else gpa.allocator();
 
     var argument_info = ArgumentInfo.fetch();
 

@@ -39,7 +39,7 @@ pub const usage =
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
 
-pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) !u8 {
+pub fn execute(allocator: std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) !u8 {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -142,7 +142,7 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
 }
 
 pub fn singleArgument(
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     io: anytype,
     args: anytype,
     exe_path: []const u8,

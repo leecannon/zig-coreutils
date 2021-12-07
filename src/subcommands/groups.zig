@@ -35,12 +35,11 @@ pub const usage =
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
 
-pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) subcommands.Error!u8 {
+pub fn execute(allocator: std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
     _ = exe_path;
-    _ = allocator;
 
     const opt_arg = try args.nextWithHelpOrVersion();
 
@@ -52,7 +51,7 @@ pub fn execute(allocator: *std.mem.Allocator, io: anytype, args: anytype, exe_pa
     return if (opt_arg) |arg| otherUser(allocator, io, arg, passwd_file) else currentUser(allocator, io, passwd_file);
 }
 
-fn currentUser(allocator: *std.mem.Allocator, io: anytype, passwd_file: std.fs.File) subcommands.Error!u8 {
+fn currentUser(allocator: std.mem.Allocator, io: anytype, passwd_file: std.fs.File) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), "current user");
     defer z.end();
 
@@ -107,7 +106,7 @@ fn currentUser(allocator: *std.mem.Allocator, io: anytype, passwd_file: std.fs.F
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
 }
 
-fn otherUser(allocator: *std.mem.Allocator, io: anytype, arg: shared.Arg, passwd_file: std.fs.File) subcommands.Error!u8 {
+fn otherUser(allocator: std.mem.Allocator, io: anytype, arg: shared.Arg, passwd_file: std.fs.File) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), "other user");
     defer z.end();
     z.addText(arg.raw);
@@ -159,7 +158,7 @@ fn otherUser(allocator: *std.mem.Allocator, io: anytype, arg: shared.Arg, passwd
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
 }
 
-fn printGroups(allocator: *std.mem.Allocator, user_name: []const u8, primary_group_id: std.os.uid_t, io: anytype) !u8 {
+fn printGroups(allocator: std.mem.Allocator, user_name: []const u8, primary_group_id: std.os.uid_t, io: anytype) !u8 {
     const z = shared.tracy.traceNamed(@src(), "print groups");
     defer z.end();
     z.addText(user_name);

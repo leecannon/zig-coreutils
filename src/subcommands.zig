@@ -28,7 +28,7 @@ const SubcommandNonErrors = error{
 pub const Error = SubcommandErrors || SubcommandNonErrors;
 
 pub fn execute(
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     arg_iter: *std.process.ArgIterator,
     io: anytype,
     basename: []const u8,
@@ -54,7 +54,7 @@ pub fn execute(
 
 fn executeSubcommand(
     comptime subcommand: type,
-    allocator: *std.mem.Allocator,
+    allocator: std.mem.Allocator,
     arg_iter: anytype,
     io: anytype,
     exe_path: []const u8,
