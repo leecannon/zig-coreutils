@@ -15,8 +15,6 @@ var gpa = if (shared.is_debug_or_test)
 else
     std.heap.stackFallback(std.mem.page_size, allocator_backing.allocator());
 
-var tracy_allocator = if (enable_tracy) shared.tracy.TracyAllocator(null).init(gpa.allocator()) else {};
-
 pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
     const main_z = shared.tracy.traceNamed(@src(), "main");
     // this causes the frame to start with our main instead of `std.start`
@@ -29,7 +27,9 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
         main_z.end();
     }
 
-    const allocator = if (enable_tracy) tracy_allocator.allocator() else gpa.allocator();
+    const gpa_allocator: std.mem.Allocator = if (shared.is_debug_or_test) gpa.allocator() else gpa.get();
+    var tracy_allocator = if (enable_tracy) shared.tracy.TracyAllocator(null).init(gpa_allocator) else {};
+    const allocator = if (enable_tracy) tracy_allocator.allocator() else gpa_allocator;
 
     var argument_info = ArgumentInfo.fetch();
 

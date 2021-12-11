@@ -39,7 +39,7 @@ pub const usage =
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
 
-pub fn execute(allocator: std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) !u8 {
+pub fn execute(allocator: std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
