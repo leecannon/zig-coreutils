@@ -1,6 +1,7 @@
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
 const shared = @import("../shared.zig");
+const zsw = @import("zsw");
 
 const log = std.log.scoped(.groups);
 
@@ -35,7 +36,13 @@ pub const usage =
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
 
-pub fn execute(allocator: std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) subcommands.Error!u8 {
+pub fn execute(
+    allocator: std.mem.Allocator,
+    io: anytype,
+    args: anytype,
+    system: zsw.System,
+    exe_path: []const u8,
+) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -43,15 +50,23 @@ pub fn execute(allocator: std.mem.Allocator, io: anytype, args: anytype, exe_pat
 
     const opt_arg = try args.nextWithHelpOrVersion();
 
-    const passwd_file = std.fs.cwd().openFile("/etc/passwd", .{}) catch {
+    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch {
         return shared.printError(@This(), io, "unable to read '/etc/passwd'");
     };
     defer if (shared.free_on_close) passwd_file.close();
 
-    return if (opt_arg) |arg| otherUser(allocator, io, arg, passwd_file) else currentUser(allocator, io, passwd_file);
+    return if (opt_arg) |arg|
+        otherUser(allocator, io, arg, passwd_file, system)
+    else
+        currentUser(allocator, io, passwd_file, system);
 }
 
-fn currentUser(allocator: std.mem.Allocator, io: anytype, passwd_file: std.fs.File) subcommands.Error!u8 {
+fn currentUser(
+    allocator: std.mem.Allocator,
+    io: anytype,
+    passwd_file: zsw.File,
+    system: zsw.System,
+) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), "current user");
     defer z.end();
 
@@ -91,7 +106,7 @@ fn currentUser(allocator: std.mem.Allocator, io: anytype, passwd_file: std.fs.Fi
                     return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
 
                 if (std.fmt.parseUnsigned(std.os.uid_t, primary_group_id_slice, 10)) |primary_group_id| {
-                    return printGroups(allocator, user_name, primary_group_id, io);
+                    return printGroups(allocator, user_name, primary_group_id, io, system);
                 } else |_| {
                     return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
                 }
@@ -106,7 +121,13 @@ fn currentUser(allocator: std.mem.Allocator, io: anytype, passwd_file: std.fs.Fi
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
 }
 
-fn otherUser(allocator: std.mem.Allocator, io: anytype, arg: shared.Arg, passwd_file: std.fs.File) subcommands.Error!u8 {
+fn otherUser(
+    allocator: std.mem.Allocator,
+    io: anytype,
+    arg: shared.Arg,
+    passwd_file: zsw.File,
+    system: zsw.System,
+) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), "other user");
     defer z.end();
     z.addText(arg.raw);
@@ -149,7 +170,7 @@ fn otherUser(allocator: std.mem.Allocator, io: anytype, arg: shared.Arg, passwd_
             return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
 
         if (std.fmt.parseUnsigned(std.os.uid_t, primary_group_id_slice, 10)) |primary_group_id| {
-            return printGroups(allocator, user_name, primary_group_id, io);
+            return printGroups(allocator, user_name, primary_group_id, io, system);
         } else |_| {
             return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
         }
@@ -158,14 +179,20 @@ fn otherUser(allocator: std.mem.Allocator, io: anytype, arg: shared.Arg, passwd_
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
 }
 
-fn printGroups(allocator: std.mem.Allocator, user_name: []const u8, primary_group_id: std.os.uid_t, io: anytype) !u8 {
+fn printGroups(
+    allocator: std.mem.Allocator,
+    user_name: []const u8,
+    primary_group_id: std.os.uid_t,
+    io: anytype,
+    system: zsw.System,
+) !u8 {
     const z = shared.tracy.traceNamed(@src(), "print groups");
     defer z.end();
     z.addText(user_name);
 
     log.info("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
 
-    var group_file = std.fs.cwd().openFile("/etc/group", .{}) catch {
+    var group_file = system.cwd().openFile("/etc/group", .{}) catch {
         return shared.printError(@This(), io, "unable to read '/etc/group'");
     };
     defer if (shared.free_on_close) group_file.close();
@@ -231,12 +258,17 @@ fn printGroups(allocator: std.mem.Allocator, user_name: []const u8, primary_grou
 }
 
 test "groups no args" {
+    var test_system = TestSystem.init();
+    defer test_system.deinit();
+
     try std.testing.expectEqual(
         @as(u8, 0),
         try subcommands.testExecute(
             @This(),
             &.{},
-            .{},
+            .{
+                .system = test_system.backend.system(),
+            },
         ),
     );
 }
@@ -248,6 +280,22 @@ test "groups help" {
 test "groups version" {
     try subcommands.testVersion(@This());
 }
+
+const TestSystem = struct {
+    backend: zsw.CustomBackend(.{}),
+
+    pub fn init() TestSystem {
+        return .{
+            .backend = zsw.CustomBackend(.{}).init(
+                std.testing.allocator,
+            ),
+        };
+    }
+
+    pub fn deinit(self: *TestSystem) void {
+        self.backend.deinit();
+    }
+};
 
 comptime {
     std.testing.refAllDecls(@This());

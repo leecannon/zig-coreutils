@@ -1,5 +1,6 @@
 const std = @import("std");
 const shared = @import("shared.zig");
+const zsw = @import("zsw");
 const builtin = @import("builtin");
 
 const log = std.log.scoped(.subcommand);
@@ -32,6 +33,7 @@ pub fn execute(
     arg_iter: *std.process.ArgIterator,
     io: anytype,
     basename: []const u8,
+    system: zsw.System,
     exe_path: []const u8,
 ) ExecuteError!u8 {
     const z = shared.tracy.traceNamed(@src(), "execute");
@@ -45,6 +47,7 @@ pub fn execute(
             allocator,
             arg_iter,
             io,
+            system,
             exe_path,
         );
     }
@@ -57,13 +60,14 @@ fn executeSubcommand(
     allocator: std.mem.Allocator,
     arg_iter: anytype,
     io: anytype,
+    system: zsw.System,
     exe_path: []const u8,
 ) SubcommandErrors!u8 {
     const z = shared.tracy.traceNamed(@src(), "execute subcommand");
     defer z.end();
 
     var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
-    return subcommand.execute(allocator, io, &arg_iterator, exe_path) catch |err| switch (err) {
+    return subcommand.execute(allocator, io, &arg_iterator, system, exe_path) catch |err| switch (err) {
         error.Help => shared.printHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),
         else => |narrow_err| narrow_err,
@@ -75,6 +79,7 @@ pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, set
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
     const stderr = if (@hasField(SettingsType, "stderr")) settings.stderr else VoidWriter.writer();
+    const system = if (@hasField(SettingsType, "system")) settings.system else zsw.host_system;
 
     var arg_iter = SliceArgIterator{ .slice = arguments };
 
@@ -87,6 +92,7 @@ pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, set
             .stdin = stdin,
             .stdout = stdout,
         },
+        system,
         subcommand.name,
     );
 }
@@ -101,6 +107,7 @@ pub fn testError(
     if (@hasField(SettingsType, "stderr")) @compileError("there is already a stderr defined on this settings type");
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
+    const system = if (@hasField(SettingsType, "system")) settings.system else zsw.host_system;
 
     var stderr = std.ArrayList(u8).init(std.testing.allocator);
     defer stderr.deinit();
@@ -114,6 +121,7 @@ pub fn testError(
                 .stderr = stderr.writer(),
                 .stdin = stdin,
                 .stdout = stdout,
+                .system = system,
             },
         ),
     );

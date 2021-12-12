@@ -1,14 +1,16 @@
 const std = @import("std");
 const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
 
-const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 2 };
+const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 3 };
 
 pub fn build(b: *std.build.Builder) !void {
+    b.prominent_compile_errors = true;
+
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
 
-    if (target.isWindows()) {
-        std.debug.print("Windows is not supported", .{});
+    if (!target.isLinux()) {
+        std.debug.print("Currently only linux is supported\n", .{});
         return error.UnsupportedOperatingSystem;
     }
 
@@ -90,6 +92,7 @@ pub fn build(b: *std.build.Builder) !void {
     main_exe.install();
 
     main_exe.addOptions("options", options);
+    main_exe.addPackagePath("zsw", "zsw/src/main.zig");
 
     if (trace) {
         includeTracy(main_exe);
@@ -97,6 +100,7 @@ pub fn build(b: *std.build.Builder) !void {
 
     const test_step = b.addTest("src/main.zig");
     test_step.addOptions("options", options);
+    test_step.addPackagePath("zsw", "zsw/src/main.zig");
     if (trace) {
         includeTracy(test_step);
     }

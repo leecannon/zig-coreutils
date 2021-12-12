@@ -1,6 +1,7 @@
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
 const shared = @import("../shared.zig");
+const zsw = @import("zsw");
 
 const log = std.log.scoped(.@"false");
 
@@ -34,12 +35,19 @@ pub const usage =
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
 
-pub fn execute(allocator: std.mem.Allocator, io: anytype, args: anytype, exe_path: []const u8) subcommands.Error!u8 {
+pub fn execute(
+    allocator: std.mem.Allocator,
+    io: anytype,
+    args: anytype,
+    system: zsw.System,
+    exe_path: []const u8,
+) subcommands.Error!u8 {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
     _ = io;
     _ = exe_path;
+    _ = system;
     _ = allocator;
 
     // Only the first argument is checked for help or version
