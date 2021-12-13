@@ -72,7 +72,7 @@ fn currentUser(
 
     log.info("currentUser called", .{});
 
-    const euid = std.os.linux.geteuid();
+    const euid = system.geteuid();
 
     var passwd_buffered_reader = std.io.bufferedReader(passwd_file.reader());
     const passwd_reader = passwd_buffered_reader.reader();
@@ -258,7 +258,7 @@ fn printGroups(
 }
 
 test "groups no args" {
-    var test_system = TestSystem.init();
+    var test_system = try TestSystem.init();
     defer test_system.deinit();
 
     try std.testing.expectEqual(
@@ -267,7 +267,7 @@ test "groups no args" {
             @This(),
             &.{},
             .{
-                .system = test_system.backend.system(),
+                .system = test_system.backend.getSystem(),
             },
         ),
     );
@@ -282,13 +282,97 @@ test "groups version" {
 }
 
 const TestSystem = struct {
-    backend: zsw.CustomBackend(.{}),
+    backend: BackendType,
 
-    pub fn init() TestSystem {
-        return .{
-            .backend = zsw.CustomBackend(.{}).init(
-                std.testing.allocator,
-            ),
+    const BackendType = zsw.Backend(.{
+        .fallback_to_host = true,
+        .file_system = true,
+        .linux_user_group = true,
+    });
+
+    pub fn init() !TestSystem {
+        var file_system = blk: {
+            var file_system = try zsw.FileSystemDescription.init(std.testing.allocator);
+            errdefer file_system.deinit();
+
+            const root_dir = file_system.getRoot();
+
+            const etc = try file_system.addDirectory(root_dir, "etc");
+
+            try file_system.addFile(
+                etc,
+                "passwd",
+                \\root:x:0:0::/root:/bin/bash
+                \\bin:x:1:1::/:/usr/bin/nologin
+                \\daemon:x:2:2::/:/usr/bin/nologin
+                \\mail:x:8:12::/var/spool/mail:/usr/bin/nologin
+                \\ftp:x:14:11::/srv/ftp:/usr/bin/nologin
+                \\http:x:33:33::/srv/http:/usr/bin/nologin
+                \\nobody:x:65534:65534:Nobody:/:/usr/bin/nologin
+                \\user:x:1000:1001:User:/home/user:/bin/bash
+                \\
+                ,
+            );
+
+            try file_system.addFile(
+                etc,
+                "group",
+                \\root:x:0:root
+                \\sys:x:3:bin,user
+                \\mem:x:8:
+                \\ftp:x:11:
+                \\mail:x:12:
+                \\log:x:19:
+                \\smmsp:x:25:
+                \\proc:x:26:
+                \\games:x:50:
+                \\lock:x:54:
+                \\network:x:90:
+                \\floppy:x:94:
+                \\scanner:x:96:
+                \\power:x:98:
+                \\adm:x:999:daemon
+                \\wheel:x:998:user
+                \\utmp:x:997:
+                \\audio:x:996:
+                \\disk:x:995:
+                \\input:x:994:
+                \\kmem:x:993:
+                \\kvm:x:992:
+                \\lp:x:991:
+                \\optical:x:990:
+                \\render:x:989:
+                \\sgx:x:988:
+                \\storage:x:987:
+                \\tty:x:5:
+                \\uucp:x:986:
+                \\video:x:985:
+                \\users:x:984:user
+                \\rfkill:x:982:user
+                \\bin:x:1:daemon
+                \\daemon:x:2:bin
+                \\http:x:33:
+                \\nobody:x:65534:
+                \\user:x:1001:
+                ,
+            );
+
+            break :blk file_system;
+        };
+        defer file_system.deinit();
+
+        var linux_user_group: zsw.LinuxUserGroupDescription = .{
+            .initial_euid = 1000,
+        };
+
+        var backend = try BackendType.init(std.testing.allocator, .{
+            .file_system = file_system,
+            .linux_user_group = linux_user_group,
+        });
+        errdefer backend.deinit();
+
+        return TestSystem{
+            .backend = backend,
         };
     }
 
