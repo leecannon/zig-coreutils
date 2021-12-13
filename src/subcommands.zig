@@ -136,12 +136,18 @@ pub fn testHelp(comptime subcommand: type) !void {
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
+    var always_fail_system = try AlwaysFailSystem.init(std.testing.allocator);
+    defer always_fail_system.deinit();
+
     try std.testing.expectEqual(
         @as(u8, 0),
         try testExecute(
             subcommand,
             &.{"--help"},
-            .{ .stdout = out.writer() },
+            .{
+                .stdout = out.writer(),
+                .system = always_fail_system.backend.getSystem(),
+            },
         ),
     );
 
@@ -166,12 +172,18 @@ pub fn testVersion(comptime subcommand: type) !void {
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
+    var always_fail_system = try AlwaysFailSystem.init(std.testing.allocator);
+    defer always_fail_system.deinit();
+
     try std.testing.expectEqual(
         @as(u8, 0),
         try testExecute(
             subcommand,
             &.{"--version"},
-            .{ .stdout = out.writer() },
+            .{
+                .stdout = out.writer(),
+                .system = always_fail_system.backend.getSystem(),
+            },
         ),
     );
 
@@ -180,6 +192,25 @@ pub fn testVersion(comptime subcommand: type) !void {
 
     try std.testing.expectEqualStrings(expected, out.items);
 }
+
+const AlwaysFailSystem = struct {
+    backend: BackendType,
+
+    const BackendType = zsw.Backend(.{ .fallback_to_host = false });
+
+    pub fn init(allocator: std.mem.Allocator) !AlwaysFailSystem {
+        var backend = try BackendType.init(allocator, .{});
+        errdefer backend.deinit();
+
+        return AlwaysFailSystem{
+            .backend = backend,
+        };
+    }
+
+    pub fn deinit(self: *AlwaysFailSystem) void {
+        self.backend.deinit();
+    }
+};
 
 const SliceArgIterator = struct {
     slice: []const []const u8,
