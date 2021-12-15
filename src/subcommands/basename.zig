@@ -80,7 +80,7 @@ pub fn execute(
                         allocator,
                         io,
                         exe_path,
-                        "invalid option '--{s}'",
+                        "unrecognized option '--{s}'",
                         .{longhand},
                     );
                 }
@@ -96,7 +96,7 @@ pub fn execute(
                         allocator,
                         io,
                         exe_path,
-                        "invalid option '{s}'",
+                        "unrecognized option '{s}'",
                         .{longhand_with_value.value},
                     );
                 }
@@ -138,7 +138,7 @@ pub fn execute(
                             allocator,
                             io,
                             exe_path,
-                            "invalid option -- '{c}'",
+                            "unrecognized option -- '{c}'",
                             .{char},
                         );
                     }
@@ -150,7 +150,7 @@ pub fn execute(
     return shared.printInvalidUsage(@This(), io, exe_path, "missing operand");
 }
 
-pub fn singleArgument(
+fn singleArgument(
     allocator: std.mem.Allocator,
     io: anytype,
     args: anytype,
@@ -202,7 +202,7 @@ pub fn singleArgument(
     return 0;
 }
 
-pub fn multipleArguments(
+fn multipleArguments(
     io: anytype,
     args: anytype,
     first_arg: []const u8,
