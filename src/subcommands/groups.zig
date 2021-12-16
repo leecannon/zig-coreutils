@@ -295,12 +295,9 @@ const TestSystem = struct {
             var file_system = try zsw.FileSystemDescription.init(std.testing.allocator);
             errdefer file_system.deinit();
 
-            const root_dir = file_system.getRoot();
+            const etc = try file_system.root.addDirectory("etc");
 
-            const etc = try file_system.addDirectory(root_dir, "etc");
-
-            try file_system.addFile(
-                etc,
+            try etc.addFile(
                 "passwd",
                 \\root:x:0:0::/root:/bin/bash
                 \\bin:x:1:1::/:/usr/bin/nologin
@@ -314,8 +311,7 @@ const TestSystem = struct {
                 ,
             );
 
-            try file_system.addFile(
-                etc,
+            try etc.addFile(
                 "group",
                 \\root:x:0:root
                 \\sys:x:3:bin,user
