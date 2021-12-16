@@ -267,7 +267,7 @@ test "groups no args" {
             @This(),
             &.{},
             .{
-                .system = test_system.backend.getSystem(),
+                .system = test_system.backend.system(),
             },
         ),
     );

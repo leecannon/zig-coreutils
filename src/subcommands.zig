@@ -147,7 +147,7 @@ pub fn testHelp(comptime subcommand: type) !void {
             &.{"--help"},
             .{
                 .stdout = out.writer(),
-                .system = always_fail_system.backend.getSystem(),
+                .system = always_fail_system.backend.system(),
             },
         ),
     );
@@ -183,7 +183,7 @@ pub fn testVersion(comptime subcommand: type) !void {
             &.{"--version"},
             .{
                 .stdout = out.writer(),
-                .system = always_fail_system.backend.getSystem(),
+                .system = always_fail_system.backend.system(),
             },
         ),
     );
