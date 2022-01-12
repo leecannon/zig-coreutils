@@ -11,6 +11,7 @@ pub const SUBCOMMANDS = [_]type{
     @import("subcommands/false.zig"),
     @import("subcommands/groups.zig"),
     @import("subcommands/true.zig"),
+    @import("subcommands/yes.zig"),
 };
 
 pub const ExecuteError = error{
