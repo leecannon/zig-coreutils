@@ -94,7 +94,7 @@ const ArgumentInfo = struct {
 
         var arg_iter = std.process.args();
 
-        const exe_path = arg_iter.nextPosix() orelse unreachable;
+        const exe_path = arg_iter.next() orelse unreachable;
         const basename = std.fs.path.basename(exe_path);
         log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 

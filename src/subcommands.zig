@@ -218,7 +218,7 @@ const SliceArgIterator = struct {
     slice: []const []const u8,
     index: usize = 0,
 
-    pub fn nextPosix(self: *SliceArgIterator) ?[]const u8 {
+    pub fn next(self: *SliceArgIterator) ?[]const u8 {
         if (self.index < self.slice.len) {
             defer self.index += 1;
             return self.slice[self.index];

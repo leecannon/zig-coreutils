@@ -121,7 +121,7 @@ pub fn ArgIterator(comptime T: type) type {
             const z = tracy.traceNamed(@src(), "raw next arg");
             defer z.end();
 
-            if (self.arg_iter.nextPosix()) |arg| {
+            if (self.arg_iter.next()) |arg| {
                 z.addText(arg);
                 return arg;
             }
@@ -133,7 +133,7 @@ pub fn ArgIterator(comptime T: type) type {
             const z = tracy.traceNamed(@src(), "next arg");
             defer z.end();
 
-            const current_arg = self.arg_iter.nextPosix() orelse return null;
+            const current_arg = self.arg_iter.next() orelse return null;
 
             z.addText(current_arg);
 
