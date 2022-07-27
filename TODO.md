@@ -1,5 +1,5 @@
 ### TODO
 
 - [X] Integrate ZSW
-- [ ] Actually test command output
-- [ ] Include example usage in help test (see GNU coreutils)
+- [X] Actually test command output
+- [ ] Include example usage in help text (see GNU coreutils)
