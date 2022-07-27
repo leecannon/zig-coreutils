@@ -2,6 +2,8 @@
 
 A single executable implementation of various coreutils.
 
+Compatibility with GNU coreutils is a nice to have not a requirement, where their options are annoying, force inefficent implementation or are very rarely used then differences are acceptable.
+
 Currently Linux only to ease development.
 
 ---
