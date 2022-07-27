@@ -82,8 +82,6 @@ pub fn build(b: *std.build.Builder) !void {
     main_exe.setTarget(target);
     main_exe.setBuildMode(mode);
 
-    main_exe.single_threaded = true;
-
     if (mode != .Debug) {
         main_exe.link_function_sections = true;
         main_exe.want_lto = true;
@@ -115,14 +113,14 @@ pub fn build(b: *std.build.Builder) !void {
 fn includeTracy(exe: *std.build.LibExeObjStep) void {
     exe.linkLibC();
     exe.linkLibCpp();
-    exe.addIncludeDir("tracy");
+    exe.addIncludeDir("tracy/public");
 
     const tracy_c_flags: []const []const u8 = if (exe.target.isWindows() and exe.target.getAbi() == .gnu)
         &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined", "-D_WIN32_WINNT=0x601" }
     else
         &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined" };
 
-    exe.addCSourceFile("tracy/TracyClient.cpp", tracy_c_flags);
+    exe.addCSourceFile("tracy/public/TracyClient.cpp", tracy_c_flags);
 
     if (exe.target.isWindows()) {
         exe.linkSystemLibrary("Advapi32");

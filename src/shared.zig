@@ -103,7 +103,7 @@ pub fn printInvalidUsageAlloc(
     return printInvalidUsage(subcommand, io, exe_path, error_message);
 }
 
-pub const version_string = "{s} (zig-coreutils) " ++ build_options.version ++ "\nMIT License Copyright (c) 2021 Lee Cannon\n";
+pub const version_string = "{s} (zig-coreutils) " ++ build_options.version ++ "\nMIT License Copyright (c) 2021-2022 Lee Cannon\n";
 
 pub fn ArgIterator(comptime T: type) type {
     return struct {

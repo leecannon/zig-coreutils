@@ -161,8 +161,43 @@ fn getDirname(buf: []const u8) []const u8 {
     return ".";
 }
 
-test "basename no args" {
+test "dirname no args" {
     try subcommands.testError(@This(), &.{}, .{}, "missing operand");
+}
+
+test "dirname single" {
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(@This(), &.{
+        "hello/world",
+    }, .{
+        .stdout = stdout.writer(),
+    });
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings("hello\n", stdout.items);
+}
+
+test "dirname multiple" {
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(@This(), &.{
+        "hello/world",
+        "this/is/a/test",
+        "a/b/c/d",
+    }, .{
+        .stdout = stdout.writer(),
+    });
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings(
+        \\hello
+        \\this/is/a
+        \\a/b/c
+        \\
+    , stdout.items);
 }
 
 test "dirname help" {

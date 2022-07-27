@@ -261,6 +261,42 @@ test "basename no args" {
     try subcommands.testError(@This(), &.{}, .{}, "missing operand");
 }
 
+test "basename single" {
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(@This(), &.{
+        "hello/world",
+    }, .{
+        .stdout = stdout.writer(),
+    });
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings("world\n", stdout.items);
+}
+
+test "basename multiple" {
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(@This(), &.{
+        "-a",
+        "hello/world",
+        "this/is/a/test",
+        "a/b/c/d",
+    }, .{
+        .stdout = stdout.writer(),
+    });
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings(
+        \\world
+        \\test
+        \\d
+        \\
+    , stdout.items);
+}
+
 test "basename help" {
     try subcommands.testHelp(@This());
 }
