@@ -16,6 +16,7 @@ Currently Linux only to ease development.
  * false
  * groups
  * true
+ * whoami
  * yes
 
 ### Subcommands todo:
@@ -126,4 +127,3 @@ Currently Linux only to ease development.
  * vdir
  * wc
  * who
- * whoami
