@@ -12,6 +12,7 @@ Currently Linux only to ease development.
 
 ### Subcommands completed:
  * basename
+ * clear
  * dirname
  * false
  * groups
@@ -32,7 +33,6 @@ Currently Linux only to ease development.
  * chown
  * chroot
  * cksum
- * clear
  * comm
  * cp
  * csplit
