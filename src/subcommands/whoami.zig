@@ -101,15 +101,46 @@ pub fn execute(
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
 }
 
-test "whoami no args" {
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try subcommands.testExecute(
-            @This(),
-            &.{},
-            .{},
-        ),
+test "whoami root" {
+    var test_system = try TestSystem.init();
+    defer test_system.deinit();
+
+    test_system.backend.linux_user_group.euid = 0;
+
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(
+        @This(),
+        &.{},
+        .{
+            .system = test_system.backend.system(),
+            .stdout = stdout.writer(),
+        },
     );
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings("root\n", stdout.items);
+}
+
+test "whoami user" {
+    var test_system = try TestSystem.init();
+    defer test_system.deinit();
+
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(
+        @This(),
+        &.{},
+        .{
+            .system = test_system.backend.system(),
+            .stdout = stdout.writer(),
+        },
+    );
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings("user\n", stdout.items);
 }
 
 test "whoami help" {
@@ -119,6 +150,60 @@ test "whoami help" {
 test "whoami version" {
     try subcommands.testVersion(@This());
 }
+
+const TestSystem = struct {
+    backend: BackendType,
+
+    const BackendType = zsw.Backend(.{
+        .fallback_to_host = true,
+        .file_system = true,
+        .linux_user_group = true,
+    });
+
+    pub fn init() !TestSystem {
+        var file_system = blk: {
+            var file_system = try zsw.FileSystemDescription.init(std.testing.allocator);
+            errdefer file_system.deinit();
+
+            const etc = try file_system.root.addDirectory("etc");
+
+            try etc.addFile(
+                "passwd",
+                \\root:x:0:0::/root:/bin/bash
+                \\bin:x:1:1::/:/usr/bin/nologin
+                \\daemon:x:2:2::/:/usr/bin/nologin
+                \\mail:x:8:12::/var/spool/mail:/usr/bin/nologin
+                \\ftp:x:14:11::/srv/ftp:/usr/bin/nologin
+                \\http:x:33:33::/srv/http:/usr/bin/nologin
+                \\nobody:x:65534:65534:Nobody:/:/usr/bin/nologin
+                \\user:x:1000:1001:User:/home/user:/bin/bash
+                \\
+                ,
+            );
+
+            break :blk file_system;
+        };
+        defer file_system.deinit();
+
+        var linux_user_group: zsw.LinuxUserGroupDescription = .{
+            .initial_euid = 1000,
+        };
+
+        var backend = try BackendType.init(std.testing.allocator, .{
+            .file_system = file_system,
+            .linux_user_group = linux_user_group,
+        });
+        errdefer backend.deinit();
+
+        return TestSystem{
+            .backend = backend,
+        };
+    }
+
+    pub fn deinit(self: *TestSystem) void {
+        self.backend.deinit();
+    }
+};
 
 comptime {
     std.testing.refAllDecls(@This());

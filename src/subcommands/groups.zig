@@ -142,9 +142,10 @@ fn otherUser(
 
     while (true) {
         passwd_reader.readUntilDelimiterArrayList(&line_buffer, '\n', std.math.maxInt(usize)) catch |err| switch (err) {
-            error.EndOfStream => break,
+            error.EndOfStream => if (line_buffer.items.len == 0) break,
             else => return shared.printError(@This(), io, "unable to read '/etc/passwd'"),
         };
+        if (line_buffer.items.len == 0) continue;
 
         var column_iter = std.mem.tokenize(u8, line_buffer.items, ":");
 
@@ -207,9 +208,10 @@ fn printGroups(
 
     while (true) {
         group_reader.readUntilDelimiterArrayList(&line_buffer, '\n', std.math.maxInt(usize)) catch |err| switch (err) {
-            error.EndOfStream => break,
+            error.EndOfStream => if (line_buffer.items.len == 0) break,
             else => return shared.printError(@This(), io, "unable to read '/etc/group'"),
         };
+        if (line_buffer.items.len == 0) continue;
 
         var column_iter = std.mem.tokenize(u8, line_buffer.items, ":");
 
@@ -257,20 +259,44 @@ fn printGroups(
     return 0;
 }
 
-test "groups no args" {
+test "groups root" {
     var test_system = try TestSystem.init();
     defer test_system.deinit();
 
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try subcommands.testExecute(
-            @This(),
-            &.{},
-            .{
-                .system = test_system.backend.system(),
-            },
-        ),
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(
+        @This(),
+        &.{"root"},
+        .{
+            .system = test_system.backend.system(),
+            .stdout = stdout.writer(),
+        },
     );
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings("root proc scanner\n", stdout.items);
+}
+
+test "groups no args - current user: user" {
+    var test_system = try TestSystem.init();
+    defer test_system.deinit();
+
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(
+        @This(),
+        &.{},
+        .{
+            .system = test_system.backend.system(),
+            .stdout = stdout.writer(),
+        },
+    );
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings("sys wheel users rfkill user\n", stdout.items);
 }
 
 test "groups help" {
@@ -306,7 +332,7 @@ const TestSystem = struct {
                 \\ftp:x:14:11::/srv/ftp:/usr/bin/nologin
                 \\http:x:33:33::/srv/http:/usr/bin/nologin
                 \\nobody:x:65534:65534:Nobody:/:/usr/bin/nologin
-                \\user:x:1000:1001:User:/home/user:/bin/bash
+                \\user:x:1000:1000:User:/home/user:/bin/bash
                 \\
                 ,
             );
@@ -320,12 +346,12 @@ const TestSystem = struct {
                 \\mail:x:12:
                 \\log:x:19:
                 \\smmsp:x:25:
-                \\proc:x:26:
+                \\proc:x:26:root
                 \\games:x:50:
                 \\lock:x:54:
                 \\network:x:90:
                 \\floppy:x:94:
-                \\scanner:x:96:
+                \\scanner:x:96:root
                 \\power:x:98:
                 \\adm:x:999:daemon
                 \\wheel:x:998:user
@@ -349,7 +375,8 @@ const TestSystem = struct {
                 \\daemon:x:2:bin
                 \\http:x:33:
                 \\nobody:x:65534:
-                \\user:x:1001:
+                \\user:x:1000:
+                \\
                 ,
             );
 
