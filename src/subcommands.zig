@@ -248,7 +248,6 @@ const VoidWriter = struct {
     }
 
     fn write(_: void, bytes: []const u8) error{}!usize {
-        _ = bytes;
         return bytes.len;
     }
 };

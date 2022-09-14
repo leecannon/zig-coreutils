@@ -45,10 +45,7 @@ pub fn execute(
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
-    _ = io;
-    _ = exe_path;
     _ = system;
-    _ = allocator;
 
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion();
 
