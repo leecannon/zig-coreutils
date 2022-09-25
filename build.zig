@@ -113,7 +113,7 @@ pub fn build(b: *std.build.Builder) !void {
 fn includeTracy(exe: *std.build.LibExeObjStep) void {
     exe.linkLibC();
     exe.linkLibCpp();
-    exe.addIncludeDir("tracy/public");
+    exe.addIncludePath("tracy/public");
 
     const tracy_c_flags: []const []const u8 = if (exe.target.isWindows() and exe.target.getAbi() == .gnu)
         &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined", "-D_WIN32_WINNT=0x601" }
