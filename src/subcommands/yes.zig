@@ -63,7 +63,7 @@ fn getString(allocator: std.mem.Allocator, args: anytype) !MaybeAllocatedString 
     defer z.end();
 
     var buffer = std.ArrayList(u8).init(allocator);
-    errdefer if (shared.free_on_close) buffer.deinit();
+    defer if (shared.free_on_close) buffer.deinit();
 
     if (try args.nextWithHelpOrVersion()) |arg| {
         try buffer.appendSlice(arg.raw);
@@ -76,7 +76,7 @@ fn getString(allocator: std.mem.Allocator, args: anytype) !MaybeAllocatedString 
 
     try buffer.append('\n');
 
-    return MaybeAllocatedString.allocated(buffer.toOwnedSlice());
+    return MaybeAllocatedString.allocated(try buffer.toOwnedSlice());
 }
 
 const MaybeAllocatedString = MaybeAllocated([]const u8, freeSlice);
