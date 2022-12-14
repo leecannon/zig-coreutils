@@ -5,5 +5,13 @@
 		"ghcr.io/devcontainers-contrib/features/zig:1": {
 			"version": "master"
 		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"tiehuis.zig",
+				"AugusteRame.zls-vscode"
+			]
+		}
 	}
 }
