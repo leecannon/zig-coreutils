@@ -1,0 +1,9 @@
+{
+	"name": "Ubuntu",
+	"image": "mcr.microsoft.com/devcontainers/base:jammy",
+	"features": {
+		"ghcr.io/devcontainers-contrib/features/zig:1": {
+			"version": "master"
+		}
+	}
+}
