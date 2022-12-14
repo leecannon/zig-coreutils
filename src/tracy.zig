@@ -91,70 +91,63 @@ pub fn TracyAllocator(comptime name: ?[:0]const u8) type {
     return struct {
         parent_allocator: std.mem.Allocator,
 
-        first_allocation: bool = true,
-
         const Self = @This();
 
         pub fn init(parent_allocator: std.mem.Allocator) Self {
-            return .{ .parent_allocator = parent_allocator };
+            return .{
+                .parent_allocator = parent_allocator,
+            };
         }
 
         pub fn allocator(self: *Self) std.mem.Allocator {
-            return std.mem.Allocator.init(self, allocFn, resizeFn, freeFn);
+            return .{
+                .ptr = self,
+                .vtable = &.{
+                    .alloc = allocFn,
+                    .resize = resizeFn,
+                    .free = freeFn,
+                },
+            };
         }
 
-        fn allocFn(self: *Self, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) std.mem.Allocator.Error![]u8 {
-            if (self.first_allocation) {
-                const val: u1 = 0;
-                // this is to prevent a visual glitch with tracys graph when the application makes very few allocations
-                if (name) |n| {
-                    ___tracy_emit_memory_alloc_named(&val, 0, 0, n.ptr);
-                    ___tracy_emit_memory_free_named(&val, 0, n.ptr);
-                } else {
-                    ___tracy_emit_memory_alloc(&val, 0, 0);
-                    ___tracy_emit_memory_free(&val, 0);
-                }
-                self.first_allocation = false;
-            }
-
-            const result = self.parent_allocator.rawAlloc(len, ptr_align, len_align, ret_addr);
+        fn allocFn(ptr: *anyopaque, len: usize, ptr_align: u8, ret_addr: usize) ?[*]u8 {
+            const self = @ptrCast(*Self, @alignCast(@alignOf(Self), ptr));
+            const result = self.parent_allocator.rawAlloc(len, ptr_align, ret_addr);
             if (result) |data| {
-                if (data.len != 0) {
+                if (len != 0) {
                     if (name) |n| {
-                        allocNamed(data.ptr, data.len, n);
+                        allocNamed(data, len, n);
                     } else {
-                        alloc(data.ptr, data.len);
+                        alloc(data, len);
                     }
                 }
-            } else |_| {
+            } else {
                 messageColor("allocation failed", 0xFF0000);
             }
             return result;
         }
 
-        fn resizeFn(self: *Self, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) ?usize {
-            if (self.parent_allocator.rawResize(buf, buf_align, new_len, len_align, ret_addr)) |resized_len| {
+        fn resizeFn(ptr: *anyopaque, buf: []u8, buf_align: u8, new_len: usize, ret_addr: usize) bool {
+            const self = @ptrCast(*Self, @alignCast(@alignOf(Self), ptr));
+            if (self.parent_allocator.rawResize(buf, buf_align, new_len, ret_addr)) {
                 if (name) |n| {
                     freeNamed(buf.ptr, n);
+                    allocNamed(buf.ptr, new_len, n);
                 } else {
                     free(buf.ptr);
+                    alloc(buf.ptr, new_len);
                 }
 
-                if (name) |n| {
-                    allocNamed(buf.ptr, resized_len, n);
-                } else {
-                    alloc(buf.ptr, resized_len);
-                }
-
-                return resized_len;
+                return true;
             }
 
             // during normal operation the compiler hits this case thousands of times due to this
             // emitting messages for it is both slow and causes clutter
-            return null;
+            return false;
         }
 
-        fn freeFn(self: *Self, buf: []u8, buf_align: u29, ret_addr: usize) void {
+        fn freeFn(ptr: *anyopaque, buf: []u8, buf_align: u8, ret_addr: usize) void {
+            const self = @ptrCast(*Self, @alignCast(@alignOf(Self), ptr));
             self.parent_allocator.rawFree(buf, buf_align, ret_addr);
             // this condition is to handle free being called on an empty slice that was never even allocated
             // example case: `std.process.getSelfExeSharedLibPaths` can return `&[_][:0]u8{}`
