@@ -6,6 +6,7 @@
 			"version": "master"
 		}
 	},
+	"postCreateCommand": "git submodule update --init",
 	"customizations": {
 		"vscode": {
 			"extensions": [
