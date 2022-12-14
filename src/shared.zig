@@ -115,9 +115,7 @@ pub fn ArgIterator(comptime T: type) type {
             return .{ .arg_iter = arg_iter };
         }
 
-        // BUG: this function should return `?[:0]const u8` but that hits a compiler bug
-        // broken LLVM module found: Call parameter type does not match function signature!
-        pub fn nextRaw(self: *Self) ?[]const u8 {
+        pub fn nextRaw(self: *Self) ?[:0]const u8 {
             const z = tracy.traceNamed(@src(), "raw next arg");
             defer z.end();
 

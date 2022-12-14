@@ -78,7 +78,7 @@ fn executeSubcommand(
     };
 }
 
-pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, settings: anytype) SubcommandErrors!u8 {
+pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) SubcommandErrors!u8 {
     const SettingsType = @TypeOf(settings);
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
@@ -103,7 +103,7 @@ pub fn testExecute(comptime subcommand: type, arguments: []const []const u8, set
 
 pub fn testError(
     comptime subcommand: type,
-    arguments: []const []const u8,
+    arguments: []const [:0]const u8,
     settings: anytype,
     expected_error: []const u8,
 ) !void {
@@ -217,10 +217,10 @@ const AlwaysFailSystem = struct {
 };
 
 const SliceArgIterator = struct {
-    slice: []const []const u8,
+    slice: []const [:0]const u8,
     index: usize = 0,
 
-    pub fn next(self: *SliceArgIterator) ?[]const u8 {
+    pub fn next(self: *SliceArgIterator) ?[:0]const u8 {
         if (self.index < self.slice.len) {
             defer self.index += 1;
             return self.slice[self.index];

@@ -10,7 +10,7 @@ pub const tracy_enable_callstack = true;
 
 const log = std.log.scoped(.main);
 
-var allocator_backing = if (!shared.is_debug_or_test) std.heap.ArenaAllocator.init(std.heap.page_allocator) else {};
+var allocator_backing = if (shared.is_debug_or_test) {} else std.heap.ArenaAllocator.init(std.heap.page_allocator);
 var gpa = if (shared.is_debug_or_test)
     std.heap.GeneralPurposeAllocator(.{}){}
 else
