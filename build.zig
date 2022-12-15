@@ -107,7 +107,6 @@ pub fn build(b: *std.build.Builder) !void {
     run_test_step.dependOn(&test_step.step);
     // as this is set as the default step also get it to trigger an install of the main exe
     test_step.step.dependOn(b.getInstallStep());
-    b.default_step = run_test_step;
 }
 
 fn includeTracy(exe: *std.build.LibExeObjStep) void {
