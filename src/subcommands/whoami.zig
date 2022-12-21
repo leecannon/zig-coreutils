@@ -102,6 +102,7 @@ test "whoami root" {
     var test_system = try TestSystem.init();
     defer test_system.deinit();
 
+    // set the effective user id to root
     test_system.backend.linux_user_group.euid = 0;
 
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
