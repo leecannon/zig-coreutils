@@ -14,7 +14,7 @@ pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u
     const z = tracy.traceNamed(@src(), "print help");
     defer z.end();
 
-    log.debug("printing help for " ++ subcommand.name, .{});
+    log.debug(comptime "printing help for " ++ subcommand.name, .{});
     io.stdout.print(subcommand.usage, .{exe_path}) catch {};
     return 0;
 }
@@ -23,13 +23,13 @@ pub fn printVersion(comptime subcommand: type, io: anytype) u8 {
     const z = tracy.traceNamed(@src(), "print version");
     defer z.end();
 
-    log.debug("printing version for " ++ subcommand.name, .{});
+    log.debug(comptime "printing version for " ++ subcommand.name, .{});
     io.stdout.print(version_string, .{subcommand.name}) catch {};
     return 0;
 }
 
 pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyerror) void {
-    io.stderr.writeAll("unable to write to " ++ destination ++ ": ") catch return;
+    io.stderr.writeAll(comptime "unable to write to " ++ destination ++ ": ") catch return;
     io.stderr.writeAll(@errorName(err)) catch return;
     io.stderr.writeByte('\n') catch return;
 }
@@ -39,7 +39,7 @@ pub fn printError(comptime subcommand: type, io: anytype, error_message: []const
     defer z.end();
     z.addText(error_message);
 
-    log.debug("printing error for " ++ subcommand.name, .{});
+    log.debug(comptime "printing error for " ++ subcommand.name, .{});
 
     output: {
         io.stderr.writeAll(subcommand.name) catch break :output;
@@ -72,7 +72,7 @@ pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []con
     defer z.end();
     z.addText(error_message);
 
-    log.debug("printing error for " ++ subcommand.name, .{});
+    log.debug(comptime "printing error for " ++ subcommand.name, .{});
 
     output: {
         io.stderr.writeAll(exe_path) catch break :output;
