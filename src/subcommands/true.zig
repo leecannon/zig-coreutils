@@ -69,6 +69,20 @@ test "true no args" {
     );
 }
 
+test "true ignores args" {
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    const ret = try subcommands.testExecute(@This(), &.{
+        "these", "arguments", "are", "ignored",
+    }, .{
+        .stdout = stdout.writer(),
+    });
+
+    try std.testing.expect(ret == 0);
+    try std.testing.expectEqualStrings("", stdout.items);
+}
+
 test "true help" {
     try subcommands.testHelp(@This());
 }
