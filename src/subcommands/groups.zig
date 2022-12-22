@@ -31,7 +31,7 @@ pub const usage =
 //     fn next(self: *Self) ?shared.Arg,
 //
 //     // intended to only be called for the first argument
-//     fn nextWithHelpOrVersion(self: *Self) !?shared.Arg,
+//     fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) !?shared.Arg,
 //
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
@@ -48,7 +48,7 @@ pub fn execute(
 
     _ = exe_path;
 
-    const opt_arg = try args.nextWithHelpOrVersion();
+    const opt_arg = try args.nextWithHelpOrVersion(true);
 
     const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch {
         return shared.printError(@This(), io, "unable to read '/etc/passwd'");

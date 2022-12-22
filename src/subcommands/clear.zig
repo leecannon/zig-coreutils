@@ -30,7 +30,7 @@ pub const usage =
 //     fn next(self: *Self) ?shared.Arg,
 //
 //     // intended to only be called for the first argument
-//     fn nextWithHelpOrVersion(self: *Self) !?shared.Arg,
+//     fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) !?shared.Arg,
 //
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
@@ -47,7 +47,7 @@ pub fn execute(
 
     _ = system;
 
-    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion();
+    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
 
     var clear_scrollback = true;
 

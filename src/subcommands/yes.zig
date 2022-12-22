@@ -30,7 +30,7 @@ pub const usage =
 //     fn next(self: *Self) ?shared.Arg,
 //
 //     // intended to only be called for the first argument
-//     fn nextWithHelpOrVersion(self: *Self) !?shared.Arg,
+//     fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) !?shared.Arg,
 //
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
@@ -65,7 +65,7 @@ fn getString(allocator: std.mem.Allocator, args: anytype) !MaybeAllocatedString 
     var buffer = std.ArrayList(u8).init(allocator);
     defer if (shared.free_on_close) buffer.deinit();
 
-    if (try args.nextWithHelpOrVersion()) |arg| {
+    if (try args.nextWithHelpOrVersion(true)) |arg| {
         try buffer.appendSlice(arg.raw);
     } else return MaybeAllocatedString.not_allocated("y\n");
 

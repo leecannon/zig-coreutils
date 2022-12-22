@@ -30,7 +30,7 @@ pub const usage =
 //     fn next(self: *Self) ?shared.Arg,
 //
 //     // intended to only be called for the first argument
-//     fn nextWithHelpOrVersion(self: *Self) !?shared.Arg,
+//     fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) !?shared.Arg,
 //
 //     fn nextRaw(self: *Self) ?[]const u8,
 // }
@@ -50,7 +50,7 @@ pub fn execute(
     _ = system;
     _ = allocator;
 
-    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion();
+    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
 
     while (opt_arg) |arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {

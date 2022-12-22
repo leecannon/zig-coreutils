@@ -170,7 +170,7 @@ pub fn ArgIterator(comptime T: type) type {
             return Arg.init(current_arg, .positional);
         }
 
-        pub fn nextWithHelpOrVersion(self: *Self) error{ Help, Version }!?Arg {
+        pub fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) error{ Help, Version }!?Arg {
             const z = tracy.traceNamed(@src(), "next arg with help/version");
             defer z.end();
 
@@ -187,7 +187,7 @@ pub fn ArgIterator(comptime T: type) type {
                 },
                 .shorthand => |*shorthand| {
                     while (shorthand.nextNoSkip()) |char| {
-                        if (char == 'h') {
+                        if (include_shorthand and char == 'h') {
                             return error.Help;
                         }
                     }
