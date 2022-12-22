@@ -186,7 +186,7 @@ pub fn ArgIterator(comptime T: type) type {
                     }
                 },
                 .shorthand => |*shorthand| {
-                    while (shorthand.nextNoSkip()) |char| {
+                    while (shorthand.next()) |char| {
                         if (include_shorthand and char == 'h') {
                             return error.Help;
                         }
@@ -225,30 +225,9 @@ pub const Arg = struct {
             index: usize = 1,
 
             pub fn next(self: *Shorthand) ?u8 {
-                var index = self.index;
-                defer self.index = index;
-
-                while (index < self.value.len) {
-                    defer index += 1;
-
-                    const char = self.value[index];
-
-                    if (char == 'h' or char == 'v') {
-                        continue;
-                    } else {
-                        log.debug("\"{s}\" - shorthand sub-index {} is '{c}'", .{ self.value, index, char });
-                    }
-
-                    return char;
-                }
-
-                return null;
-            }
-
-            fn nextNoSkip(self: *Shorthand) ?u8 {
                 if (self.index >= self.value.len) return null;
                 const char = self.value[self.index];
-                if (char == 'h' or char == 'v') log.debug("\"{s}\" - shorthand sub-index {} is '{c}'", .{ self.value, self.index, char });
+                log.debug("\"{s}\" - shorthand sub-index {} is '{c}'", .{ self.value, self.index, char });
                 self.index += 1;
                 return char;
             }
