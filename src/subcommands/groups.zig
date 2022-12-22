@@ -308,7 +308,7 @@ test "groups version" {
 }
 
 const TestSystem = struct {
-    backend: BackendType,
+    backend: *BackendType,
 
     const BackendType = zsw.Backend(.{
         .fallback_to_host = true,

@@ -16,6 +16,7 @@ Currently Linux only to ease development.
  * dirname
  * false
  * groups
+ * touch
  * true
  * whoami
  * yes
@@ -112,7 +113,6 @@ Currently Linux only to ease development.
  * test
  * time
  * timeout
- * touch
  * tr
  * true
  * truncate
