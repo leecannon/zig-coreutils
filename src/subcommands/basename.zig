@@ -298,7 +298,7 @@ test "basename multiple" {
 }
 
 test "basename help" {
-    try subcommands.testHelp(@This());
+    try subcommands.testHelp(@This(), true);
 }
 
 test "basename version" {

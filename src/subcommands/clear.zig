@@ -116,7 +116,7 @@ test "clear - don't clear scrollback" {
 }
 
 test "clear help" {
-    try subcommands.testHelp(@This());
+    try subcommands.testHelp(@This(), true);
 }
 
 test "clear version" {

@@ -201,7 +201,7 @@ test "dirname multiple" {
 }
 
 test "dirname help" {
-    try subcommands.testHelp(@This());
+    try subcommands.testHelp(@This(), true);
 }
 
 test "dirname version" {

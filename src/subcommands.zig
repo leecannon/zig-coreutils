@@ -133,7 +133,7 @@ pub fn testError(
     try std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_error) != null);
 }
 
-pub fn testHelp(comptime subcommand: type) !void {
+pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !void {
     const expected = try std.fmt.allocPrint(std.testing.allocator, subcommand.usage, .{subcommand.name});
     defer std.testing.allocator.free(expected);
 
@@ -157,19 +157,20 @@ pub fn testHelp(comptime subcommand: type) !void {
 
     try std.testing.expectEqualStrings(expected, out.items);
 
-    out.deinit();
-    out = std.ArrayList(u8).init(std.testing.allocator);
+    if (include_shorthand) {
+        out.clearRetainingCapacity();
 
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try testExecute(
-            subcommand,
-            &.{"-h"},
-            .{ .stdout = out.writer() },
-        ),
-    );
+        try std.testing.expectEqual(
+            @as(u8, 0),
+            try testExecute(
+                subcommand,
+                &.{"-h"},
+                .{ .stdout = out.writer() },
+            ),
+        );
 
-    try std.testing.expectEqualStrings(expected, out.items);
+        try std.testing.expectEqualStrings(expected, out.items);
+    }
 }
 
 pub fn testVersion(comptime subcommand: type) !void {

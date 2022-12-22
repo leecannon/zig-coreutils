@@ -84,7 +84,7 @@ test "false ignores args" {
 }
 
 test "false help" {
-    try subcommands.testHelp(@This());
+    try subcommands.testHelp(@This(), true);
 }
 
 test "false version" {

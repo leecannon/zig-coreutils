@@ -113,7 +113,7 @@ fn MaybeAllocated(comptime T: type, comptime dealloc: fn (self: T, allocator: st
 }
 
 test "yes help" {
-    try subcommands.testHelp(@This());
+    try subcommands.testHelp(@This(), true);
 }
 
 test "yes version" {

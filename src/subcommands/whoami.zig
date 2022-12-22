@@ -142,7 +142,7 @@ test "whoami user" {
 }
 
 test "whoami help" {
-    try subcommands.testHelp(@This());
+    try subcommands.testHelp(@This(), true);
 }
 
 test "whoami version" {

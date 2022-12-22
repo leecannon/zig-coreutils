@@ -78,7 +78,7 @@ test "template no args" {
 }
 
 test "template help" {
-    try subcommands.testHelp(@This());
+    try subcommands.testHelp(@This(), true);
 }
 
 test "template version" {

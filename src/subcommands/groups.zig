@@ -300,7 +300,7 @@ test "groups no args - current user: user" {
 }
 
 test "groups help" {
-    try subcommands.testHelp(@This());
+    try subcommands.testHelp(@This(), true);
 }
 
 test "groups version" {
