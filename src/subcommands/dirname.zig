@@ -83,7 +83,7 @@ pub fn execute(
                     allocator,
                     io,
                     exe_path,
-                    "unrecognized option '{s}'",
+                    "unrecognized option '--{s}'",
                     .{arg.raw},
                 );
             },
