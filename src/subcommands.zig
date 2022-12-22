@@ -11,6 +11,7 @@ pub const SUBCOMMANDS = [_]type{
     @import("subcommands/dirname.zig"),
     @import("subcommands/false.zig"),
     @import("subcommands/groups.zig"),
+    @import("subcommands/touch.zig"),
     @import("subcommands/true.zig"),
     @import("subcommands/whoami.zig"),
     @import("subcommands/yes.zig"),
@@ -199,7 +200,7 @@ pub fn testVersion(comptime subcommand: type) !void {
 }
 
 const AlwaysFailSystem = struct {
-    backend: BackendType,
+    backend: *BackendType,
 
     const BackendType = zsw.Backend(.{ .fallback_to_host = false });
 
