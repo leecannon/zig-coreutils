@@ -232,6 +232,12 @@ pub const Arg = struct {
                 return char;
             }
 
+            pub fn takeRest(self: *Shorthand) ?[]const u8 {
+                const slice = self.value[self.index..];
+                self.index = self.value.len;
+                return slice;
+            }
+
             pub fn reset(self: *Shorthand) void {
                 self.index = 1;
             }
