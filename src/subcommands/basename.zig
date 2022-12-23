@@ -184,7 +184,7 @@ fn singleArgument(
         break :blk arg;
     };
 
-    log.info("singleArgument called, first_arg='{s}', zero={}, suffix='{?s}'", .{ first_arg, zero, opt_suffix });
+    log.debug("singleArgument called, first_arg='{s}', zero={}, suffix='{?s}'", .{ first_arg, zero, opt_suffix });
 
     const basename = getBasename(first_arg, opt_suffix);
     log.debug("got basename: '{s}'", .{basename});
@@ -212,7 +212,7 @@ fn multipleArguments(
     const z = shared.tracy.traceNamed(@src(), "multiple arguments");
     defer z.end();
 
-    log.info("multipleArguments called, first_arg='{s}', zero={}, suffix='{?s}'", .{ first_arg, zero, opt_suffix });
+    log.debug("multipleArguments called, first_arg='{s}', zero={}, suffix='{?s}'", .{ first_arg, zero, opt_suffix });
 
     const end_byte: u8 = if (zero) 0 else '\n';
 

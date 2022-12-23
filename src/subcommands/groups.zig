@@ -70,7 +70,7 @@ fn currentUser(
     const z = shared.tracy.traceNamed(@src(), "current user");
     defer z.end();
 
-    log.info("currentUser called", .{});
+    log.debug("currentUser called", .{});
 
     const euid = system.geteuid();
 
@@ -132,7 +132,7 @@ fn otherUser(
     defer z.end();
     z.addText(arg.raw);
 
-    log.info("otherUser called, arg='{s}'", .{arg.raw});
+    log.debug("otherUser called, arg='{s}'", .{arg.raw});
 
     var passwd_buffered_reader = std.io.bufferedReader(passwd_file.reader());
     const passwd_reader = passwd_buffered_reader.reader();
@@ -191,7 +191,7 @@ fn printGroups(
     defer z.end();
     z.addText(user_name);
 
-    log.info("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
+    log.debug("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
 
     var group_file = system.cwd().openFile("/etc/group", .{}) catch {
         return shared.printError(@This(), io, "unable to read '/etc/group'");

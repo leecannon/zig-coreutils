@@ -122,7 +122,7 @@ fn performDirname(
     const z = shared.tracy.traceNamed(@src(), "perform dirname");
     defer z.end();
 
-    log.info("performDirname called, first_arg='{s}', zero={}", .{ first_arg, zero });
+    log.debug("performDirname called, first_arg='{s}', zero={}", .{ first_arg, zero });
 
     const end_byte: u8 = if (zero) 0 else '\n';
 
