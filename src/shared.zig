@@ -34,6 +34,7 @@ pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyer
     io.stderr.writeByte('\n') catch return;
 }
 
+// FIXME: Should this return u8 or void?
 pub fn printError(comptime subcommand: type, io: anytype, error_message: []const u8) u8 {
     const z = tracy.traceNamed(@src(), "print error");
     defer z.end();
@@ -51,6 +52,7 @@ pub fn printError(comptime subcommand: type, io: anytype, error_message: []const
     return 1;
 }
 
+// FIXME: Should this return u8 or void?
 pub fn printErrorAlloc(
     comptime subcommand: type,
     allocator: std.mem.Allocator,
@@ -233,6 +235,7 @@ pub const Arg = struct {
             }
 
             pub fn takeRest(self: *Shorthand) ?[]const u8 {
+                if (self.index >= self.value.len) return null;
                 const slice = self.value[self.index..];
                 self.index = self.value.len;
                 return slice;
