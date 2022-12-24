@@ -1,7 +1,7 @@
 const std = @import("std");
 const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
 
-const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 6 };
+const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 7 };
 
 pub fn build(b: *std.build.Builder) !void {
     b.prominent_compile_errors = true;
