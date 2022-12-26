@@ -273,39 +273,50 @@ fn performTouch(
         file_zone.addText(file_path);
 
         const file: zsw.File = (if (!options.create)
-            cwd.openFile(file_path, .{}) catch |err|
+            cwd.openFile(file_path, .{})
+        else
+            cwd.createFile(file_path, .{})) catch |err|
+            return shared.printErrorAlloc(
+            @This(),
+            allocator,
+            io,
+            "failed to open '{s}': {s}",
+            .{ file_path, @errorName(err) },
+        );
+        defer file.close();
+
+        if (options.update == .both) {
+            file.updateTimes(times.access_time, times.modification_time) catch |err|
                 return shared.printErrorAlloc(
                 @This(),
                 allocator,
                 io,
-                "failed to open '{s}': {s}",
+                "failed to update times on '{s}': {s}",
                 .{ file_path, @errorName(err) },
-            )
-        else
-            @panic("TODO: UNIMPLEMENTED")); // TODO: Implement CreateFile in ZSW
-        defer file.close();
+            );
+        } else {
+            const stat = file.stat() catch |err|
+                return shared.printErrorAlloc(
+                @This(),
+                allocator,
+                io,
+                "failed to stat '{s}': {s}",
+                .{ file_path, @errorName(err) },
+            );
 
-        const stat = file.stat() catch |err|
-            return shared.printErrorAlloc(
-            @This(),
-            allocator,
-            io,
-            "failed to stat '{s}': {s}",
-            .{ file_path, @errorName(err) },
-        );
-
-        (switch (options.update) {
-            .both => file.updateTimes(times.access_time, times.modification_time),
-            .access_only => file.updateTimes(times.access_time, stat.mtime),
-            .modification_only => file.updateTimes(stat.atime, times.modification_time),
-        }) catch |err|
-            return shared.printErrorAlloc(
-            @This(),
-            allocator,
-            io,
-            "failed to update times on '{s}': {s}",
-            .{ file_path, @errorName(err) },
-        );
+            (switch (options.update) {
+                .both => unreachable,
+                .access_only => file.updateTimes(times.access_time, stat.mtime),
+                .modification_only => file.updateTimes(stat.atime, times.modification_time),
+            }) catch |err|
+                return shared.printErrorAlloc(
+                @This(),
+                allocator,
+                io,
+                "failed to update times on '{s}': {s}",
+                .{ file_path, @errorName(err) },
+            );
+        }
     }
 
     return 0;
