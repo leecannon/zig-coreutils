@@ -323,7 +323,7 @@ fn getTimes(
 ) !FileTimes {
     switch (time_to_use) {
         .current_time => {
-            const time = std.time.nanoTimestamp();
+            const time = system.nanoTimestamp();
             return .{
                 .access_time = time,
                 .modification_time = time,
@@ -409,10 +409,115 @@ const TouchOptions = struct {
     }
 };
 
-// TODO: Add tests
+// test "touch - create file" {
+//     var nano_timestamp: i128 = 1000;
+
+//     var test_system = try TestSystem.init(&nano_timestamp);
+//     defer test_system.deinit();
+
+//     const system = test_system.backend.system();
+
+//     // file should not exist
+//     try std.testing.expectError(
+//         error.FileNotFound,
+//         system.cwd().openFile("FILE", .{}),
+//     );
+
+//     const ret = try subcommands.testExecute(
+//         @This(),
+//         &.{"FILE"},
+//         .{ .system = system },
+//     );
+//     try std.testing.expect(ret == 0);
+
+//     // file should exist
+//     const file = try system.cwd().openFile("FILE", .{});
+//     defer file.close();
+
+//     var stat = try file.stat();
+//     try std.testing.expectEqual(nano_timestamp, stat.atime);
+//     try std.testing.expectEqual(nano_timestamp, stat.mtime);
+// }
+
+test "touch - don't create file" {
+    var nano_timestamp: i128 = 1000;
+
+    var test_system = try TestSystem.init(&nano_timestamp);
+    defer test_system.deinit();
+
+    const system = test_system.backend.system();
+
+    // file should not exist
+    try std.testing.expectError(
+        error.FileNotFound,
+        system.cwd().openFile("FILE", .{}),
+    );
+
+    try subcommands.testError(
+        @This(),
+        &.{ "-c", "FILE" },
+        .{},
+        "failed to open",
+    );
+}
+
+test "touch - atime only flag" {
+    var nano_timestamp: i128 = 1000;
+
+    var test_system = try TestSystem.init(&nano_timestamp);
+    defer test_system.deinit();
+
+    const system = test_system.backend.system();
+
+    @atomicStore(i128, &nano_timestamp, 2000, .Monotonic);
+
+    const ret = try subcommands.testExecute(
+        @This(),
+        &.{ "-a", "EXISTS" },
+        .{ .system = system },
+    );
+    try std.testing.expect(ret == 0);
+
+    const file = try system.cwd().openFile("EXISTS", .{});
+    defer file.close();
+
+    const stat = try file.stat();
+    try std.testing.expectEqual(@as(i128, 2000), stat.atime);
+    try std.testing.expectEqual(@as(i128, 1000), stat.mtime);
+}
+
+test "touch - mtime only flag" {
+    var nano_timestamp: i128 = 1000;
+
+    var test_system = try TestSystem.init(&nano_timestamp);
+    defer test_system.deinit();
+
+    const system = test_system.backend.system();
+
+    @atomicStore(i128, &nano_timestamp, 2000, .Monotonic);
+
+    const ret = try subcommands.testExecute(
+        @This(),
+        &.{ "-m", "EXISTS" },
+        .{ .system = system },
+    );
+    try std.testing.expect(ret == 0);
+
+    const file = try system.cwd().openFile("EXISTS", .{});
+    defer file.close();
+
+    const stat = try file.stat();
+    try std.testing.expectEqual(@as(i128, 1000), stat.atime);
+    try std.testing.expectEqual(@as(i128, 2000), stat.mtime);
+}
 
 test "touch no args" {
-    try subcommands.testError(@This(), &.{}, .{}, "missing file operand");
+    try subcommands.testError(
+        @This(),
+        &.{},
+        .{},
+        "missing file operand",
+    );
 }
 
 test "touch help" {
@@ -422,6 +527,36 @@ test "touch help" {
 test "touch version" {
     try subcommands.testVersion(@This());
 }
+
+const TestSystem = struct {
+    backend: *BackendType,
+
+    const BackendType = zsw.Backend(.{
+        .fallback_to_host = false,
+        .file_system = true,
+        .time = true,
+    });
+
+    pub fn init(nano_timestamp: *const i128) !TestSystem {
+        const file_system = try zsw.FileSystemDescription.init(std.testing.allocator);
+        defer file_system.deinit();
+        try file_system.root.addFile("EXISTS", "");
+
+        const time = zsw.TimeDescription{ .nano_timestamp = nano_timestamp };
+
+        const backend = try BackendType.init(std.testing.allocator, .{
+            .file_system = file_system,
+            .time = time,
+        });
+        errdefer backend.deinit();
+
+        return .{ .backend = backend };
+    }
+
+    pub fn deinit(self: *TestSystem) void {
+        self.backend.deinit();
+    }
+};
 
 comptime {
     refAllDeclsRecursive(@This());

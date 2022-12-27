@@ -131,7 +131,10 @@ pub fn testError(
         ),
     );
 
-    try std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_error) != null);
+    std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_error) != null) catch |err| {
+        std.debug.print("\nEXPECTED: {s}\n\nACTUAL: {s}\n", .{ expected_error, stderr.items });
+        return err;
+    };
 }
 
 pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !void {
