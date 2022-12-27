@@ -229,7 +229,6 @@ pub const Arg = struct {
             pub fn next(self: *Shorthand) ?u8 {
                 if (self.index >= self.value.len) return null;
                 const char = self.value[self.index];
-                log.debug("\"{s}\" - shorthand sub-index {} is '{c}'", .{ self.value, self.index, char });
                 self.index += 1;
                 return char;
             }
