@@ -272,10 +272,10 @@ fn performTouch(
         defer file_zone.end();
         file_zone.addText(file_path);
 
-        const file: zsw.File = (if (!options.create)
-            cwd.openFile(file_path, .{})
-        else
-            cwd.createFile(file_path, .{})) catch |err|
+        const file: zsw.File = switch (options.create) {
+            true => cwd.createFile(file_path, .{}),
+            false => cwd.openFile(file_path, .{}),
+        } catch |err|
             return shared.printErrorAlloc(
             @This(),
             allocator,
@@ -285,16 +285,9 @@ fn performTouch(
         );
         defer file.close();
 
-        if (options.update == .both) {
-            file.updateTimes(times.access_time, times.modification_time) catch |err|
-                return shared.printErrorAlloc(
-                @This(),
-                allocator,
-                io,
-                "failed to update times on '{s}': {s}",
-                .{ file_path, @errorName(err) },
-            );
-        } else {
+        (if (options.update == .both)
+            file.updateTimes(times.access_time, times.modification_time)
+        else blk: {
             const stat = file.stat() catch |err|
                 return shared.printErrorAlloc(
                 @This(),
@@ -304,19 +297,19 @@ fn performTouch(
                 .{ file_path, @errorName(err) },
             );
 
-            (switch (options.update) {
+            break :blk switch (options.update) {
                 .both => unreachable,
                 .access_only => file.updateTimes(times.access_time, stat.mtime),
                 .modification_only => file.updateTimes(stat.atime, times.modification_time),
-            }) catch |err|
-                return shared.printErrorAlloc(
-                @This(),
-                allocator,
-                io,
-                "failed to update times on '{s}': {s}",
-                .{ file_path, @errorName(err) },
-            );
-        }
+            };
+        }) catch |err|
+            return shared.printErrorAlloc(
+            @This(),
+            allocator,
+            io,
+            "failed to update times on '{s}': {s}",
+            .{ file_path, @errorName(err) },
+        );
     }
 
     return 0;
