@@ -99,8 +99,8 @@ pub fn execute(
 }
 
 test "whoami root" {
-    var test_system = try TestSystem.init();
-    defer test_system.deinit();
+    var test_system = try TestSystem.create();
+    defer test_system.destroy();
 
     // set the effective user id to root
     test_system.backend.linux_user_group.euid = 0;
@@ -122,8 +122,8 @@ test "whoami root" {
 }
 
 test "whoami user" {
-    var test_system = try TestSystem.init();
-    defer test_system.deinit();
+    var test_system = try TestSystem.create();
+    defer test_system.destroy();
 
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
@@ -158,10 +158,10 @@ const TestSystem = struct {
         .linux_user_group = true,
     });
 
-    pub fn init() !TestSystem {
-        var file_system = blk: {
-            var file_system = try zsw.FileSystemDescription.init(std.testing.allocator);
-            errdefer file_system.deinit();
+    pub fn create() !TestSystem {
+        const file_system = blk: {
+            const file_system = try zsw.FileSystemDescription.create(std.testing.allocator);
+            errdefer file_system.destroy();
 
             const etc = try file_system.root.addDirectory("etc");
 
@@ -181,25 +181,25 @@ const TestSystem = struct {
 
             break :blk file_system;
         };
-        defer file_system.deinit();
+        defer file_system.destroy();
 
         var linux_user_group: zsw.LinuxUserGroupDescription = .{
             .initial_euid = 1000,
         };
 
-        var backend = try BackendType.init(std.testing.allocator, .{
+        var backend = try BackendType.create(std.testing.allocator, .{
             .file_system = file_system,
             .linux_user_group = linux_user_group,
         });
-        errdefer backend.deinit();
+        errdefer backend.destroy();
 
         return TestSystem{
             .backend = backend,
         };
     }
 
-    pub fn deinit(self: *TestSystem) void {
-        self.backend.deinit();
+    pub fn destroy(self: *TestSystem) void {
+        self.backend.destroy();
     }
 };
 

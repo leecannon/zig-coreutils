@@ -144,8 +144,8 @@ pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !vo
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
-    var always_fail_system = try AlwaysFailSystem.init(std.testing.allocator);
-    defer always_fail_system.deinit();
+    var always_fail_system = try AlwaysFailSystem.create(std.testing.allocator);
+    defer always_fail_system.destroy();
 
     try std.testing.expectEqual(
         @as(u8, 0),
@@ -181,8 +181,8 @@ pub fn testVersion(comptime subcommand: type) !void {
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
-    var always_fail_system = try AlwaysFailSystem.init(std.testing.allocator);
-    defer always_fail_system.deinit();
+    var always_fail_system = try AlwaysFailSystem.create(std.testing.allocator);
+    defer always_fail_system.destroy();
 
     try std.testing.expectEqual(
         @as(u8, 0),
@@ -207,17 +207,17 @@ const AlwaysFailSystem = struct {
 
     const BackendType = zsw.Backend(.{ .fallback_to_host = false });
 
-    pub fn init(allocator: std.mem.Allocator) !AlwaysFailSystem {
-        var backend = try BackendType.init(allocator, .{});
-        errdefer backend.deinit();
+    pub fn create(allocator: std.mem.Allocator) !AlwaysFailSystem {
+        var backend = try BackendType.create(allocator, .{});
+        errdefer backend.destroy();
 
         return AlwaysFailSystem{
             .backend = backend,
         };
     }
 
-    pub fn deinit(self: *AlwaysFailSystem) void {
-        self.backend.deinit();
+    pub fn destroy(self: *AlwaysFailSystem) void {
+        self.backend.destroy();
     }
 };
 

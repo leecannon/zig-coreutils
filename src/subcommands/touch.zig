@@ -442,8 +442,8 @@ const TouchOptions = struct {
 test "touch - don't create file" {
     var nano_timestamp: i128 = 1000;
 
-    var test_system = try TestSystem.init(&nano_timestamp);
-    defer test_system.deinit();
+    var test_system = try TestSystem.create(&nano_timestamp);
+    defer test_system.destroy();
 
     const system = test_system.backend.system();
 
@@ -464,8 +464,8 @@ test "touch - don't create file" {
 test "touch - atime only flag" {
     var nano_timestamp: i128 = 1000;
 
-    var test_system = try TestSystem.init(&nano_timestamp);
-    defer test_system.deinit();
+    var test_system = try TestSystem.create(&nano_timestamp);
+    defer test_system.destroy();
 
     const system = test_system.backend.system();
 
@@ -489,8 +489,8 @@ test "touch - atime only flag" {
 test "touch - mtime only flag" {
     var nano_timestamp: i128 = 1000;
 
-    var test_system = try TestSystem.init(&nano_timestamp);
-    defer test_system.deinit();
+    var test_system = try TestSystem.create(&nano_timestamp);
+    defer test_system.destroy();
 
     const system = test_system.backend.system();
 
@@ -537,24 +537,24 @@ const TestSystem = struct {
         .time = true,
     });
 
-    pub fn init(nano_timestamp: *const i128) !TestSystem {
-        const file_system = try zsw.FileSystemDescription.init(std.testing.allocator);
-        defer file_system.deinit();
+    pub fn create(nano_timestamp: *const i128) !TestSystem {
+        const file_system = try zsw.FileSystemDescription.create(std.testing.allocator);
+        defer file_system.destroy();
         try file_system.root.addFile("EXISTS", "");
 
         const time = zsw.TimeDescription{ .nano_timestamp = nano_timestamp };
 
-        const backend = try BackendType.init(std.testing.allocator, .{
+        const backend = try BackendType.create(std.testing.allocator, .{
             .file_system = file_system,
             .time = time,
         });
-        errdefer backend.deinit();
+        errdefer backend.destroy();
 
         return .{ .backend = backend };
     }
 
-    pub fn deinit(self: *TestSystem) void {
-        self.backend.deinit();
+    pub fn destroy(self: *TestSystem) void {
+        self.backend.destroy();
     }
 };
 
