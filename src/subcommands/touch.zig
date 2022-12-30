@@ -409,35 +409,35 @@ const TouchOptions = struct {
     }
 };
 
-// test "touch - create file" {
-//     var nano_timestamp: i128 = 1000;
+test "touch - create file" {
+    var nano_timestamp: i128 = 1000;
 
-//     var test_system = try TestSystem.init(&nano_timestamp);
-//     defer test_system.deinit();
+    var test_system = try TestSystem.create(&nano_timestamp);
+    defer test_system.destroy();
 
-//     const system = test_system.backend.system();
+    const system = test_system.backend.system();
 
-//     // file should not exist
-//     try std.testing.expectError(
-//         error.FileNotFound,
-//         system.cwd().openFile("FILE", .{}),
-//     );
+    // file should not exist
+    try std.testing.expectError(
+        error.FileNotFound,
+        system.cwd().openFile("FILE", .{}),
+    );
 
-//     const ret = try subcommands.testExecute(
-//         @This(),
-//         &.{"FILE"},
-//         .{ .system = system },
-//     );
-//     try std.testing.expect(ret == 0);
+    const ret = try subcommands.testExecute(
+        @This(),
+        &.{"FILE"},
+        .{ .system = system },
+    );
+    try std.testing.expect(ret == 0);
 
-//     // file should exist
-//     const file = try system.cwd().openFile("FILE", .{});
-//     defer file.close();
+    // file should exist
+    const file = try system.cwd().openFile("FILE", .{});
+    defer file.close();
 
-//     var stat = try file.stat();
-//     try std.testing.expectEqual(nano_timestamp, stat.atime);
-//     try std.testing.expectEqual(nano_timestamp, stat.mtime);
-// }
+    var stat = try file.stat();
+    try std.testing.expectEqual(nano_timestamp, stat.atime);
+    try std.testing.expectEqual(nano_timestamp, stat.mtime);
+}
 
 test "touch - don't create file" {
     var nano_timestamp: i128 = 1000;
