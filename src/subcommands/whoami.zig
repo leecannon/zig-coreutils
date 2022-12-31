@@ -50,9 +50,9 @@ pub fn execute(
     // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
-    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch {
+    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch
         return shared.printError(@This(), io, "unable to read '/etc/passwd'");
-    };
+
     defer if (shared.free_on_close) passwd_file.close();
 
     const euid = system.geteuid();
@@ -90,9 +90,7 @@ pub fn execute(
             } else {
                 log.debug("found non-matching user id: {}", .{user_id});
             }
-        } else |_| {
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-        }
+        } else |_| return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
     }
 
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");

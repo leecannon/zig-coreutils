@@ -50,9 +50,8 @@ pub fn execute(
 
     const opt_arg = try args.nextWithHelpOrVersion(true);
 
-    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch {
+    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch
         return shared.printError(@This(), io, "unable to read '/etc/passwd'");
-    };
     defer if (shared.free_on_close) passwd_file.close();
 
     return if (opt_arg) |arg|
@@ -105,17 +104,12 @@ fn currentUser(
                 const primary_group_id_slice = column_iter.next() orelse
                     return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
 
-                if (std.fmt.parseUnsigned(std.os.uid_t, primary_group_id_slice, 10)) |primary_group_id| {
-                    return printGroups(allocator, user_name, primary_group_id, io, system);
-                } else |_| {
-                    return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-                }
-            } else {
-                log.debug("found non-matching user id: {}", .{user_id});
-            }
-        } else |_| {
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-        }
+                return if (std.fmt.parseUnsigned(std.os.uid_t, primary_group_id_slice, 10)) |primary_group_id|
+                    printGroups(allocator, user_name, primary_group_id, io, system)
+                else |_|
+                    shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
+            } else log.debug("found non-matching user id: {}", .{user_id});
+        } else |_| return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
     }
 
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
@@ -170,11 +164,10 @@ fn otherUser(
         const primary_group_id_slice = column_iter.next() orelse
             return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
 
-        if (std.fmt.parseUnsigned(std.os.uid_t, primary_group_id_slice, 10)) |primary_group_id| {
-            return printGroups(allocator, user_name, primary_group_id, io, system);
-        } else |_| {
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-        }
+        return if (std.fmt.parseUnsigned(std.os.uid_t, primary_group_id_slice, 10)) |primary_group_id|
+            printGroups(allocator, user_name, primary_group_id, io, system)
+        else |_|
+            shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
     }
 
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
@@ -193,9 +186,9 @@ fn printGroups(
 
     log.debug("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
 
-    var group_file = system.cwd().openFile("/etc/group", .{}) catch {
+    var group_file = system.cwd().openFile("/etc/group", .{}) catch
         return shared.printError(@This(), io, "unable to read '/etc/group'");
-    };
+
     defer if (shared.free_on_close) group_file.close();
 
     var group_buffered_reader = std.io.bufferedReader(group_file.reader());
@@ -234,9 +227,7 @@ fn printGroups(
                 first = false;
                 continue;
             }
-        } else |_| {
-            return shared.printError(@This(), io, "format of '/etc/group' is invalid");
-        }
+        } else |_| return shared.printError(@This(), io, "format of '/etc/group' is invalid");
 
         const members = column_iter.next() orelse continue;
         if (members.len == 0) continue;
