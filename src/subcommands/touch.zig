@@ -14,6 +14,9 @@ pub const usage =
     \\
     \\A FILE argument that does not exist is created empty, unless -c or -h is supplied.
     \\
+    \\A FILE argument string of '-' is handled specially and causes 'touch' to change 
+    \\the times of the file associated with standard output.
+    \\
     \\     -a                    change only the access time
     \\     -c, --no-create       do not create any files
     \\     -d, --date=STRING     parse STRING and use it instead of current time
@@ -272,17 +275,20 @@ fn performTouch(
         defer file_zone.end();
         file_zone.addText(file_path);
 
-        const file: zsw.File = switch (options.create) {
-            true => cwd.createFile(file_path, .{}),
-            false => cwd.openFile(file_path, .{}),
-        } catch |err|
-            return shared.printErrorAlloc(
-            @This(),
-            allocator,
-            io,
-            "failed to open '{s}': {s}",
-            .{ file_path, @errorName(err) },
-        );
+        const file: zsw.File = if (std.mem.eql(u8, file_path, "-"))
+            system.getStdOut()
+        else
+            switch (options.create) {
+                true => cwd.createFile(file_path, .{}),
+                false => cwd.openFile(file_path, .{}),
+            } catch |err|
+                return shared.printErrorAlloc(
+                @This(),
+                allocator,
+                io,
+                "failed to open '{s}': {s}",
+                .{ file_path, @errorName(err) },
+            );
         defer file.close();
 
         (if (options.update == .both)
