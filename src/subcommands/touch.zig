@@ -19,12 +19,10 @@ pub const usage =
     \\
     \\     -a                    change only the access time
     \\     -c, --no-create       do not create any files
-    \\     -d, --date=STRING     parse STRING and use it instead of current time
     \\     -f                    (ignored)
     \\     -h, --no-dereference  affect symbolic link instead of any referenced file
     \\     -m                    change only the modification time
     \\     -r, --reference=FILE  use this file's times instead of the current time
-    \\     -t STAMP              use [[CC]YY]MMDDhhmm[.ss] instead of current time
     \\     --time=WORD           change the specified time:
     \\                             WORD is access, atime, or use: equivalent to -a
     \\                             WORD is modify or mtime: equivalent to -m
@@ -64,20 +62,17 @@ pub fn execute(
 
     var touch_options: TouchOptions = .{};
 
-    var value_for_shorthand_expected = false;
-    var format_string_expected = false;
     var reference_file_expected = false;
-    var timestamp_expected = false;
 
     while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
-                if (value_for_shorthand_expected) {
+                if (reference_file_expected) {
                     return shared.printInvalidUsage(
                         @This(),
                         io,
                         exe_path,
-                        "expected value for previous option",
+                        "expected file path for reference file argument",
                     );
                 }
 
@@ -100,12 +95,12 @@ pub fn execute(
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
-                    if (value_for_shorthand_expected) {
+                    if (reference_file_expected) {
                         return shared.printInvalidUsage(
                             @This(),
                             io,
                             exe_path,
-                            "expected value for previous option",
+                            "expected file path for reference file argument",
                         );
                     }
 
@@ -117,15 +112,6 @@ pub fn execute(
                         'c' => {
                             touch_options.create = false;
                             log.debug("got do not create file shorthand", .{});
-                        },
-                        'd' => {
-                            if (shorthand.takeRest()) |rest| {
-                                touch_options.time_to_use = .{ .format_string = rest };
-                            } else {
-                                value_for_shorthand_expected = true;
-                                format_string_expected = true;
-                            }
-                            log.debug("got format string shorthand", .{});
                         },
                         'f' => {}, // ignored
                         'h' => {
@@ -140,19 +126,9 @@ pub fn execute(
                             if (shorthand.takeRest()) |rest| {
                                 touch_options.time_to_use = .{ .reference_file = rest };
                             } else {
-                                value_for_shorthand_expected = true;
                                 reference_file_expected = true;
                             }
                             log.debug("got reference file shorthand", .{});
-                        },
-                        't' => {
-                            if (shorthand.takeRest()) |rest| {
-                                touch_options.time_to_use = .{ .timestamp = rest };
-                            } else {
-                                value_for_shorthand_expected = true;
-                                timestamp_expected = true;
-                            }
-                            log.debug("got timestamp shorthand", .{});
                         },
                         else => return try shared.printInvalidUsageAlloc(
                             @This(),
@@ -166,19 +142,16 @@ pub fn execute(
                 }
             },
             .longhand_with_value => |longhand_with_value| {
-                if (value_for_shorthand_expected) {
+                if (reference_file_expected) {
                     return shared.printInvalidUsage(
                         @This(),
                         io,
                         exe_path,
-                        "expected value for previous option",
+                        "expected file path for reference file argument",
                     );
                 }
 
-                if (std.mem.eql(u8, longhand_with_value.longhand, "date")) {
-                    touch_options.time_to_use = .{ .format_string = longhand_with_value.value };
-                    log.debug("got format string longhand, format string: '{s}'", .{longhand_with_value.value});
-                } else if (std.mem.eql(u8, longhand_with_value.longhand, "reference")) {
+                if (std.mem.eql(u8, longhand_with_value.longhand, "reference")) {
                     touch_options.time_to_use = .{ .reference_file = longhand_with_value.value };
                     log.debug("got reference file longhand, reference file: '{s}'", .{longhand_with_value.value});
                 } else if (std.mem.eql(u8, longhand_with_value.longhand, "time")) {
@@ -215,29 +188,10 @@ pub fn execute(
                 }
             },
             .positional => {
-                if (value_for_shorthand_expected) {
-                    if (format_string_expected) {
-                        touch_options.time_to_use = .{ .format_string = arg.raw };
-                        log.debug("got format string value: '{s}'", .{arg.raw});
-                        format_string_expected = false;
-                    } else if (reference_file_expected) {
-                        touch_options.time_to_use = .{ .reference_file = arg.raw };
-                        log.debug("got reference file value: '{s}'", .{arg.raw});
-                        reference_file_expected = false;
-                    } else if (timestamp_expected) {
-                        touch_options.time_to_use = .{ .timestamp = arg.raw };
-                        log.debug("got timestamp value: '{s}'", .{arg.raw});
-                        timestamp_expected = false;
-                    } else {
-                        return shared.printInvalidUsage(
-                            @This(),
-                            io,
-                            exe_path,
-                            "expected value for previous option",
-                        );
-                    }
-
-                    value_for_shorthand_expected = false;
+                if (reference_file_expected) {
+                    touch_options.time_to_use = .{ .reference_file = arg.raw };
+                    log.debug("got reference file value: '{s}'", .{arg.raw});
+                    reference_file_expected = false;
                     continue;
                 }
 
@@ -363,8 +317,6 @@ fn getTimes(
                 .modification_time = stat.mtime,
             };
         },
-        .format_string => @panic("date format string is not implemented"), // TODO
-        .timestamp => @panic("timestamp is not implemented"), // TODO
     }
 }
 
@@ -387,9 +339,7 @@ const TouchOptions = struct {
 
     pub const TimeToUse = union(enum) {
         current_time,
-        format_string: []const u8,
         reference_file: []const u8,
-        timestamp: []const u8,
     };
 
     pub fn format(
