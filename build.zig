@@ -78,23 +78,33 @@ pub fn build(b: *std.build.Builder) !void {
     };
     options.addOption([:0]const u8, "version", try b.allocator.dupeZ(u8, version));
 
-    const main_exe = b.addExecutable("zig-coreutils", "src/main.zig");
-    main_exe.setTarget(target);
-    main_exe.setBuildMode(mode);
+    const exe = b.addExecutable("zig-coreutils", "src/main.zig");
+    exe.setTarget(target);
+    exe.setBuildMode(mode);
 
     if (mode != .Debug) {
-        main_exe.link_function_sections = true;
-        main_exe.want_lto = true;
+        exe.link_function_sections = true;
+        exe.want_lto = true;
     }
 
-    main_exe.install();
+    exe.install();
 
-    main_exe.addOptions("options", options);
-    main_exe.addPackagePath("zsw", "zsw/src/main.zig");
+    exe.addOptions("options", options);
+    exe.addPackagePath("zsw", "zsw/src/main.zig");
 
     if (trace) {
-        includeTracy(main_exe);
+        includeTracy(exe);
     }
+
+    const run_cmd = exe.run();
+    run_cmd.expected_exit_code = null;
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
 
     const test_step = b.addTest("src/main.zig");
     test_step.addOptions("options", options);

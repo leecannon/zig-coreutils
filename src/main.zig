@@ -55,10 +55,14 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
         argument_info.exe_path,
     ) catch |err| {
         switch (err) {
-            error.NoSubcommand => blk: {
-                stderr_writer.writeByte('\'') catch break :blk;
-                stderr_writer.writeAll(argument_info.basename) catch break :blk;
-                stderr_writer.writeAll("' subcommand not found\n") catch break :blk;
+            error.NoSubcommand => {
+                blk: {
+                    stderr_writer.writeByte('\'') catch break :blk;
+                    stderr_writer.writeAll(argument_info.basename) catch break :blk;
+                    stderr_writer.writeAll("' subcommand not found\n") catch break :blk;
+                }
+                // this error only occurs in one place, no need to print error return trace
+                return 1;
             },
             error.OutOfMemory => stderr_writer.writeAll("out of memory\n") catch {},
             error.UnableToParseArguments => stderr_writer.writeAll("unable to parse arguments\n") catch {},

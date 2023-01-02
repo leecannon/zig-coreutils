@@ -19,19 +19,19 @@ pub const SUBCOMMANDS = [_]type{
 
 pub const ExecuteError = error{
     NoSubcommand,
-} || SubcommandErrors;
+} || SubcommandError;
 
-const SubcommandErrors = error{
+const SubcommandError = error{
     OutOfMemory,
     UnableToParseArguments,
 };
 
-const SubcommandNonErrors = error{
+const SubcommandNonError = error{
     Help,
     Version,
 };
 
-pub const Error = SubcommandErrors || SubcommandNonErrors;
+pub const Error = SubcommandError || SubcommandNonError;
 
 pub fn execute(
     allocator: std.mem.Allocator,
@@ -43,18 +43,49 @@ pub fn execute(
 ) ExecuteError!u8 {
     const z = shared.tracy.traceNamed(@src(), "execute");
     defer z.end();
-    z.addText(basename);
-    z.addText(exe_path);
 
     inline for (SUBCOMMANDS) |subcommand| {
-        if (std.mem.eql(u8, subcommand.name, basename)) return executeSubcommand(
-            subcommand,
-            allocator,
-            arg_iter,
-            io,
-            system,
-            exe_path,
-        );
+        if (std.mem.eql(u8, subcommand.name, basename)) {
+            z.addText(basename);
+            return executeSubcommand(
+                subcommand,
+                allocator,
+                arg_iter,
+                io,
+                system,
+                exe_path,
+            );
+        }
+    }
+
+    // if the basename of the executable does not match any of the subcommands then try
+    // to use the first argument as the subcommand name
+    if (arg_iter.next()) |possible_subcommand| {
+        log.debug("no subcommand found matching basename '{s}', trying first argument '{s}'", .{
+            basename,
+            possible_subcommand,
+        });
+
+        inline for (SUBCOMMANDS) |subcommand| {
+            if (std.mem.eql(u8, subcommand.name, possible_subcommand)) {
+                z.addText(possible_subcommand);
+
+                const exe_path_with_subcommand = try std.fmt.allocPrint(allocator, "{s} {s}", .{
+                    exe_path,
+                    subcommand.name,
+                });
+                defer allocator.free(exe_path_with_subcommand);
+
+                return executeSubcommand(
+                    subcommand,
+                    allocator,
+                    arg_iter,
+                    io,
+                    system,
+                    exe_path_with_subcommand,
+                );
+            }
+        }
     }
 
     return error.NoSubcommand;
@@ -67,7 +98,7 @@ fn executeSubcommand(
     io: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) SubcommandErrors!u8 {
+) SubcommandError!u8 {
     const z = shared.tracy.traceNamed(@src(), "execute subcommand");
     defer z.end();
 
@@ -79,7 +110,7 @@ fn executeSubcommand(
     };
 }
 
-pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) SubcommandErrors!u8 {
+pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) SubcommandError!u8 {
     const SettingsType = @TypeOf(settings);
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
