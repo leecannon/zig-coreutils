@@ -61,8 +61,6 @@ pub fn execute(
         }
     }
 
-    log.debug("template called", .{});
-
     return 0;
 }
 

@@ -53,8 +53,6 @@ pub fn execute(
     // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
-    log.debug("true called", .{});
-
     return 0;
 }
 

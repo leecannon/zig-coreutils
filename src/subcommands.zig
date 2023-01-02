@@ -102,6 +102,8 @@ fn executeSubcommand(
     const z = shared.tracy.traceNamed(@src(), "execute subcommand");
     defer z.end();
 
+    log.debug("executing subcommand '{s}'", .{subcommand.name});
+
     var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
     return subcommand.execute(allocator, io, &arg_iterator, system, exe_path) catch |err| switch (err) {
         error.Help => shared.printHelp(subcommand, io, exe_path),
