@@ -14,6 +14,10 @@ pub fn build(b: *std.build.Builder) !void {
         return error.UnsupportedOperatingSystem;
     }
 
+    const coverage = b.option(bool, "coverage", "Generate test coverage data with kcov") orelse false;
+    const coverage_output_dir = b.option([]const u8, "coverage_output_dir", "Output directory for coverage data") orelse
+        b.pathJoin(&.{ b.install_prefix, "kcov" });
+
     const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
 
     const options = b.addOptions();
@@ -111,6 +115,18 @@ pub fn build(b: *std.build.Builder) !void {
     test_step.addPackagePath("zsw", "zsw/src/main.zig");
     if (trace) {
         includeTracy(test_step);
+    }
+
+    if (coverage) {
+        const src_dir = b.pathJoin(&.{ b.build_root, "src" });
+        const include_pattern = b.fmt("--include-pattern={s}", .{src_dir});
+
+        test_step.setExecCmd(&[_]?[]const u8{
+            "kcov",
+            include_pattern,
+            coverage_output_dir,
+            null,
+        });
     }
 
     const run_test_step = b.step("test", "Run the tests");
