@@ -170,6 +170,7 @@ pub fn ArgIterator(comptime T: type) type {
             return Arg.init(current_arg, .positional);
         }
 
+        /// The only time `include_shorthand` should be false is if the subcommand has it's own `-h` argument.
         pub fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) error{ Help, Version }!?Arg {
             const z = tracy.traceNamed(@src(), "next arg with help/version");
             defer z.end();
