@@ -255,14 +255,18 @@ fn performTouch(
             switch (options.create) {
                 true => cwd.createFile(file_path, .{}),
                 false => cwd.openFile(file_path, .{}),
-            } catch |err|
+            } catch |err| {
+                // The file not existing is not an error if create is false.
+                if (!options.create and err == error.FileNotFound) continue;
+
                 return shared.printErrorAlloc(
-                @This(),
-                allocator,
-                io,
-                "failed to open '{s}': {s}",
-                .{ file_path, @errorName(err) },
-            );
+                    @This(),
+                    allocator,
+                    io,
+                    "failed to open '{s}': {s}",
+                    .{ file_path, @errorName(err) },
+                );
+            };
         defer file.close();
 
         (if (options.update == .both)
@@ -431,11 +435,17 @@ test "touch - don't create file" {
         system.cwd().openFile("FILE", .{}),
     );
 
-    try subcommands.testError(
+    const ret = try subcommands.testExecute(
         @This(),
-        &.{ "-c", "FILE" },
-        .{},
-        "failed to open",
+        &.{ "-a", "EXISTS" },
+        .{ .system = system },
+    );
+    try std.testing.expect(ret == 0);
+
+    // file should still not exist
+    try std.testing.expectError(
+        error.FileNotFound,
+        system.cwd().openFile("FILE", .{}),
     );
 }
 
