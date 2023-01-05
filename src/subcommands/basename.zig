@@ -52,115 +52,138 @@ pub fn execute(
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
+    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
+
+    return if (options.multiple)
+        multipleArguments(io, args, options)
+    else
+        singleArgument(allocator, io, args, exe_path, options);
+}
+
+fn parseArguments(
+    allocator: std.mem.Allocator,
+    io: anytype,
+    args: anytype,
+    exe_path: []const u8,
+) !?BasenameOptions {
+    const z = shared.tracy.traceNamed(@src(), "parse arguments");
+    defer z.end();
+
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
 
-    var zero: bool = false;
-    var multiple: bool = false;
-    var opt_multiple_suffix: ?[]const u8 = null;
+    var basename_options: BasenameOptions = .{};
+
+    const State = union(enum) {
+        normal,
+        suffix,
+        invalid_argument: Argument,
+
+        const Argument = union(enum) {
+            slice: []const u8,
+            character: u8,
+        };
+    };
+
+    var state: State = .normal;
 
     while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
+                if (state != .normal) break;
+
                 if (std.mem.eql(u8, longhand, "zero")) {
-                    zero = true;
+                    basename_options.zero = true;
                     log.debug("got zero longhand", .{});
                 } else if (std.mem.eql(u8, longhand, "multiple")) {
-                    multiple = true;
+                    basename_options.multiple = true;
                     log.debug("got multiple longhand", .{});
                 } else if (std.mem.eql(u8, longhand, "suffix")) {
-                    return shared.printInvalidUsage(
-                        @This(),
-                        io,
-                        exe_path,
-                        "option '--suffix' requires an argument",
-                    );
+                    state = .suffix;
+                    log.debug("got suffix longhand", .{});
                 } else {
-                    return try shared.printInvalidUsageAlloc(
-                        @This(),
-                        allocator,
-                        io,
-                        exe_path,
-                        "unrecognized option '--{s}'",
-                        .{longhand},
-                    );
+                    state = .{ .invalid_argument = .{ .slice = longhand } };
+                    break;
                 }
             },
             .longhand_with_value => |longhand_with_value| {
+                if (state != .normal) break;
+
                 if (std.mem.eql(u8, longhand_with_value.longhand, "suffix")) {
-                    multiple = true;
-                    opt_multiple_suffix = longhand_with_value.value;
+                    basename_options.multiple = true;
+                    basename_options.opt_multiple_suffix = longhand_with_value.value;
                     log.debug("got suffix longhand with value = {s}", .{longhand_with_value.value});
                 } else {
-                    return try shared.printInvalidUsageAlloc(
-                        @This(),
-                        allocator,
-                        io,
-                        exe_path,
-                        "unrecognized option '--{s}'",
-                        .{longhand_with_value.value},
-                    );
+                    state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
+                    break;
                 }
-            },
-            .positional => {
-                if (multiple) {
-                    return try multipleArguments(
-                        io,
-                        args,
-                        arg.raw,
-                        zero,
-                        opt_multiple_suffix,
-                    );
-                }
-                return try singleArgument(allocator, io, args, exe_path, arg.raw, zero);
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
+                    if (state != .normal) break;
+
                     if (char == 'z') {
-                        zero = true;
+                        basename_options.zero = true;
                         log.debug("got zero shorthand", .{});
                     } else if (char == 'a') {
-                        multiple = true;
+                        basename_options.multiple = true;
                         log.debug("got multiple shorthand", .{});
                     } else if (char == 's') {
-                        opt_multiple_suffix = args.nextRaw() orelse {
-                            return shared.printInvalidUsage(
-                                @This(),
-                                io,
-                                exe_path,
-                                "option requires an argument -- 's'",
-                            );
-                        };
-                        multiple = true;
-                        log.debug("got suffix shorthand with value = {s}", .{opt_multiple_suffix orelse unreachable});
+                        state = .suffix;
+                        log.debug("got suffix shorthand", .{});
                     } else {
-                        return try shared.printInvalidUsageAlloc(
-                            @This(),
-                            allocator,
-                            io,
-                            exe_path,
-                            "unrecognized option -- '{c}'",
-                            .{char},
-                        );
+                        state = .{ .invalid_argument = .{ .character = char } };
+                        break;
                     }
                 }
+            },
+            .positional => {
+                switch (state) {
+                    .normal => {},
+                    .suffix => {
+                        basename_options.multiple = true;
+                        basename_options.opt_multiple_suffix = arg.raw;
+                        log.debug("got suffix value: '{s}'", .{arg.raw});
+                        state = .normal;
+                        continue;
+                    },
+                    else => break,
+                }
+
+                basename_options.first_arg = arg.raw;
+                return basename_options;
             },
         }
     }
 
-    return shared.printInvalidUsage(@This(), io, exe_path, "missing operand");
+    _ = switch (state) {
+        .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing operand"),
+        .suffix => shared.printInvalidUsage(@This(), io, exe_path, "expected SUFFIX for suffix argument"),
+        .invalid_argument => |invalid_arg| switch (invalid_arg) {
+            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
+            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+        },
+    };
+    return null;
 }
+
+const BasenameOptions = struct {
+    zero: bool = false,
+    multiple: bool = false,
+    opt_multiple_suffix: ?[]const u8 = null,
+
+    first_arg: []const u8 = undefined,
+};
 
 fn singleArgument(
     allocator: std.mem.Allocator,
     io: anytype,
     args: anytype,
     exe_path: []const u8,
-    first_arg: []const u8,
-    zero: bool,
+    options: BasenameOptions,
 ) !u8 {
     const z = shared.tracy.traceNamed(@src(), "single argument");
     defer z.end();
-    z.addText(first_arg);
+    z.addText(options.first_arg);
 
     const opt_suffix: ?[]const u8 = blk: {
         const suffix_zone = shared.tracy.traceNamed(@src(), "get suffix");
@@ -184,9 +207,9 @@ fn singleArgument(
         break :blk arg;
     };
 
-    log.debug("singleArgument called, first_arg='{s}', zero={}, suffix='{?s}'", .{ first_arg, zero, opt_suffix });
+    log.debug("singleArgument called, options={}", .{options});
 
-    const basename = getBasename(first_arg, opt_suffix);
+    const basename = getBasename(options.first_arg, opt_suffix);
     log.debug("got basename: '{s}'", .{basename});
 
     io.stdout.writeAll(basename) catch |err| {
@@ -194,7 +217,7 @@ fn singleArgument(
         return 1;
     };
 
-    io.stdout.writeByte(if (zero) 0 else '\n') catch |err| {
+    io.stdout.writeByte(if (options.zero) 0 else '\n') catch |err| {
         shared.unableToWriteTo("stdout", io, err);
         return 1;
     };
@@ -205,18 +228,16 @@ fn singleArgument(
 fn multipleArguments(
     io: anytype,
     args: anytype,
-    first_arg: []const u8,
-    zero: bool,
-    opt_suffix: ?[]const u8,
+    options: BasenameOptions,
 ) !u8 {
     const z = shared.tracy.traceNamed(@src(), "multiple arguments");
     defer z.end();
 
-    log.debug("multipleArguments called, first_arg='{s}', zero={}, suffix='{?s}'", .{ first_arg, zero, opt_suffix });
+    log.debug("multipleArguments called, options={}", .{options});
 
-    const end_byte: u8 = if (zero) 0 else '\n';
+    const end_byte: u8 = if (options.zero) 0 else '\n';
 
-    var opt_arg: ?[]const u8 = first_arg;
+    var opt_arg: ?[]const u8 = options.first_arg;
 
     var arg_frame = shared.tracy.namedFrame("arg");
     defer arg_frame.end();
@@ -229,7 +250,7 @@ fn multipleArguments(
         defer argument_zone.end();
         argument_zone.addText(arg);
 
-        const basename = getBasename(arg, opt_suffix);
+        const basename = getBasename(arg, options.opt_multiple_suffix);
         log.debug("got basename: '{s}'", .{basename});
 
         io.stdout.writeAll(basename) catch |err| {

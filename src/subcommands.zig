@@ -241,11 +241,8 @@ const AlwaysFailSystem = struct {
     const BackendType = zsw.Backend(.{ .fallback_to_host = false });
 
     pub fn create(allocator: std.mem.Allocator) !AlwaysFailSystem {
-        var backend = try BackendType.create(allocator, .{});
-        errdefer backend.destroy();
-
-        return AlwaysFailSystem{
-            .backend = backend,
+        return .{
+            .backend = try BackendType.create(allocator, .{}),
         };
     }
 
@@ -291,6 +288,7 @@ const VoidWriter = struct {
 };
 
 comptime {
+    if (@import("builtin").is_test) _ = @import("subcommands/template.zig");
     refAllDeclsRecursive(@This());
 }
 

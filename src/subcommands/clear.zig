@@ -47,49 +47,87 @@ pub fn execute(
 
     _ = system;
 
-    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
+    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
 
-    var clear_scrollback = true;
-
-    while (opt_arg) |*arg| : (opt_arg = args.next()) {
-        switch (arg.arg_type) {
-            .shorthand => |*shorthand| {
-                while (shorthand.next()) |char| {
-                    if (char == 'x') {
-                        clear_scrollback = false;
-                        log.debug("got dont clear scrollback option", .{});
-                    } else {
-                        return try shared.printInvalidUsageAlloc(
-                            @This(),
-                            allocator,
-                            io,
-                            exe_path,
-                            "unrecognized option -- '{c}'",
-                            .{char},
-                        );
-                    }
-                }
-            },
-            else => {
-                return try shared.printInvalidUsageAlloc(
-                    @This(),
-                    allocator,
-                    io,
-                    exe_path,
-                    "unrecognized option '--{s}'",
-                    .{arg.raw},
-                );
-            },
-        }
-    }
-
-    io.stdout.writeAll(if (clear_scrollback) "\x1b[H\x1b[2J\x1b[3J" else "\x1b[H\x1b[2J") catch |err| {
+    io.stdout.writeAll(if (options.clear_scrollback) "\x1b[H\x1b[2J\x1b[3J" else "\x1b[H\x1b[2J") catch |err| {
         shared.unableToWriteTo("stdout", io, err);
         return 1;
     };
 
     return 0;
 }
+
+fn parseArguments(
+    allocator: std.mem.Allocator,
+    io: anytype,
+    args: anytype,
+    exe_path: []const u8,
+) !?ClearOptions {
+    const z = shared.tracy.traceNamed(@src(), "parse arguments");
+    defer z.end();
+
+    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
+
+    var clear_options: ClearOptions = .{};
+
+    const State = union(enum) {
+        normal,
+        invalid_argument: Argument,
+
+        const Argument = union(enum) {
+            slice: []const u8,
+            character: u8,
+        };
+    };
+
+    var state: State = .normal;
+
+    while (opt_arg) |*arg| : (opt_arg = args.next()) {
+        switch (arg.arg_type) {
+            .longhand => |longhand| {
+                if (state != .normal) break;
+                state = .{ .invalid_argument = .{ .slice = longhand } };
+                break;
+            },
+            .longhand_with_value => |longhand_with_value| {
+                if (state != .normal) break;
+                state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
+                break;
+            },
+            .shorthand => |*shorthand| {
+                while (shorthand.next()) |char| {
+                    if (state != .normal) break;
+
+                    if (char == 'x') {
+                        clear_options.clear_scrollback = false;
+                        log.debug("got dont clear scrollback option", .{});
+                    } else {
+                        state = .{ .invalid_argument = .{ .character = char } };
+                        break;
+                    }
+                }
+            },
+            .positional => {
+                if (state != .normal) break;
+                state = .{ .invalid_argument = .{ .slice = arg.raw } };
+                break;
+            },
+        }
+    }
+
+    _ = switch (state) {
+        .normal => return clear_options,
+        .invalid_argument => |invalid_arg| switch (invalid_arg) {
+            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '--{s}'", .{slice}),
+            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+        },
+    };
+    return null;
+}
+
+const ClearOptions = struct {
+    clear_scrollback: bool = true,
+};
 
 test "clear no args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);

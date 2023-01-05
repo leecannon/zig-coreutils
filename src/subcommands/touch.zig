@@ -58,32 +58,43 @@ pub fn execute(
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
+    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
+
+    return performTouch(allocator, io, args, system, options);
+}
+
+fn parseArguments(
+    allocator: std.mem.Allocator,
+    io: anytype,
+    args: anytype,
+    exe_path: []const u8,
+) !?TouchOptions {
+    const z = shared.tracy.traceNamed(@src(), "parse arguments");
+    defer z.end();
+
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(false);
 
     var touch_options: TouchOptions = .{};
 
-    var reference_file_expected = false;
-    var time_expected = false;
+    const State = union(enum) {
+        normal,
+        reference_file,
+        time,
+        time_argument: []const u8,
+        invalid_argument: Argument,
+
+        const Argument = union(enum) {
+            slice: []const u8,
+            character: u8,
+        };
+    };
+
+    var state: State = .normal;
 
     while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
-                if (reference_file_expected) {
-                    return shared.printInvalidUsage(
-                        @This(),
-                        io,
-                        exe_path,
-                        "expected file path for reference file argument",
-                    );
-                }
-                if (time_expected) {
-                    return shared.printInvalidUsage(
-                        @This(),
-                        io,
-                        exe_path,
-                        "expected WORD string for time argument",
-                    );
-                }
+                if (state != .normal) break;
 
                 if (std.mem.eql(u8, longhand, "no-create")) {
                     touch_options.create = false;
@@ -92,40 +103,19 @@ pub fn execute(
                     touch_options.dereference = false;
                     log.debug("got do not dereference longhand", .{});
                 } else if (std.mem.eql(u8, longhand, "reference-file")) {
-                    reference_file_expected = true;
+                    state = .reference_file;
                     log.debug("got reference file longhand", .{});
                 } else if (std.mem.eql(u8, longhand, "time")) {
-                    time_expected = true;
+                    state = .time;
                     log.debug("got time longhand", .{});
                 } else {
-                    return try shared.printInvalidUsageAlloc(
-                        @This(),
-                        allocator,
-                        io,
-                        exe_path,
-                        "unrecognized option '--{s}'",
-                        .{longhand},
-                    );
+                    state = .{ .invalid_argument = .{ .slice = longhand } };
+                    break;
                 }
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
-                    if (reference_file_expected) {
-                        return shared.printInvalidUsage(
-                            @This(),
-                            io,
-                            exe_path,
-                            "expected file path for reference file argument",
-                        );
-                    }
-                    if (time_expected) {
-                        return shared.printInvalidUsage(
-                            @This(),
-                            io,
-                            exe_path,
-                            "expected WORD string for time argument",
-                        );
-                    }
+                    if (state != .normal) break;
 
                     switch (char) {
                         'a' => {
@@ -146,89 +136,78 @@ pub fn execute(
                             log.debug("got modification time shorthand", .{});
                         },
                         'r' => {
-                            if (shorthand.takeRest()) |rest| {
-                                touch_options.time_to_use = .{ .reference_file = rest };
-                            } else {
-                                reference_file_expected = true;
-                            }
+                            if (shorthand.takeRest()) |rest|
+                                touch_options.time_to_use = .{ .reference_file = rest }
+                            else
+                                state = .reference_file;
+
                             log.debug("got reference file shorthand", .{});
                         },
-                        else => return try shared.printInvalidUsageAlloc(
-                            @This(),
-                            allocator,
-                            io,
-                            exe_path,
-                            "unrecognized option -- '{c}'",
-                            .{char},
-                        ),
+                        else => {
+                            state = .{ .invalid_argument = .{ .character = char } };
+                            break;
+                        },
                     }
                 }
             },
             .longhand_with_value => |longhand_with_value| {
-                if (reference_file_expected) {
-                    return shared.printInvalidUsage(
-                        @This(),
-                        io,
-                        exe_path,
-                        "expected file path for reference file argument",
-                    );
-                }
-                if (time_expected) {
-                    return shared.printInvalidUsage(
-                        @This(),
-                        io,
-                        exe_path,
-                        "expected WORD string for time argument",
-                    );
-                }
+                if (state != .normal) break;
 
                 if (std.mem.eql(u8, longhand_with_value.longhand, "reference")) {
                     touch_options.time_to_use = .{ .reference_file = longhand_with_value.value };
                     log.debug("got reference file longhand, reference file: '{s}'", .{longhand_with_value.value});
                 } else if (std.mem.eql(u8, longhand_with_value.longhand, "time")) {
                     log.debug("got time longhand, value: '{s}'", .{longhand_with_value.value});
-                    touch_options.update =
-                        (try parseTimeArgument(allocator, io, exe_path, longhand_with_value.value)) orelse return 1;
+                    touch_options.update = parseTimeArgument(longhand_with_value.value) orelse {
+                        state = .{ .time_argument = longhand_with_value.value };
+                        break;
+                    };
                 } else {
-                    return try shared.printInvalidUsageAlloc(
-                        @This(),
-                        allocator,
-                        io,
-                        exe_path,
-                        "unrecognized option '--{s}'",
-                        .{longhand_with_value.longhand},
-                    );
+                    state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
+                    break;
                 }
             },
             .positional => {
-                if (reference_file_expected) {
-                    touch_options.time_to_use = .{ .reference_file = arg.raw };
-                    log.debug("got reference file value: '{s}'", .{arg.raw});
-                    reference_file_expected = false;
-                    continue;
-                }
-                if (time_expected) {
-                    log.debug("got time positional argument, value: '{s}'", .{arg.raw});
-                    touch_options.update =
-                        (try parseTimeArgument(allocator, io, exe_path, arg.raw)) orelse return 1;
-                    time_expected = false;
-                    continue;
+                switch (state) {
+                    .normal => {},
+                    .reference_file => {
+                        touch_options.time_to_use = .{ .reference_file = arg.raw };
+                        log.debug("got reference file value: '{s}'", .{arg.raw});
+                        state = .normal;
+                        continue;
+                    },
+                    .time => {
+                        log.debug("got time positional argument, value: '{s}'", .{arg.raw});
+                        touch_options.update = parseTimeArgument(arg.raw) orelse {
+                            state = .{ .time_argument = arg.raw };
+                            break;
+                        };
+                        state = .normal;
+                        continue;
+                    },
+                    else => break,
                 }
 
-                return performTouch(allocator, io, args, system, arg.raw, touch_options);
+                touch_options.first_file_path = arg.raw;
+                return touch_options;
             },
         }
     }
 
-    return shared.printInvalidUsage(@This(), io, exe_path, "missing file operand");
+    _ = switch (state) {
+        .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing file operand"),
+        .reference_file => shared.printInvalidUsage(@This(), io, exe_path, "expected file path for reference file argument"),
+        .time => shared.printInvalidUsage(@This(), io, exe_path, "expected WORD string for time argument"),
+        .time_argument => |argument| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized value for time option '{s}'", .{argument}),
+        .invalid_argument => |invalid_arg| switch (invalid_arg) {
+            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
+            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+        },
+    };
+    return null;
 }
 
-fn parseTimeArgument(
-    allocator: std.mem.Allocator,
-    io: anytype,
-    exe_path: []const u8,
-    argument: []const u8,
-) !?TouchOptions.Update {
+fn parseTimeArgument(argument: []const u8) ?TouchOptions.Update {
     if (std.mem.eql(u8, argument, "access") or
         std.mem.eql(u8, argument, "atime") or
         std.mem.eql(u8, argument, "use"))
@@ -242,14 +221,6 @@ fn parseTimeArgument(
         return .modification_only;
     }
 
-    _ = try shared.printInvalidUsageAlloc(
-        @This(),
-        allocator,
-        io,
-        exe_path,
-        "unrecognized value for time option '{s}'",
-        .{argument},
-    );
     return null;
 }
 
@@ -258,19 +229,18 @@ fn performTouch(
     io: anytype,
     args: anytype,
     system: zsw.System,
-    first_file_path: []const u8,
     options: TouchOptions,
 ) !u8 {
     const z = shared.tracy.traceNamed(@src(), "perform touch");
     defer z.end();
 
-    log.debug("performTouch called, first_file_path='{s}', options={}", .{ first_file_path, options });
+    log.debug("performTouch called, options={}", .{options});
 
     const times = getTimes(allocator, io, system, options.time_to_use) catch return 1;
 
     log.debug("times to be used for touch: {}", .{times});
 
-    var opt_file_path: ?[]const u8 = first_file_path;
+    var opt_file_path: ?[]const u8 = options.first_file_path;
 
     const cwd = system.cwd();
 
@@ -380,6 +350,8 @@ const TouchOptions = struct {
     create: bool = true,
     dereference: bool = true,
     time_to_use: TimeToUse = .current_time,
+
+    first_file_path: []const u8 = undefined,
 
     pub const Update = enum {
         both,

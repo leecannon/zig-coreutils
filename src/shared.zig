@@ -186,12 +186,10 @@ pub fn ArgIterator(comptime T: type) type {
                     }
                 },
                 .shorthand => |*shorthand| {
-                    while (shorthand.next()) |char| {
-                        if (include_shorthand and char == 'h') {
-                            return error.Help;
-                        }
+                    if (include_shorthand) {
+                        while (shorthand.next()) |char| if (char == 'h') return error.Help;
+                        shorthand.reset();
                     }
-                    shorthand.reset();
                 },
                 else => {},
             }

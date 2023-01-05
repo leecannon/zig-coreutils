@@ -56,77 +56,104 @@ pub fn execute(
 
     _ = system;
 
+    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
+
+    return performDirname(io, args, options);
+}
+
+fn parseArguments(
+    allocator: std.mem.Allocator,
+    io: anytype,
+    args: anytype,
+    exe_path: []const u8,
+) !?DirnameOptions {
+    const z = shared.tracy.traceNamed(@src(), "parse arguments");
+    defer z.end();
+
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
 
-    var zero: bool = false;
+    var dir_options: DirnameOptions = .{};
+
+    const State = union(enum) {
+        normal,
+        invalid_argument: Argument,
+
+        const Argument = union(enum) {
+            slice: []const u8,
+            character: u8,
+        };
+    };
+
+    var state: State = .normal;
 
     while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
+                if (state != .normal) break;
+
                 if (std.mem.eql(u8, longhand, "zero")) {
-                    zero = true;
+                    dir_options.zero = true;
                     log.debug("got zero longhand", .{});
                 } else {
-                    return try shared.printInvalidUsageAlloc(
-                        @This(),
-                        allocator,
-                        io,
-                        exe_path,
-                        "unrecognized option '--{s}'",
-                        .{longhand},
-                    );
+                    state = .{ .invalid_argument = .{ .slice = longhand } };
+                    break;
                 }
             },
-            .longhand_with_value => {
-                return try shared.printInvalidUsageAlloc(
-                    @This(),
-                    allocator,
-                    io,
-                    exe_path,
-                    "unrecognized option '--{s}'",
-                    .{arg.raw},
-                );
+            .longhand_with_value => |longhand_with_value| {
+                state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
+                break;
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
+                    if (state != .normal) break;
+
                     if (char == 'z') {
-                        zero = true;
+                        dir_options.zero = true;
                         log.debug("got zero shorthand", .{});
                     } else {
-                        return try shared.printInvalidUsageAlloc(
-                            @This(),
-                            allocator,
-                            io,
-                            exe_path,
-                            "unrecognized option -- '{c}'",
-                            .{char},
-                        );
+                        state = .{ .invalid_argument = .{ .character = char } };
+                        break;
                     }
                 }
             },
             .positional => {
-                return try performDirname(io, args, arg.raw, zero);
+                if (state != .normal) break;
+
+                dir_options.first_arg = arg.raw;
+                return dir_options;
             },
         }
     }
 
-    return shared.printInvalidUsage(@This(), io, exe_path, "missing operand");
+    _ = switch (state) {
+        .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing operand"),
+        .invalid_argument => |invalid_arg| switch (invalid_arg) {
+            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
+            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+        },
+    };
+    return null;
 }
+
+const DirnameOptions = struct {
+    zero: bool = false,
+
+    first_arg: []const u8 = undefined,
+};
 
 fn performDirname(
     io: anytype,
     args: anytype,
-    first_arg: []const u8,
-    zero: bool,
+    options: DirnameOptions,
 ) !u8 {
     const z = shared.tracy.traceNamed(@src(), "perform dirname");
     defer z.end();
 
-    log.debug("performDirname called, first_arg='{s}', zero={}", .{ first_arg, zero });
+    log.debug("performDirname called, options={}", .{options});
 
-    const end_byte: u8 = if (zero) 0 else '\n';
+    const end_byte: u8 = if (options.zero) 0 else '\n';
 
-    var opt_arg: ?[]const u8 = first_arg;
+    var opt_arg: ?[]const u8 = options.first_arg;
 
     var arg_frame = shared.tracy.namedFrame("arg");
     defer arg_frame.end();
