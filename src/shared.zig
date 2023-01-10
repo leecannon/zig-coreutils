@@ -3,6 +3,8 @@ const subcommands = @import("subcommands.zig");
 const build_options = @import("options");
 const builtin = @import("builtin");
 
+const zsw = @import("zsw");
+
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 pub const free_on_close = is_debug_or_test or tracy.enable;
 
@@ -34,7 +36,7 @@ pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyer
     io.stderr.writeByte('\n') catch return;
 }
 
-pub fn printError(comptime subcommand: type, io: anytype, error_message: []const u8) u8 {
+pub fn printError(comptime subcommand: type, io: anytype, error_message: []const u8) error{AlreadyHandled} {
     const z = tracy.traceNamed(@src(), "print error");
     defer z.end();
     z.addText(error_message);
@@ -48,7 +50,7 @@ pub fn printError(comptime subcommand: type, io: anytype, error_message: []const
         io.stderr.writeByte('\n') catch break :output;
     }
 
-    return 1;
+    return error.AlreadyHandled;
 }
 
 pub fn printErrorAlloc(
@@ -57,7 +59,7 @@ pub fn printErrorAlloc(
     io: anytype,
     comptime msg: []const u8,
     args: anytype,
-) !u8 {
+) error{ OutOfMemory, AlreadyHandled } {
     const z = tracy.traceNamed(@src(), "print error alloc");
     defer z.end();
 
@@ -67,7 +69,7 @@ pub fn printErrorAlloc(
     return printError(subcommand, io, error_message);
 }
 
-pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []const u8, error_message: []const u8) u8 {
+pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []const u8, error_message: []const u8) error{AlreadyHandled} {
     const z = tracy.traceNamed(@src(), "print invalid usage");
     defer z.end();
     z.addText(error_message);
@@ -83,7 +85,7 @@ pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []con
         io.stderr.writeAll(" --help' for more information\n") catch break :output;
     }
 
-    return 1;
+    return error.AlreadyHandled;
 }
 
 pub fn printInvalidUsageAlloc(
@@ -93,7 +95,7 @@ pub fn printInvalidUsageAlloc(
     exe_path: []const u8,
     comptime msg: []const u8,
     args: anytype,
-) !u8 {
+) error{ OutOfMemory, AlreadyHandled } {
     const z = tracy.traceNamed(@src(), "print invalid usage alloc");
     defer z.end();
 
@@ -242,6 +244,139 @@ pub const Arg = struct {
             }
         };
     };
+};
+
+pub fn passwdFileIterator(allocator: std.mem.Allocator, passwd_file: zsw.File) PasswdFileIterator {
+    return .{
+        .passwd_file = passwd_file,
+        .passwd_buffered_reader = std.io.bufferedReader(passwd_file.reader()),
+        .line_buffer = std.ArrayList(u8).init(allocator),
+    };
+}
+
+pub const PasswdFileIterator = struct {
+    passwd_file: zsw.File,
+    passwd_buffered_reader: std.io.BufferedReader(4096, zsw.File.Reader),
+    line_buffer: std.ArrayList(u8),
+
+    pub const Entry = struct {
+        user_name: []const u8,
+        user_id: []const u8,
+        primary_group_id: []const u8,
+    };
+
+    /// The returned `Entry` is invalidated on any subsequent call to `next`
+    pub fn next(
+        self: *PasswdFileIterator,
+        comptime subcommand: type,
+        io: anytype,
+    ) error{ OutOfMemory, AlreadyHandled }!?Entry {
+        const reader = self.passwd_buffered_reader.reader();
+        while (true) {
+            reader.readUntilDelimiterArrayList(
+                &self.line_buffer,
+                '\n',
+                std.math.maxInt(usize),
+            ) catch |err| switch (err) {
+                error.EndOfStream => return null,
+                else => return printError(subcommand, io, "unable to read '/etc/passwd'"),
+            };
+            if (self.line_buffer.items.len == 0) continue;
+            break;
+        }
+
+        var column_iter = std.mem.tokenize(u8, self.line_buffer.items, ":");
+
+        const user_name = column_iter.next() orelse
+            return printError(subcommand, io, "format of '/etc/passwd' is invalid");
+
+        // skip password stand-in
+        _ = column_iter.next() orelse
+            return printError(subcommand, io, "format of '/etc/passwd' is invalid");
+
+        const user_id_slice = column_iter.next() orelse
+            return printError(subcommand, io, "format of '/etc/passwd' is invalid");
+
+        const primary_group_id_slice = column_iter.next() orelse
+            return printError(subcommand, io, "format of '/etc/passwd' is invalid");
+
+        return .{
+            .user_name = user_name,
+            .user_id = user_id_slice,
+            .primary_group_id = primary_group_id_slice,
+        };
+    }
+
+    pub fn deinit(self: *PasswdFileIterator) void {
+        if (free_on_close) self.line_buffer.deinit();
+    }
+};
+
+pub fn groupFileIterator(allocator: std.mem.Allocator, group_file: zsw.File) GroupFileIterator {
+    return .{
+        .group_file = group_file,
+        .group_buffered_reader = std.io.bufferedReader(group_file.reader()),
+        .line_buffer = std.ArrayList(u8).init(allocator),
+    };
+}
+
+pub const GroupFileIterator = struct {
+    group_file: zsw.File,
+    group_buffered_reader: std.io.BufferedReader(4096, zsw.File.Reader),
+    line_buffer: std.ArrayList(u8),
+
+    pub const Entry = struct {
+        group_name: []const u8,
+        group_id: []const u8,
+        members_slice: ?[]const u8,
+
+        pub fn iterateMembers(self: *const Entry) std.mem.TokenIterator(u8) {
+            return std.mem.tokenize(u8, self.members_slice orelse &[_]u8{}, ",");
+        }
+    };
+
+    /// The returned `Entry` is invalidated on any subsequent call to `next`
+    pub fn next(
+        self: *GroupFileIterator,
+        comptime subcommand: type,
+        io: anytype,
+    ) error{ OutOfMemory, AlreadyHandled }!?Entry {
+        const reader = self.group_buffered_reader.reader();
+        while (true) {
+            reader.readUntilDelimiterArrayList(
+                &self.line_buffer,
+                '\n',
+                std.math.maxInt(usize),
+            ) catch |err| switch (err) {
+                error.EndOfStream => return null,
+                else => return printError(subcommand, io, "unable to read '/etc/group'"),
+            };
+            if (self.line_buffer.items.len == 0) continue;
+            break;
+        }
+
+        var column_iter = std.mem.tokenize(u8, self.line_buffer.items, ":");
+
+        const group_name = column_iter.next() orelse
+            return printError(subcommand, io, "format of '/etc/group' is invalid");
+
+        // skip password stand-in
+        _ = column_iter.next() orelse
+            return printError(subcommand, io, "format of '/etc/group' is invalid");
+
+        const group_id_slice = column_iter.next() orelse
+            return printError(subcommand, io, "format of '/etc/group' is invalid");
+
+        return .{
+            .group_name = group_name,
+            .group_id = group_id_slice,
+            .members_slice = column_iter.next(),
+        };
+    }
+
+    pub fn deinit(self: *GroupFileIterator) void {
+        if (free_on_close) self.line_buffer.deinit();
+    }
 };
 
 comptime {

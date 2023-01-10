@@ -52,7 +52,7 @@ pub fn execute(
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
-    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
+    const options = try parseArguments(allocator, io, args, exe_path);
 
     return if (options.multiple)
         multipleArguments(io, args, options)
@@ -65,7 +65,7 @@ fn parseArguments(
     io: anytype,
     args: anytype,
     exe_path: []const u8,
-) !?BasenameOptions {
+) !BasenameOptions {
     const z = shared.tracy.traceNamed(@src(), "parse arguments");
     defer z.end();
 
@@ -155,15 +155,14 @@ fn parseArguments(
         }
     }
 
-    _ = switch (state) {
+    return switch (state) {
         .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing operand"),
         .suffix => shared.printInvalidUsage(@This(), io, exe_path, "expected SUFFIX for suffix argument"),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
-            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
+            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
         },
     };
-    return null;
 }
 
 const BasenameOptions = struct {
@@ -192,7 +191,7 @@ fn singleArgument(
         const arg = args.nextRaw() orelse break :blk null;
 
         if (args.nextRaw()) |additional_arg| {
-            return try shared.printInvalidUsageAlloc(
+            return shared.printInvalidUsageAlloc(
                 @This(),
                 allocator,
                 io,

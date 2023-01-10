@@ -58,7 +58,7 @@ pub fn execute(
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
-    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
+    const options = try parseArguments(allocator, io, args, exe_path);
 
     return performTouch(allocator, io, args, system, options);
 }
@@ -68,7 +68,7 @@ fn parseArguments(
     io: anytype,
     args: anytype,
     exe_path: []const u8,
-) !?TouchOptions {
+) !TouchOptions {
     const z = shared.tracy.traceNamed(@src(), "parse arguments");
     defer z.end();
 
@@ -194,17 +194,16 @@ fn parseArguments(
         }
     }
 
-    _ = switch (state) {
+    return switch (state) {
         .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing file operand"),
         .reference_file => shared.printInvalidUsage(@This(), io, exe_path, "expected file path for reference file argument"),
         .time => shared.printInvalidUsage(@This(), io, exe_path, "expected WORD string for time argument"),
-        .time_argument => |argument| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized value for time option '{s}'", .{argument}),
+        .time_argument => |argument| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized value for time option '{s}'", .{argument}),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
-            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
+            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
         },
     };
-    return null;
 }
 
 fn parseTimeArgument(argument: []const u8) ?TouchOptions.Update {
@@ -314,27 +313,23 @@ fn getTimes(
             };
         },
         .reference_file => |reference_file_path| {
-            const reference_file = system.cwd().openFile(reference_file_path, .{}) catch |err| {
-                _ = shared.printErrorAlloc(
-                    @This(),
-                    allocator,
-                    io,
-                    "unable to open '{s}': {s}",
-                    .{ reference_file_path, @errorName(err) },
-                ) catch |e| return e;
-                return err;
-            };
+            const reference_file = system.cwd().openFile(reference_file_path, .{}) catch |err|
+                return shared.printErrorAlloc(
+                @This(),
+                allocator,
+                io,
+                "unable to open '{s}': {s}",
+                .{ reference_file_path, @errorName(err) },
+            );
             defer reference_file.close();
-            const stat = reference_file.stat() catch |err| {
-                _ = shared.printErrorAlloc(
-                    @This(),
-                    allocator,
-                    io,
-                    "unable to stat '{s}': {s}",
-                    .{ reference_file_path, @errorName(err) },
-                ) catch |e| return e;
-                return err;
-            };
+            const stat = reference_file.stat() catch |err|
+                return shared.printErrorAlloc(
+                @This(),
+                allocator,
+                io,
+                "unable to stat '{s}': {s}",
+                .{ reference_file_path, @errorName(err) },
+            );
 
             return .{
                 .access_time = stat.atime,

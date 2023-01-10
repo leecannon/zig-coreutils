@@ -50,42 +50,21 @@ pub fn execute(
     // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
-    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch
-        return shared.printError(@This(), io, "unable to read '/etc/passwd'");
-
-    defer if (shared.free_on_close) passwd_file.close();
-
     const euid = system.geteuid();
 
-    var passwd_buffered_reader = std.io.bufferedReader(passwd_file.reader());
-    const passwd_reader = passwd_buffered_reader.reader();
+    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch
+        return shared.printError(@This(), io, "unable to read '/etc/passwd'");
+    defer if (shared.free_on_close) passwd_file.close();
 
-    var line_buffer = std.ArrayList(u8).init(allocator);
-    defer if (shared.free_on_close) line_buffer.deinit();
+    var passwd_file_iter = shared.passwdFileIterator(allocator, passwd_file);
+    defer passwd_file_iter.deinit();
 
-    while (true) {
-        passwd_reader.readUntilDelimiterArrayList(&line_buffer, '\n', std.math.maxInt(usize)) catch |err| switch (err) {
-            error.EndOfStream => break,
-            else => return shared.printError(@This(), io, "unable to read '/etc/passwd'"),
-        };
-
-        var column_iter = std.mem.tokenize(u8, line_buffer.items, ":");
-
-        const user_name = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        // skip password stand-in
-        _ = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        const user_id_slice = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        if (std.fmt.parseUnsigned(std.os.uid_t, user_id_slice, 10)) |user_id| {
+    while (try passwd_file_iter.next(@This(), io)) |entry| {
+        if (std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10)) |user_id| {
             if (user_id == euid) {
                 log.debug("found matching user id: {}", .{user_id});
 
-                io.stdout.print("{s}\n", .{user_name}) catch |err| shared.unableToWriteTo("stdout", io, err);
+                io.stdout.print("{s}\n", .{entry.user_name}) catch |err| shared.unableToWriteTo("stdout", io, err);
                 return 0;
             } else {
                 log.debug("found non-matching user id: {}", .{user_id});

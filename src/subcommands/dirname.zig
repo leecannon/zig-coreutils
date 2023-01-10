@@ -56,7 +56,7 @@ pub fn execute(
 
     _ = system;
 
-    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
+    const options = try parseArguments(allocator, io, args, exe_path);
 
     return performDirname(io, args, options);
 }
@@ -66,7 +66,7 @@ fn parseArguments(
     io: anytype,
     args: anytype,
     exe_path: []const u8,
-) !?DirnameOptions {
+) !DirnameOptions {
     const z = shared.tracy.traceNamed(@src(), "parse arguments");
     defer z.end();
 
@@ -125,14 +125,13 @@ fn parseArguments(
         }
     }
 
-    _ = switch (state) {
+    return switch (state) {
         .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing operand"),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
-            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
+            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
         },
     };
-    return null;
 }
 
 const DirnameOptions = struct {

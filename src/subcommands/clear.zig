@@ -47,7 +47,7 @@ pub fn execute(
 
     _ = system;
 
-    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
+    const options = try parseArguments(allocator, io, args, exe_path);
 
     io.stdout.writeAll(if (options.clear_scrollback) "\x1b[H\x1b[2J\x1b[3J" else "\x1b[H\x1b[2J") catch |err| {
         shared.unableToWriteTo("stdout", io, err);
@@ -62,7 +62,7 @@ fn parseArguments(
     io: anytype,
     args: anytype,
     exe_path: []const u8,
-) !?ClearOptions {
+) !ClearOptions {
     const z = shared.tracy.traceNamed(@src(), "parse arguments");
     defer z.end();
 
@@ -115,14 +115,13 @@ fn parseArguments(
         }
     }
 
-    _ = switch (state) {
-        .normal => return clear_options,
+    return switch (state) {
+        .normal => clear_options,
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '--{s}'", .{slice}),
-            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '--{s}'", .{slice}),
+            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
         },
     };
-    return null;
 }
 
 const ClearOptions = struct {

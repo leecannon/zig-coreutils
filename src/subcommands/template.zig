@@ -47,7 +47,7 @@ pub fn execute(
 
     _ = system;
 
-    const options = (try parseArguments(allocator, io, args, exe_path)) orelse return 1;
+    const options = try parseArguments(allocator, io, args, exe_path);
     _ = options;
 
     return 0;
@@ -58,7 +58,7 @@ fn parseArguments(
     io: anytype,
     args: anytype,
     exe_path: []const u8,
-) !?TemplateOptions {
+) !TemplateOptions {
     const z = shared.tracy.traceNamed(@src(), "parse arguments");
     defer z.end();
 
@@ -105,14 +105,13 @@ fn parseArguments(
         }
     }
 
-    _ = switch (state) {
+    return switch (state) {
         .normal => return options,
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '--{s}'", .{slice}),
-            .character => |character| try shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '--{s}'", .{slice}),
+            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
         },
     };
-    return null;
 }
 
 const TemplateOptions = struct {};

@@ -29,6 +29,7 @@ const SubcommandError = error{
 const SubcommandNonError = error{
     Help,
     Version,
+    AlreadyHandled,
 };
 
 pub const Error = SubcommandError || SubcommandNonError;
@@ -108,6 +109,7 @@ fn executeSubcommand(
     return subcommand.execute(allocator, io, &arg_iterator, system, exe_path) catch |err| switch (err) {
         error.Help => shared.printHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),
+        error.AlreadyHandled => return 1,
         else => |narrow_err| narrow_err,
     };
 }

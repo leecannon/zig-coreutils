@@ -69,43 +69,20 @@ fn currentUser(
     const z = shared.tracy.traceNamed(@src(), "current user");
     defer z.end();
 
-    log.debug("currentUser called", .{});
-
     const euid = system.geteuid();
 
-    var passwd_buffered_reader = std.io.bufferedReader(passwd_file.reader());
-    const passwd_reader = passwd_buffered_reader.reader();
+    log.debug("currentUser called, euid: {}", .{euid});
 
-    var line_buffer = std.ArrayList(u8).init(allocator);
-    defer if (shared.free_on_close) line_buffer.deinit();
+    var passwd_file_iter = shared.passwdFileIterator(allocator, passwd_file);
+    defer passwd_file_iter.deinit();
 
-    while (true) {
-        passwd_reader.readUntilDelimiterArrayList(&line_buffer, '\n', std.math.maxInt(usize)) catch |err| switch (err) {
-            error.EndOfStream => break,
-            else => return shared.printError(@This(), io, "unable to read '/etc/passwd'"),
-        };
-
-        var column_iter = std.mem.tokenize(u8, line_buffer.items, ":");
-
-        const user_name = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        // skip password stand-in
-        _ = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        const user_id_slice = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        if (std.fmt.parseUnsigned(std.os.uid_t, user_id_slice, 10)) |user_id| {
+    while (try passwd_file_iter.next(@This(), io)) |entry| {
+        if (std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10)) |user_id| {
             if (user_id == euid) {
                 log.debug("found matching user id: {}", .{user_id});
 
-                const primary_group_id_slice = column_iter.next() orelse
-                    return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-                return if (std.fmt.parseUnsigned(std.os.uid_t, primary_group_id_slice, 10)) |primary_group_id|
-                    printGroups(allocator, user_name, primary_group_id, io, system)
+                return if (std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10)) |primary_group_id|
+                    printGroups(allocator, entry.user_name, primary_group_id, io, system)
                 else |_|
                     shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
             } else log.debug("found non-matching user id: {}", .{user_id});
@@ -128,44 +105,19 @@ fn otherUser(
 
     log.debug("otherUser called, arg='{s}'", .{arg.raw});
 
-    var passwd_buffered_reader = std.io.bufferedReader(passwd_file.reader());
-    const passwd_reader = passwd_buffered_reader.reader();
+    var passwd_file_iter = shared.passwdFileIterator(allocator, passwd_file);
+    defer passwd_file_iter.deinit();
 
-    var line_buffer = std.ArrayList(u8).init(allocator);
-    defer if (shared.free_on_close) line_buffer.deinit();
-
-    while (true) {
-        passwd_reader.readUntilDelimiterArrayList(&line_buffer, '\n', std.math.maxInt(usize)) catch |err| switch (err) {
-            error.EndOfStream => if (line_buffer.items.len == 0) break,
-            else => return shared.printError(@This(), io, "unable to read '/etc/passwd'"),
-        };
-        if (line_buffer.items.len == 0) continue;
-
-        var column_iter = std.mem.tokenize(u8, line_buffer.items, ":");
-
-        const user_name = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        if (!std.mem.eql(u8, user_name, arg.raw)) {
-            log.debug("found non-matching user: {s}", .{user_name});
+    while (try passwd_file_iter.next(@This(), io)) |entry| {
+        if (!std.mem.eql(u8, entry.user_name, arg.raw)) {
+            log.debug("found non-matching user: {s}", .{entry.user_name});
             continue;
         }
 
-        log.debug("found matching user: {s}", .{user_name});
+        log.debug("found matching user: {s}", .{entry.user_name});
 
-        // skip password stand-in
-        _ = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        // skip user id
-        _ = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        const primary_group_id_slice = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-
-        return if (std.fmt.parseUnsigned(std.os.uid_t, primary_group_id_slice, 10)) |primary_group_id|
-            printGroups(allocator, user_name, primary_group_id, io, system)
+        return if (std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10)) |primary_group_id|
+            printGroups(allocator, entry.user_name, primary_group_id, io, system)
         else |_|
             shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
     }
@@ -191,54 +143,30 @@ fn printGroups(
 
     defer if (shared.free_on_close) group_file.close();
 
-    var group_buffered_reader = std.io.bufferedReader(group_file.reader());
-    const group_reader = group_buffered_reader.reader();
-
-    var line_buffer = std.ArrayList(u8).init(allocator);
-    defer if (shared.free_on_close) line_buffer.deinit();
+    var group_file_iter = shared.groupFileIterator(allocator, group_file);
+    defer group_file_iter.deinit();
 
     var first = true;
 
-    while (true) {
-        group_reader.readUntilDelimiterArrayList(&line_buffer, '\n', std.math.maxInt(usize)) catch |err| switch (err) {
-            error.EndOfStream => if (line_buffer.items.len == 0) break,
-            else => return shared.printError(@This(), io, "unable to read '/etc/group'"),
-        };
-        if (line_buffer.items.len == 0) continue;
-
-        var column_iter = std.mem.tokenize(u8, line_buffer.items, ":");
-
-        const group_name = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/group' is invalid");
-
-        // skip password stand-in
-        _ = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/group' is invalid");
-
-        const group_id_slice = column_iter.next() orelse
-            return shared.printError(@This(), io, "format of '/etc/group' is invalid");
-
-        if (std.fmt.parseUnsigned(std.os.uid_t, group_id_slice, 10)) |group_id| {
+    while (try group_file_iter.next(@This(), io)) |entry| {
+        if (std.fmt.parseUnsigned(std.os.uid_t, entry.group_id, 10)) |group_id| {
             if (group_id == primary_group_id) {
                 if (!first) {
                     io.stdout.writeByte(' ') catch |err| shared.unableToWriteTo("stdout", io, err);
                 }
-                io.stdout.writeAll(group_name) catch |err| shared.unableToWriteTo("stdout", io, err);
+                io.stdout.writeAll(entry.group_name) catch |err| shared.unableToWriteTo("stdout", io, err);
                 first = false;
                 continue;
             }
         } else |_| return shared.printError(@This(), io, "format of '/etc/group' is invalid");
 
-        const members = column_iter.next() orelse continue;
-        if (members.len == 0) continue;
-
-        var member_iter = std.mem.tokenize(u8, members, ",");
+        var member_iter = entry.iterateMembers();
         while (member_iter.next()) |member| {
             if (std.mem.eql(u8, member, user_name)) {
                 if (!first) {
                     io.stdout.writeByte(' ') catch |err| shared.unableToWriteTo("stdout", io, err);
                 }
-                io.stdout.writeAll(group_name) catch |err| shared.unableToWriteTo("stdout", io, err);
+                io.stdout.writeAll(entry.group_name) catch |err| shared.unableToWriteTo("stdout", io, err);
                 first = false;
                 break;
             }
@@ -267,7 +195,7 @@ test "groups root" {
     );
 
     try std.testing.expect(ret == 0);
-    try std.testing.expectEqualStrings("root proc scanner\n", stdout.items);
+    try std.testing.expectEqualStrings("root proc scanner users\n", stdout.items);
 }
 
 test "groups no args - current user: user" {
@@ -360,7 +288,7 @@ const TestSystem = struct {
                 \\tty:x:5:
                 \\uucp:x:986:
                 \\video:x:985:
-                \\users:x:984:user
+                \\users:x:984:user,root
                 \\rfkill:x:982:user
                 \\bin:x:1:daemon
                 \\daemon:x:2:bin
