@@ -13,6 +13,7 @@ pub const SUBCOMMANDS = [_]type{
     @import("subcommands/nproc.zig"),
     @import("subcommands/touch.zig"),
     @import("subcommands/true.zig"),
+    @import("subcommands/uname.zig"),
     @import("subcommands/whoami.zig"),
     @import("subcommands/yes.zig"),
 };
