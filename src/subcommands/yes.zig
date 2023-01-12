@@ -41,7 +41,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -52,10 +52,8 @@ pub fn execute(
     defer if (shared.free_on_close) string.deinit(allocator);
 
     while (true) {
-        io.stdout.writeAll(string.value) catch |err| shared.unableToWriteTo("stdout", io, err);
+        io.stdout.writeAll(string.value) catch |err| return shared.unableToWriteTo("stdout", io, err);
     }
-
-    return 0;
 }
 
 fn getString(allocator: std.mem.Allocator, args: anytype) !MaybeAllocatedString {

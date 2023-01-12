@@ -24,12 +24,12 @@ pub const ExecuteError = error{
 const SubcommandError = error{
     OutOfMemory,
     UnableToParseArguments,
+    AlreadyHandled,
 };
 
 const SubcommandNonError = error{
     Help,
     Version,
-    AlreadyHandled,
 };
 
 pub const Error = SubcommandError || SubcommandNonError;
@@ -41,7 +41,7 @@ pub fn execute(
     basename: []const u8,
     system: zsw.System,
     exe_path: []const u8,
-) ExecuteError!u8 {
+) ExecuteError!void {
     const z = shared.tracy.traceNamed(@src(), "execute");
     defer z.end();
 
@@ -99,7 +99,7 @@ fn executeSubcommand(
     io: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) SubcommandError!u8 {
+) SubcommandError!void {
     const z = shared.tracy.traceNamed(@src(), "execute subcommand");
     defer z.end();
 
@@ -109,12 +109,11 @@ fn executeSubcommand(
     return subcommand.execute(allocator, io, &arg_iterator, system, exe_path) catch |err| switch (err) {
         error.Help => shared.printHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),
-        error.AlreadyHandled => return 1,
         else => |narrow_err| narrow_err,
     };
 }
 
-pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) SubcommandError!u8 {
+pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, settings: anytype) SubcommandError!void {
     const SettingsType = @TypeOf(settings);
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
@@ -152,19 +151,16 @@ pub fn testError(
     var stderr = std.ArrayList(u8).init(std.testing.allocator);
     defer stderr.deinit();
 
-    try std.testing.expectEqual(
-        @as(u8, 1),
-        try testExecute(
-            subcommand,
-            arguments,
-            .{
-                .stderr = stderr.writer(),
-                .stdin = stdin,
-                .stdout = stdout,
-                .system = system,
-            },
-        ),
-    );
+    try std.testing.expectError(error.AlreadyHandled, testExecute(
+        subcommand,
+        arguments,
+        .{
+            .stderr = stderr.writer(),
+            .stdin = stdin,
+            .stdout = stdout,
+            .system = system,
+        },
+    ));
 
     std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_error) != null) catch |err| {
         std.debug.print("\nEXPECTED: {s}\n\nACTUAL: {s}\n", .{ expected_error, stderr.items });
@@ -182,16 +178,13 @@ pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !vo
     var always_fail_system = try AlwaysFailSystem.create(std.testing.allocator);
     defer always_fail_system.destroy();
 
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try testExecute(
-            subcommand,
-            &.{"--help"},
-            .{
-                .stdout = out.writer(),
-                .system = always_fail_system.backend.system(),
-            },
-        ),
+    try testExecute(
+        subcommand,
+        &.{"--help"},
+        .{
+            .stdout = out.writer(),
+            .system = always_fail_system.backend.system(),
+        },
     );
 
     try std.testing.expectEqualStrings(expected, out.items);
@@ -199,13 +192,10 @@ pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !vo
     if (include_shorthand) {
         out.clearRetainingCapacity();
 
-        try std.testing.expectEqual(
-            @as(u8, 0),
-            try testExecute(
-                subcommand,
-                &.{"-h"},
-                .{ .stdout = out.writer() },
-            ),
+        try testExecute(
+            subcommand,
+            &.{"-h"},
+            .{ .stdout = out.writer() },
         );
 
         try std.testing.expectEqualStrings(expected, out.items);
@@ -219,16 +209,13 @@ pub fn testVersion(comptime subcommand: type) !void {
     var always_fail_system = try AlwaysFailSystem.create(std.testing.allocator);
     defer always_fail_system.destroy();
 
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try testExecute(
-            subcommand,
-            &.{"--version"},
-            .{
-                .stdout = out.writer(),
-                .system = always_fail_system.backend.system(),
-            },
-        ),
+    try testExecute(
+        subcommand,
+        &.{"--version"},
+        .{
+            .stdout = out.writer(),
+            .system = always_fail_system.backend.system(),
+        },
     );
 
     const expected = try std.fmt.allocPrint(std.testing.allocator, shared.version_string, .{subcommand.name});

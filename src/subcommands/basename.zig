@@ -46,7 +46,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     _ = system;
 
     const z = shared.tracy.traceNamed(@src(), name);
@@ -179,7 +179,7 @@ fn singleArgument(
     args: anytype,
     exe_path: []const u8,
     options: BasenameOptions,
-) !u8 {
+) !void {
     const z = shared.tracy.traceNamed(@src(), "single argument");
     defer z.end();
     z.addText(options.first_arg);
@@ -211,24 +211,15 @@ fn singleArgument(
     const basename = getBasename(options.first_arg, opt_suffix);
     log.debug("got basename: '{s}'", .{basename});
 
-    io.stdout.writeAll(basename) catch |err| {
-        shared.unableToWriteTo("stdout", io, err);
-        return 1;
-    };
-
-    io.stdout.writeByte(if (options.zero) 0 else '\n') catch |err| {
-        shared.unableToWriteTo("stdout", io, err);
-        return 1;
-    };
-
-    return 0;
+    io.stdout.writeAll(basename) catch |err| return shared.unableToWriteTo("stdout", io, err);
+    io.stdout.writeByte(if (options.zero) 0 else '\n') catch |err| return shared.unableToWriteTo("stdout", io, err);
 }
 
 fn multipleArguments(
     io: anytype,
     args: anytype,
     options: BasenameOptions,
-) !u8 {
+) !void {
     const z = shared.tracy.traceNamed(@src(), "multiple arguments");
     defer z.end();
 
@@ -252,18 +243,9 @@ fn multipleArguments(
         const basename = getBasename(arg, options.opt_multiple_suffix);
         log.debug("got basename: '{s}'", .{basename});
 
-        io.stdout.writeAll(basename) catch |err| {
-            shared.unableToWriteTo("stdout", io, err);
-            return 1;
-        };
-
-        io.stdout.writeByte(end_byte) catch |err| {
-            shared.unableToWriteTo("stdout", io, err);
-            return 1;
-        };
+        io.stdout.writeAll(basename) catch |err| return shared.unableToWriteTo("stdout", io, err);
+        io.stdout.writeByte(end_byte) catch |err| return shared.unableToWriteTo("stdout", io, err);
     }
-
-    return 0;
 }
 
 fn getBasename(buf: []const u8, opt_suffix: ?[]const u8) []const u8 {
@@ -285,13 +267,12 @@ test "basename single" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(@This(), &.{
+    try subcommands.testExecute(@This(), &.{
         "hello/world",
     }, .{
         .stdout = stdout.writer(),
     });
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("world\n", stdout.items);
 }
 
@@ -299,7 +280,7 @@ test "basename multiple" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(@This(), &.{
+    try subcommands.testExecute(@This(), &.{
         "-a",
         "hello/world",
         "this/is/a/test",
@@ -308,7 +289,6 @@ test "basename multiple" {
         .stdout = stdout.writer(),
     });
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings(
         \\world
         \\test

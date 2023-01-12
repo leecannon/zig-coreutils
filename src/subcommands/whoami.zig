@@ -41,7 +41,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -64,8 +64,8 @@ pub fn execute(
             if (user_id == euid) {
                 log.debug("found matching user id: {}", .{user_id});
 
-                io.stdout.print("{s}\n", .{entry.user_name}) catch |err| shared.unableToWriteTo("stdout", io, err);
-                return 0;
+                io.stdout.print("{s}\n", .{entry.user_name}) catch |err| return shared.unableToWriteTo("stdout", io, err);
+                return;
             } else {
                 log.debug("found non-matching user id: {}", .{user_id});
             }
@@ -85,7 +85,7 @@ test "whoami root" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(
+    try subcommands.testExecute(
         @This(),
         &.{},
         .{
@@ -94,7 +94,6 @@ test "whoami root" {
         },
     );
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("root\n", stdout.items);
 }
 
@@ -105,7 +104,7 @@ test "whoami user" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(
+    try subcommands.testExecute(
         @This(),
         &.{},
         .{
@@ -114,7 +113,6 @@ test "whoami user" {
         },
     );
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("user\n", stdout.items);
 }
 

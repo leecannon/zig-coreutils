@@ -41,7 +41,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -52,18 +52,13 @@ pub fn execute(
 
     // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
-
-    return 0;
 }
 
 test "true no args" {
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try subcommands.testExecute(
-            @This(),
-            &.{},
-            .{},
-        ),
+    try subcommands.testExecute(
+        @This(),
+        &.{},
+        .{},
     );
 }
 
@@ -71,13 +66,12 @@ test "true ignores args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(@This(), &.{
+    try subcommands.testExecute(@This(), &.{
         "these", "arguments", "are", "ignored",
     }, .{
         .stdout = stdout.writer(),
     });
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("", stdout.items);
 }
 

@@ -50,7 +50,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -144,7 +144,7 @@ fn performDirname(
     io: anytype,
     args: anytype,
     options: DirnameOptions,
-) !u8 {
+) !void {
     const z = shared.tracy.traceNamed(@src(), "perform dirname");
     defer z.end();
 
@@ -168,18 +168,9 @@ fn performDirname(
         const dirname = getDirname(arg);
         log.debug("got dirname: '{s}'", .{dirname});
 
-        io.stdout.writeAll(dirname) catch |err| {
-            shared.unableToWriteTo("stdout", io, err);
-            return 1;
-        };
-
-        io.stdout.writeByte(end_byte) catch |err| {
-            shared.unableToWriteTo("stdout", io, err);
-            return 1;
-        };
+        io.stdout.writeAll(dirname) catch |err| return shared.unableToWriteTo("stdout", io, err);
+        io.stdout.writeByte(end_byte) catch |err| return shared.unableToWriteTo("stdout", io, err);
     }
-
-    return 0;
 }
 
 fn getDirname(buf: []const u8) []const u8 {
@@ -195,13 +186,12 @@ test "dirname single" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(@This(), &.{
+    try subcommands.testExecute(@This(), &.{
         "hello/world",
     }, .{
         .stdout = stdout.writer(),
     });
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("hello\n", stdout.items);
 }
 
@@ -209,7 +199,7 @@ test "dirname multiple" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(@This(), &.{
+    try subcommands.testExecute(@This(), &.{
         "hello/world",
         "this/is/a/test",
         "a/b/c/d",
@@ -217,7 +207,6 @@ test "dirname multiple" {
         .stdout = stdout.writer(),
     });
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings(
         \\hello
         \\this/is/a

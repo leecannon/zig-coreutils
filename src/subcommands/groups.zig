@@ -42,7 +42,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -65,7 +65,7 @@ fn currentUser(
     io: anytype,
     passwd_file: zsw.File,
     system: zsw.System,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), "current user");
     defer z.end();
 
@@ -98,7 +98,7 @@ fn otherUser(
     arg: shared.Arg,
     passwd_file: zsw.File,
     system: zsw.System,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), "other user");
     defer z.end();
     z.addText(arg.raw);
@@ -131,7 +131,7 @@ fn printGroups(
     primary_group_id: std.os.uid_t,
     io: anytype,
     system: zsw.System,
-) !u8 {
+) !void {
     const z = shared.tracy.traceNamed(@src(), "print groups");
     defer z.end();
     z.addText(user_name);
@@ -152,9 +152,9 @@ fn printGroups(
         if (std.fmt.parseUnsigned(std.os.uid_t, entry.group_id, 10)) |group_id| {
             if (group_id == primary_group_id) {
                 if (!first) {
-                    io.stdout.writeByte(' ') catch |err| shared.unableToWriteTo("stdout", io, err);
+                    io.stdout.writeByte(' ') catch |err| return shared.unableToWriteTo("stdout", io, err);
                 }
-                io.stdout.writeAll(entry.group_name) catch |err| shared.unableToWriteTo("stdout", io, err);
+                io.stdout.writeAll(entry.group_name) catch |err| return shared.unableToWriteTo("stdout", io, err);
                 first = false;
                 continue;
             }
@@ -164,18 +164,16 @@ fn printGroups(
         while (member_iter.next()) |member| {
             if (std.mem.eql(u8, member, user_name)) {
                 if (!first) {
-                    io.stdout.writeByte(' ') catch |err| shared.unableToWriteTo("stdout", io, err);
+                    io.stdout.writeByte(' ') catch |err| return shared.unableToWriteTo("stdout", io, err);
                 }
-                io.stdout.writeAll(entry.group_name) catch |err| shared.unableToWriteTo("stdout", io, err);
+                io.stdout.writeAll(entry.group_name) catch |err| return shared.unableToWriteTo("stdout", io, err);
                 first = false;
                 break;
             }
         }
     }
 
-    io.stdout.writeByte('\n') catch |err| shared.unableToWriteTo("stdout", io, err);
-
-    return 0;
+    io.stdout.writeByte('\n') catch |err| return shared.unableToWriteTo("stdout", io, err);
 }
 
 test "groups root" {
@@ -185,7 +183,7 @@ test "groups root" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(
+    try subcommands.testExecute(
         @This(),
         &.{"root"},
         .{
@@ -194,7 +192,6 @@ test "groups root" {
         },
     );
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("root proc scanner users\n", stdout.items);
 }
 
@@ -205,7 +202,7 @@ test "groups no args - current user: user" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(
+    try subcommands.testExecute(
         @This(),
         &.{},
         .{
@@ -214,7 +211,6 @@ test "groups no args - current user: user" {
         },
     );
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("sys wheel users rfkill user\n", stdout.items);
 }
 

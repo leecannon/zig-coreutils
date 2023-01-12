@@ -41,7 +41,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -49,12 +49,8 @@ pub fn execute(
 
     const options = try parseArguments(allocator, io, args, exe_path);
 
-    io.stdout.writeAll(if (options.clear_scrollback) "\x1b[H\x1b[2J\x1b[3J" else "\x1b[H\x1b[2J") catch |err| {
-        shared.unableToWriteTo("stdout", io, err);
-        return 1;
-    };
-
-    return 0;
+    io.stdout.writeAll(if (options.clear_scrollback) "\x1b[H\x1b[2J\x1b[3J" else "\x1b[H\x1b[2J") catch |err|
+        return shared.unableToWriteTo("stdout", io, err);
 }
 
 fn parseArguments(
@@ -132,11 +128,10 @@ test "clear no args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(@This(), &.{}, .{
+    try subcommands.testExecute(@This(), &.{}, .{
         .stdout = stdout.writer(),
     });
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("\x1b[H\x1b[2J\x1b[3J", stdout.items);
 }
 
@@ -144,11 +139,10 @@ test "clear - don't clear scrollback" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(@This(), &.{"-x"}, .{
+    try subcommands.testExecute(@This(), &.{"-x"}, .{
         .stdout = stdout.writer(),
     });
 
-    try std.testing.expect(ret == 0);
     try std.testing.expectEqualStrings("\x1b[H\x1b[2J", stdout.items);
 }
 

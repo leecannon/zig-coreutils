@@ -46,7 +46,7 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
         .stdout = std_out_buffered.writer(),
     };
 
-    const result = subcommands.execute(
+    subcommands.execute(
         allocator,
         &argument_info.arg_iter,
         io,
@@ -66,6 +66,7 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
             },
             error.OutOfMemory => stderr_writer.writeAll("out of memory\n") catch {},
             error.UnableToParseArguments => stderr_writer.writeAll("unable to parse arguments\n") catch {},
+            error.AlreadyHandled => {},
         }
 
         if (shared.is_debug_or_test) return err;
@@ -74,17 +75,16 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
 
     // Only flush stdout if the command completed successfully
     // If we flush stdout after printing an error then the error message will not be the last thing printed
-    if (result == 0) {
-        const flush_z = shared.tracy.traceNamed(@src(), "stdout flush");
-        defer flush_z.end();
+    const flush_z = shared.tracy.traceNamed(@src(), "stdout flush");
+    defer flush_z.end();
 
-        log.debug("flushing stdout buffer on successful execution", .{});
-        std_out_buffered.flush() catch |err| {
-            shared.unableToWriteTo("stdout", io, err);
-            return 1;
-        };
-    }
-    return result;
+    log.debug("flushing stdout buffer on successful execution", .{});
+    std_out_buffered.flush() catch |err| {
+        shared.unableToWriteTo("stdout", io, err) catch {};
+        return 1;
+    };
+
+    return 0;
 }
 
 const ArgumentInfo = struct {

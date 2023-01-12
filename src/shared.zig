@@ -12,28 +12,29 @@ const log = std.log.scoped(.shared);
 
 pub const tracy = @import("tracy.zig");
 
-pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) u8 {
+pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
     const z = tracy.traceNamed(@src(), "print help");
     defer z.end();
 
     log.debug(comptime "printing help for " ++ subcommand.name, .{});
     io.stdout.print(subcommand.usage, .{exe_path}) catch {};
-    return 0;
 }
 
-pub fn printVersion(comptime subcommand: type, io: anytype) u8 {
+pub fn printVersion(comptime subcommand: type, io: anytype) void {
     const z = tracy.traceNamed(@src(), "print version");
     defer z.end();
 
     log.debug(comptime "printing version for " ++ subcommand.name, .{});
     io.stdout.print(version_string, .{subcommand.name}) catch {};
-    return 0;
 }
 
-pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyerror) void {
-    io.stderr.writeAll(comptime "unable to write to " ++ destination ++ ": ") catch return;
-    io.stderr.writeAll(@errorName(err)) catch return;
-    io.stderr.writeByte('\n') catch return;
+pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyerror) error{AlreadyHandled} {
+    blk: {
+        io.stderr.writeAll(comptime "unable to write to " ++ destination ++ ": ") catch break :blk;
+        io.stderr.writeAll(@errorName(err)) catch break :blk;
+        io.stderr.writeByte('\n') catch break :blk;
+    }
+    return error.AlreadyHandled;
 }
 
 pub fn printError(comptime subcommand: type, io: anytype, error_message: []const u8) error{AlreadyHandled} {

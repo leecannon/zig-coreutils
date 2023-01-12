@@ -41,7 +41,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -53,17 +53,14 @@ pub fn execute(
     // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
-    return 1;
+    // FIXME: This is weird, is this acceptable to allow the other subcommand to not have to worry about u8 return value?
+    return error.AlreadyHandled;
 }
 
 test "false no args" {
-    try std.testing.expectEqual(
-        @as(u8, 1),
-        try subcommands.testExecute(
-            @This(),
-            &.{},
-            .{},
-        ),
+    try std.testing.expectError(
+        error.AlreadyHandled,
+        subcommands.testExecute(@This(), &.{}, .{}),
     );
 }
 
@@ -71,13 +68,15 @@ test "false ignores args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    const ret = try subcommands.testExecute(@This(), &.{
-        "these", "arguments", "are", "ignored",
-    }, .{
-        .stdout = stdout.writer(),
-    });
+    try std.testing.expectError(
+        error.AlreadyHandled,
+        subcommands.testExecute(
+            @This(),
+            &.{ "these", "arguments", "are", "ignored" },
+            .{},
+        ),
+    );
 
-    try std.testing.expect(ret == 1);
     try std.testing.expectEqualStrings("", stdout.items);
 }
 

@@ -41,7 +41,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -49,8 +49,6 @@ pub fn execute(
 
     const options = try parseArguments(allocator, io, args, exe_path);
     _ = options;
-
-    return 0;
 }
 
 fn parseArguments(
@@ -117,14 +115,7 @@ fn parseArguments(
 const TemplateOptions = struct {};
 
 test "template no args" {
-    try std.testing.expectEqual(
-        @as(u8, 0),
-        try subcommands.testExecute(
-            @This(),
-            &.{},
-            .{},
-        ),
-    );
+    try subcommands.testExecute(@This(), &.{}, .{});
 }
 
 test "template help" {

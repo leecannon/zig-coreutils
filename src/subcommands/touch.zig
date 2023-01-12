@@ -54,7 +54,7 @@ pub fn execute(
     args: anytype,
     system: zsw.System,
     exe_path: []const u8,
-) subcommands.Error!u8 {
+) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
@@ -229,13 +229,13 @@ fn performTouch(
     args: anytype,
     system: zsw.System,
     options: TouchOptions,
-) !u8 {
+) !void {
     const z = shared.tracy.traceNamed(@src(), "perform touch");
     defer z.end();
 
     log.debug("performTouch called, options={}", .{options});
 
-    const times = getTimes(allocator, io, system, options.time_to_use) catch return 1;
+    const times = try getTimes(allocator, io, system, options.time_to_use);
 
     log.debug("times to be used for touch: {}", .{times});
 
@@ -294,8 +294,6 @@ fn performTouch(
             .{ file_path, @errorName(err) },
         );
     }
-
-    return 0;
 }
 
 fn getTimes(
@@ -400,12 +398,11 @@ test "touch - create file" {
         system.cwd().openFile("FILE", .{}),
     );
 
-    const ret = try subcommands.testExecute(
+    try subcommands.testExecute(
         @This(),
         &.{"FILE"},
         .{ .system = system },
     );
-    try std.testing.expect(ret == 0);
 
     // file should exist
     const file = try system.cwd().openFile("FILE", .{});
@@ -430,12 +427,11 @@ test "touch - don't create file" {
         system.cwd().openFile("FILE", .{}),
     );
 
-    const ret = try subcommands.testExecute(
+    try subcommands.testExecute(
         @This(),
         &.{ "-a", "EXISTS" },
         .{ .system = system },
     );
-    try std.testing.expect(ret == 0);
 
     // file should still not exist
     try std.testing.expectError(
@@ -454,12 +450,11 @@ test "touch - atime only flag" {
 
     @atomicStore(i128, &nano_timestamp, 2000, .Monotonic);
 
-    const ret = try subcommands.testExecute(
+    try subcommands.testExecute(
         @This(),
         &.{ "-a", "EXISTS" },
         .{ .system = system },
     );
-    try std.testing.expect(ret == 0);
 
     const file = try system.cwd().openFile("EXISTS", .{});
     defer file.close();
@@ -479,12 +474,11 @@ test "touch - mtime only flag" {
 
     @atomicStore(i128, &nano_timestamp, 2000, .Monotonic);
 
-    const ret = try subcommands.testExecute(
+    try subcommands.testExecute(
         @This(),
         &.{ "-m", "EXISTS" },
         .{ .system = system },
     );
-    try std.testing.expect(ret == 0);
 
     const file = try system.cwd().openFile("EXISTS", .{});
     defer file.close();
