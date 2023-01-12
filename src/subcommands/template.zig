@@ -104,7 +104,7 @@ fn parseArguments(
     }
 
     return switch (state) {
-        .normal => return options,
+        .normal => options,
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
             .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '--{s}'", .{slice}),
             .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
