@@ -23,6 +23,7 @@
             "problemMatcher": {
                 "applyTo": "allDocuments",
                 "fileLocation": "autoDetect",
+                "owner": "zig",
                 "pattern": {
                     "regexp": "^(.*?):(\\d+):(\\d+):.*?(error):?\\s+(.*)$",
                     "file": 1,
