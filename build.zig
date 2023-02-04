@@ -3,11 +3,11 @@ const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
 
 const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 7 };
 
-pub fn build(b: *std.build.Builder) !void {
+pub fn build(b: *std.Build) !void {
     b.prominent_compile_errors = true;
 
     const target = b.standardTargetOptions(.{});
-    const mode = b.standardReleaseOptions();
+    const optimize = b.standardOptimizeOption(.{});
 
     if (!target.isLinux()) {
         std.debug.print("Currently only linux is supported\n", .{});
@@ -82,11 +82,14 @@ pub fn build(b: *std.build.Builder) !void {
     };
     options.addOption([:0]const u8, "version", try b.allocator.dupeZ(u8, version));
 
-    const exe = b.addExecutable("zig-coreutils", "src/main.zig");
-    exe.setTarget(target);
-    exe.setBuildMode(mode);
+    const exe = b.addExecutable(.{
+        .name = "zig-coreutils",
+        .root_source_file = .{ .path = "src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
 
-    if (mode != .Debug) {
+    if (optimize != .Debug) {
         exe.link_function_sections = true;
         exe.want_lto = true;
     }
@@ -110,7 +113,7 @@ pub fn build(b: *std.build.Builder) !void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const test_step = b.addTest("src/main.zig");
+    const test_step = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
     test_step.addOptions("options", options);
     test_step.addPackagePath("zsw", "zsw/src/main.zig");
     if (trace) {
@@ -135,7 +138,7 @@ pub fn build(b: *std.build.Builder) !void {
     test_step.step.dependOn(b.getInstallStep());
 }
 
-fn includeTracy(exe: *std.build.LibExeObjStep) void {
+fn includeTracy(exe: *std.Build.LibExeObjStep) void {
     exe.linkLibC();
     exe.linkLibCpp();
     exe.addIncludePath("tracy/public");
