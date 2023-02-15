@@ -121,7 +121,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     if (coverage) {
-        const src_dir = b.pathJoin(&.{ b.build_root, "src" });
+        const src_dir = b.pathJoin(&.{ b.build_root.path.?, "src" });
         const include_pattern = b.fmt("--include-pattern={s}", .{src_dir});
 
         test_step.setExecCmd(&[_]?[]const u8{
