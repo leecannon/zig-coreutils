@@ -104,7 +104,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     const run_cmd = exe.run();
-    run_cmd.expected_exit_code = null;
+    run_cmd.expected_term = null;
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
