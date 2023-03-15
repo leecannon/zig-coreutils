@@ -42,12 +42,14 @@ pub const Ctx = struct {
 pub inline fn trace(comptime src: std.builtin.SourceLocation) Ctx {
     if (!enable) return .{};
 
+    // TODO: https://github.com/ziglang/zig/issues/13315
+
     if (enable_callstack) {
         return .{ .ctx = ___tracy_emit_zone_begin_callstack(&.{
             .name = null,
             .function = src.fn_name.ptr,
             .file = src.file.ptr,
-            .line = src.line,
+            .line = 1,
             .color = 0,
         }, callstack_depth, 1) };
     } else {
@@ -55,7 +57,7 @@ pub inline fn trace(comptime src: std.builtin.SourceLocation) Ctx {
             .name = null,
             .function = src.fn_name.ptr,
             .file = src.file.ptr,
-            .line = src.line,
+            .line = 1,
             .color = 0,
         }, 1) };
     }
@@ -64,12 +66,14 @@ pub inline fn trace(comptime src: std.builtin.SourceLocation) Ctx {
 pub inline fn traceNamed(comptime src: std.builtin.SourceLocation, comptime name: [:0]const u8) Ctx {
     if (!enable) return .{};
 
+    // TODO: https://github.com/ziglang/zig/issues/13315
+
     if (enable_callstack) {
         return .{ .ctx = ___tracy_emit_zone_begin_callstack(&.{
             .name = name.ptr,
             .function = src.fn_name.ptr,
             .file = src.file.ptr,
-            .line = src.line,
+            .line = 1,
             .color = 0,
         }, callstack_depth, 1) };
     } else {
@@ -77,7 +81,7 @@ pub inline fn traceNamed(comptime src: std.builtin.SourceLocation, comptime name
             .name = name.ptr,
             .function = src.fn_name.ptr,
             .file = src.file.ptr,
-            .line = src.line,
+            .line = 1,
             .color = 0,
         }, 1) };
     }
