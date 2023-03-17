@@ -10,8 +10,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"tiehuis.zig",
-				"AugusteRame.zls-vscode"
+				"ziglang.vscode-zig"
 			]
 		}
 	}

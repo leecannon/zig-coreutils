@@ -1,6 +1,5 @@
 {
     "recommendations": [
-        "tiehuis.zig",
-        "augusterame.zls-vscode"
+        "ziglang.vscode-zig"
     ]
 }
