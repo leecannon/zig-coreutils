@@ -114,7 +114,6 @@ Currently Linux only to ease development.
  * time
  * timeout
  * tr
- * true
  * truncate
  * tsort
  * tty
