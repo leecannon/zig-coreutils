@@ -121,7 +121,7 @@ fn otherUser(
             shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
     }
 
-    return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
+    return shared.printErrorAlloc(@This(), allocator, io, "unknown user {s}", .{arg.raw});
 }
 
 fn printGroups(
