@@ -4,8 +4,6 @@ const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
 const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 7 };
 
 pub fn build(b: *std.Build) !void {
-    b.prominent_compile_errors = true;
-
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -103,7 +101,9 @@ pub fn build(b: *std.Build) !void {
     }
 
     const run_cmd = exe.run();
-    run_cmd.expected_term = null;
+    // TODO: Ignore exit code for determining success - https://github.com/ziglang/zig/issues/14996
+    run_cmd.stdio = .inherit;
+    run_cmd.has_side_effects = true;
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
