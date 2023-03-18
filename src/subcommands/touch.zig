@@ -1,7 +1,6 @@
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
 const shared = @import("../shared.zig");
-const zsw = @import("zsw");
 
 const log = std.log.scoped(.touch);
 
@@ -52,7 +51,7 @@ pub fn execute(
     allocator: std.mem.Allocator,
     io: anytype,
     args: anytype,
-    system: zsw.System,
+    cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
@@ -60,7 +59,7 @@ pub fn execute(
 
     const options = try parseArguments(allocator, io, args, exe_path);
 
-    return performTouch(allocator, io, args, system, options);
+    return performTouch(allocator, io, args, options, cwd);
 }
 
 fn parseArguments(
@@ -227,29 +226,27 @@ fn performTouch(
     allocator: std.mem.Allocator,
     io: anytype,
     args: anytype,
-    system: zsw.System,
     options: TouchOptions,
+    cwd: std.fs.Dir,
 ) !void {
     const z = shared.tracy.traceNamed(@src(), "perform touch");
     defer z.end();
 
     log.debug("performTouch called, options={}", .{options});
 
-    const times = try getTimes(allocator, io, system, options.time_to_use);
+    const times = try getTimes(allocator, io, options.time_to_use, cwd);
 
     log.debug("times to be used for touch: {}", .{times});
 
     var opt_file_path: ?[]const u8 = options.first_file_path;
-
-    const cwd = system.cwd();
 
     while (opt_file_path) |file_path| : (opt_file_path = args.nextRaw()) {
         const file_zone = shared.tracy.traceNamed(@src(), "process file");
         defer file_zone.end();
         file_zone.addText(file_path);
 
-        const file: zsw.File = if (std.mem.eql(u8, file_path, "-"))
-            system.getStdOut()
+        const file: std.fs.File = if (std.mem.eql(u8, file_path, "-"))
+            std.io.getStdOut()
         else
             switch (options.create) {
                 true => cwd.createFile(file_path, .{}),
@@ -299,19 +296,19 @@ fn performTouch(
 fn getTimes(
     allocator: std.mem.Allocator,
     io: anytype,
-    system: zsw.System,
     time_to_use: TouchOptions.TimeToUse,
+    cwd: std.fs.Dir,
 ) !FileTimes {
     switch (time_to_use) {
         .current_time => {
-            const time = system.nanoTimestamp();
+            const time = std.time.nanoTimestamp();
             return .{
                 .access_time = time,
                 .modification_time = time,
             };
         },
         .reference_file => |reference_file_path| {
-            const reference_file = system.cwd().openFile(reference_file_path, .{}) catch |err|
+            const reference_file = cwd.openFile(reference_file_path, .{}) catch |err|
                 return shared.printErrorAlloc(
                 @This(),
                 allocator,
@@ -385,107 +382,54 @@ const TouchOptions = struct {
 };
 
 test "touch - create file" {
-    var nano_timestamp: i128 = 1000;
+    var tmp_dir = try setupTestDirectory();
+    defer tmp_dir.cleanup();
 
-    var test_system = try TestSystem.create(&nano_timestamp);
-    defer test_system.destroy();
-
-    const system = test_system.backend.system();
+    const cwd = tmp_dir.dir;
 
     // file should not exist
     try std.testing.expectError(
         error.FileNotFound,
-        system.cwd().openFile("FILE", .{}),
+        cwd.access("FILE", .{}),
     );
 
     try subcommands.testExecute(
         @This(),
         &.{"FILE"},
-        .{ .system = system },
+        .{
+            .cwd = cwd,
+        },
     );
 
     // file should exist
-    const file = try system.cwd().openFile("FILE", .{});
-    defer file.close();
-
-    var stat = try file.stat();
-    try std.testing.expectEqual(nano_timestamp, stat.atime);
-    try std.testing.expectEqual(nano_timestamp, stat.mtime);
+    try cwd.access("FILE", .{});
 }
 
 test "touch - don't create file" {
-    var nano_timestamp: i128 = 1000;
+    var tmp_dir = try setupTestDirectory();
+    defer tmp_dir.cleanup();
 
-    var test_system = try TestSystem.create(&nano_timestamp);
-    defer test_system.destroy();
-
-    const system = test_system.backend.system();
+    const cwd = tmp_dir.dir;
 
     // file should not exist
     try std.testing.expectError(
         error.FileNotFound,
-        system.cwd().openFile("FILE", .{}),
+        cwd.access("FILE", .{}),
     );
 
     try subcommands.testExecute(
         @This(),
         &.{ "-a", "EXISTS" },
-        .{ .system = system },
+        .{
+            .cwd = cwd,
+        },
     );
 
     // file should still not exist
     try std.testing.expectError(
         error.FileNotFound,
-        system.cwd().openFile("FILE", .{}),
+        cwd.access("FILE", .{}),
     );
-}
-
-test "touch - atime only flag" {
-    var nano_timestamp: i128 = 1000;
-
-    var test_system = try TestSystem.create(&nano_timestamp);
-    defer test_system.destroy();
-
-    const system = test_system.backend.system();
-
-    @atomicStore(i128, &nano_timestamp, 2000, .Monotonic);
-
-    try subcommands.testExecute(
-        @This(),
-        &.{ "-a", "EXISTS" },
-        .{ .system = system },
-    );
-
-    const file = try system.cwd().openFile("EXISTS", .{});
-    defer file.close();
-
-    const stat = try file.stat();
-    try std.testing.expectEqual(@as(i128, 2000), stat.atime);
-    try std.testing.expectEqual(@as(i128, 1000), stat.mtime);
-}
-
-test "touch - mtime only flag" {
-    var nano_timestamp: i128 = 1000;
-
-    var test_system = try TestSystem.create(&nano_timestamp);
-    defer test_system.destroy();
-
-    const system = test_system.backend.system();
-
-    @atomicStore(i128, &nano_timestamp, 2000, .Monotonic);
-
-    try subcommands.testExecute(
-        @This(),
-        &.{ "-m", "EXISTS" },
-        .{ .system = system },
-    );
-
-    const file = try system.cwd().openFile("EXISTS", .{});
-    defer file.close();
-
-    const stat = try file.stat();
-    try std.testing.expectEqual(@as(i128, 1000), stat.atime);
-    try std.testing.expectEqual(@as(i128, 2000), stat.mtime);
 }
 
 test "touch no args" {
@@ -505,35 +449,11 @@ test "touch version" {
     try subcommands.testVersion(@This());
 }
 
-const TestSystem = struct {
-    backend: *BackendType,
-
-    const BackendType = zsw.Backend(.{
-        .fallback_to_host = false,
-        .file_system = true,
-        .time = true,
-    });
-
-    pub fn create(nano_timestamp: *const i128) !TestSystem {
-        const file_system = try zsw.FileSystemDescription.create(std.testing.allocator);
-        defer file_system.destroy();
-        try file_system.root.addFile("EXISTS", "");
-
-        const time = zsw.TimeDescription{ .nano_timestamp = nano_timestamp };
-
-        const backend = try BackendType.create(std.testing.allocator, .{
-            .file_system = file_system,
-            .time = time,
-        });
-        errdefer backend.destroy();
-
-        return .{ .backend = backend };
-    }
-
-    pub fn destroy(self: *TestSystem) void {
-        self.backend.destroy();
-    }
-};
+fn setupTestDirectory() !std.testing.TmpDir {
+    const tmp_dir = std.testing.tmpDir(.{});
+    _ = try tmp_dir.dir.createFile("EXISTS", .{});
+    return tmp_dir;
+}
 
 comptime {
     refAllDeclsRecursive(@This());

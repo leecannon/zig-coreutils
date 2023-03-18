@@ -97,7 +97,6 @@ pub fn build(b: *std.Build) !void {
     exe.install();
 
     exe.addOptions("options", options);
-    exe.addAnonymousModule("zsw", .{ .source_file = .{ .path = "zsw/src/main.zig" } });
 
     if (trace) {
         includeTracy(exe);
@@ -115,7 +114,6 @@ pub fn build(b: *std.Build) !void {
 
     const test_step = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
     test_step.addOptions("options", options);
-    test_step.addAnonymousModule("zsw", .{ .source_file = .{ .path = "zsw/src/main.zig" } });
     if (trace) {
         includeTracy(test_step);
     }

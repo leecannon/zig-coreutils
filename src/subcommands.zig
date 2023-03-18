@@ -1,6 +1,5 @@
 const std = @import("std");
 const shared = @import("shared.zig");
-const zsw = @import("zsw");
 const builtin = @import("builtin");
 
 const log = std.log.scoped(.subcommand);
@@ -39,7 +38,7 @@ pub fn execute(
     arg_iter: *std.process.ArgIterator,
     io: anytype,
     basename: []const u8,
-    system: zsw.System,
+    cwd: std.fs.Dir,
     exe_path: []const u8,
 ) ExecuteError!void {
     const z = shared.tracy.traceNamed(@src(), "execute");
@@ -53,7 +52,7 @@ pub fn execute(
                 allocator,
                 arg_iter,
                 io,
-                system,
+                cwd,
                 exe_path,
             );
         }
@@ -82,7 +81,7 @@ pub fn execute(
                     allocator,
                     arg_iter,
                     io,
-                    system,
+                    cwd,
                     exe_path_with_subcommand,
                 );
             }
@@ -97,7 +96,7 @@ fn executeSubcommand(
     allocator: std.mem.Allocator,
     arg_iter: anytype,
     io: anytype,
-    system: zsw.System,
+    cwd: std.fs.Dir,
     exe_path: []const u8,
 ) SubcommandError!void {
     const z = shared.tracy.traceNamed(@src(), "execute subcommand");
@@ -106,7 +105,7 @@ fn executeSubcommand(
     log.debug("executing subcommand '{s}'", .{subcommand.name});
 
     var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
-    return subcommand.execute(allocator, io, &arg_iterator, system, exe_path) catch |err| switch (err) {
+    return subcommand.execute(allocator, io, &arg_iterator, cwd, exe_path) catch |err| switch (err) {
         error.Help => shared.printHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),
         else => |narrow_err| narrow_err,
@@ -118,7 +117,11 @@ pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, s
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
     const stderr = if (@hasField(SettingsType, "stderr")) settings.stderr else VoidWriter.writer();
-    const system = if (@hasField(SettingsType, "system")) settings.system else zsw.host_system;
+
+    const cwd_provided = @hasField(SettingsType, "cwd");
+    var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
+    defer if (!cwd_provided) tmp_dir.cleanup();
+    const cwd = if (cwd_provided) settings.cwd else tmp_dir.dir;
 
     var arg_iter = SliceArgIterator{ .slice = arguments };
 
@@ -131,7 +134,7 @@ pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, s
             .stdin = stdin,
             .stdout = stdout,
         },
-        system,
+        cwd,
         subcommand.name,
     );
 }
@@ -146,7 +149,11 @@ pub fn testError(
     if (@hasField(SettingsType, "stderr")) @compileError("there is already a stderr defined on this settings type");
     const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
-    const system = if (@hasField(SettingsType, "system")) settings.system else zsw.host_system;
+
+    const cwd_provided = @hasField(SettingsType, "cwd");
+    var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
+    defer if (!cwd_provided) tmp_dir.cleanup();
+    const cwd = if (cwd_provided) settings.cwd else tmp_dir.dir;
 
     var stderr = std.ArrayList(u8).init(std.testing.allocator);
     defer stderr.deinit();
@@ -158,7 +165,7 @@ pub fn testError(
             .stderr = stderr.writer(),
             .stdin = stdin,
             .stdout = stdout,
-            .system = system,
+            .cwd = cwd,
         },
     ));
 
@@ -175,16 +182,10 @@ pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !vo
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
-    var always_fail_system = try AlwaysFailSystem.create(std.testing.allocator);
-    defer always_fail_system.destroy();
-
     try testExecute(
         subcommand,
         &.{"--help"},
-        .{
-            .stdout = out.writer(),
-            .system = always_fail_system.backend.system(),
-        },
+        .{ .stdout = out.writer() },
     );
 
     try std.testing.expectEqualStrings(expected, out.items);
@@ -206,15 +207,11 @@ pub fn testVersion(comptime subcommand: type) !void {
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
-    var always_fail_system = try AlwaysFailSystem.create(std.testing.allocator);
-    defer always_fail_system.destroy();
-
     try testExecute(
         subcommand,
         &.{"--version"},
         .{
             .stdout = out.writer(),
-            .system = always_fail_system.backend.system(),
         },
     );
 
@@ -223,22 +220,6 @@ pub fn testVersion(comptime subcommand: type) !void {
 
     try std.testing.expectEqualStrings(expected, out.items);
 }
-
-const AlwaysFailSystem = struct {
-    backend: *BackendType,
-
-    const BackendType = zsw.Backend(.{ .fallback_to_host = false });
-
-    pub fn create(allocator: std.mem.Allocator) !AlwaysFailSystem {
-        return .{
-            .backend = try BackendType.create(allocator, .{}),
-        };
-    }
-
-    pub fn destroy(self: *AlwaysFailSystem) void {
-        self.backend.destroy();
-    }
-};
 
 const SliceArgIterator = struct {
     slice: []const [:0]const u8,

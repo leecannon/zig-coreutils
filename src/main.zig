@@ -3,7 +3,6 @@ const subcommands = @import("subcommands.zig");
 const shared = @import("shared.zig");
 const options = @import("options");
 const builtin = @import("builtin");
-const zsw = @import("zsw");
 
 pub const enable_tracy = options.trace;
 pub const tracy_enable_callstack = true;
@@ -51,7 +50,7 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
         &argument_info.arg_iter,
         io,
         argument_info.basename,
-        zsw.host_system,
+        std.fs.cwd(),
         argument_info.exe_path,
     ) catch |err| {
         switch (err) {

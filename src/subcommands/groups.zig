@@ -1,7 +1,6 @@
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
 const shared = @import("../shared.zig");
-const zsw = @import("zsw");
 
 const log = std.log.scoped(.groups);
 
@@ -40,7 +39,7 @@ pub fn execute(
     allocator: std.mem.Allocator,
     io: anytype,
     args: anytype,
-    system: zsw.System,
+    cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
@@ -50,26 +49,26 @@ pub fn execute(
 
     const opt_arg = try args.nextWithHelpOrVersion(true);
 
-    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch
+    const passwd_file = cwd.openFile("/etc/passwd", .{}) catch
         return shared.printError(@This(), io, "unable to read '/etc/passwd'");
     defer if (shared.free_on_close) passwd_file.close();
 
     return if (opt_arg) |arg|
-        otherUser(allocator, io, arg, passwd_file, system)
+        otherUser(allocator, io, arg, passwd_file, cwd)
     else
-        currentUser(allocator, io, passwd_file, system);
+        currentUser(allocator, io, passwd_file, cwd);
 }
 
 fn currentUser(
     allocator: std.mem.Allocator,
     io: anytype,
-    passwd_file: zsw.File,
-    system: zsw.System,
+    passwd_file: std.fs.File,
+    cwd: std.fs.Dir,
 ) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), "current user");
     defer z.end();
 
-    const euid = system.geteuid();
+    const euid = std.os.linux.geteuid();
 
     log.debug("currentUser called, euid: {}", .{euid});
 
@@ -82,7 +81,7 @@ fn currentUser(
                 log.debug("found matching user id: {}", .{user_id});
 
                 return if (std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10)) |primary_group_id|
-                    printGroups(allocator, entry.user_name, primary_group_id, io, system)
+                    printGroups(allocator, entry.user_name, primary_group_id, io, cwd)
                 else |_|
                     shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
             } else log.debug("found non-matching user id: {}", .{user_id});
@@ -96,8 +95,8 @@ fn otherUser(
     allocator: std.mem.Allocator,
     io: anytype,
     arg: shared.Arg,
-    passwd_file: zsw.File,
-    system: zsw.System,
+    passwd_file: std.fs.File,
+    cwd: std.fs.Dir,
 ) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), "other user");
     defer z.end();
@@ -117,7 +116,7 @@ fn otherUser(
         log.debug("found matching user: {s}", .{entry.user_name});
 
         return if (std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10)) |primary_group_id|
-            printGroups(allocator, entry.user_name, primary_group_id, io, system)
+            printGroups(allocator, entry.user_name, primary_group_id, io, cwd)
         else |_|
             shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
     }
@@ -130,7 +129,7 @@ fn printGroups(
     user_name: []const u8,
     primary_group_id: std.os.uid_t,
     io: anytype,
-    system: zsw.System,
+    cwd: std.fs.Dir,
 ) !void {
     const z = shared.tracy.traceNamed(@src(), "print groups");
     defer z.end();
@@ -138,7 +137,7 @@ fn printGroups(
 
     log.debug("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
 
-    var group_file = system.cwd().openFile("/etc/group", .{}) catch
+    var group_file = cwd.openFile("/etc/group", .{}) catch
         return shared.printError(@This(), io, "unable to read '/etc/group'");
 
     defer if (shared.free_on_close) group_file.close();
@@ -176,43 +175,7 @@ fn printGroups(
     io.stdout.writeByte('\n') catch |err| return shared.unableToWriteTo("stdout", io, err);
 }
 
-test "groups root" {
-    var test_system = try TestSystem.create();
-    defer test_system.destroy();
-
-    var stdout = std.ArrayList(u8).init(std.testing.allocator);
-    defer stdout.deinit();
-
-    try subcommands.testExecute(
-        @This(),
-        &.{"root"},
-        .{
-            .system = test_system.backend.system(),
-            .stdout = stdout.writer(),
-        },
-    );
-
-    try std.testing.expectEqualStrings("root proc scanner users\n", stdout.items);
-}
-
-test "groups no args - current user: user" {
-    var test_system = try TestSystem.create();
-    defer test_system.destroy();
-
-    var stdout = std.ArrayList(u8).init(std.testing.allocator);
-    defer stdout.deinit();
-
-    try subcommands.testExecute(
-        @This(),
-        &.{},
-        .{
-            .system = test_system.backend.system(),
-            .stdout = stdout.writer(),
-        },
-    );
-
-    try std.testing.expectEqualStrings("sys wheel users rfkill user\n", stdout.items);
-}
+// TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
 
 test "groups help" {
     try subcommands.testHelp(@This(), true);
@@ -221,103 +184,6 @@ test "groups help" {
 test "groups version" {
     try subcommands.testVersion(@This());
 }
-
-const TestSystem = struct {
-    backend: *BackendType,
-
-    const BackendType = zsw.Backend(.{
-        .fallback_to_host = true,
-        .file_system = true,
-        .linux_user_group = true,
-    });
-
-    pub fn create() !TestSystem {
-        var file_system = blk: {
-            const file_system = try zsw.FileSystemDescription.create(std.testing.allocator);
-            errdefer file_system.destroy();
-
-            const etc = try file_system.root.addDirectory("etc");
-
-            try etc.addFile(
-                "passwd",
-                \\root:x:0:0::/root:/bin/bash
-                \\bin:x:1:1::/:/usr/bin/nologin
-                \\daemon:x:2:2::/:/usr/bin/nologin
-                \\mail:x:8:12::/var/spool/mail:/usr/bin/nologin
-                \\ftp:x:14:11::/srv/ftp:/usr/bin/nologin
-                \\http:x:33:33::/srv/http:/usr/bin/nologin
-                \\nobody:x:65534:65534:Nobody:/:/usr/bin/nologin
-                \\user:x:1000:1000:User:/home/user:/bin/bash
-                \\
-                ,
-            );
-
-            try etc.addFile(
-                "group",
-                \\root:x:0:root
-                \\sys:x:3:bin,user
-                \\mem:x:8:
-                \\ftp:x:11:
-                \\mail:x:12:
-                \\log:x:19:
-                \\smmsp:x:25:
-                \\proc:x:26:root
-                \\games:x:50:
-                \\lock:x:54:
-                \\network:x:90:
-                \\floppy:x:94:
-                \\scanner:x:96:root
-                \\power:x:98:
-                \\adm:x:999:daemon
-                \\wheel:x:998:user
-                \\utmp:x:997:
-                \\audio:x:996:
-                \\disk:x:995:
-                \\input:x:994:
-                \\kmem:x:993:
-                \\kvm:x:992:
-                \\lp:x:991:
-                \\optical:x:990:
-                \\render:x:989:
-                \\sgx:x:988:
-                \\storage:x:987:
-                \\tty:x:5:
-                \\uucp:x:986:
-                \\video:x:985:
-                \\users:x:984:user,root
-                \\rfkill:x:982:user
-                \\bin:x:1:daemon
-                \\daemon:x:2:bin
-                \\http:x:33:
-                \\nobody:x:65534:
-                \\user:x:1000:
-                \\
-                ,
-            );
-
-            break :blk file_system;
-        };
-        defer file_system.destroy();
-
-        var linux_user_group: zsw.LinuxUserGroupDescription = .{
-            .initial_euid = 1000,
-        };
-
-        var backend = try BackendType.create(std.testing.allocator, .{
-            .file_system = file_system,
-            .linux_user_group = linux_user_group,
-        });
-        errdefer backend.destroy();
-
-        return TestSystem{
-            .backend = backend,
-        };
-    }
-
-    pub fn destroy(self: *TestSystem) void {
-        self.backend.destroy();
-    }
-};
 
 comptime {
     refAllDeclsRecursive(@This());

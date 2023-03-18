@@ -3,8 +3,6 @@ const subcommands = @import("subcommands.zig");
 const build_options = @import("options");
 const builtin = @import("builtin");
 
-const zsw = @import("zsw");
-
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 pub const free_on_close = is_debug_or_test or tracy.enable;
 
@@ -247,7 +245,7 @@ pub const Arg = struct {
     };
 };
 
-pub fn passwdFileIterator(allocator: std.mem.Allocator, passwd_file: zsw.File) PasswdFileIterator {
+pub fn passwdFileIterator(allocator: std.mem.Allocator, passwd_file: std.fs.File) PasswdFileIterator {
     return .{
         .passwd_file = passwd_file,
         .passwd_buffered_reader = std.io.bufferedReader(passwd_file.reader()),
@@ -256,8 +254,8 @@ pub fn passwdFileIterator(allocator: std.mem.Allocator, passwd_file: zsw.File) P
 }
 
 pub const PasswdFileIterator = struct {
-    passwd_file: zsw.File,
-    passwd_buffered_reader: std.io.BufferedReader(4096, zsw.File.Reader),
+    passwd_file: std.fs.File,
+    passwd_buffered_reader: std.io.BufferedReader(4096, std.fs.File.Reader),
     line_buffer: std.ArrayList(u8),
 
     pub const Entry = struct {
@@ -313,7 +311,7 @@ pub const PasswdFileIterator = struct {
     }
 };
 
-pub fn groupFileIterator(allocator: std.mem.Allocator, group_file: zsw.File) GroupFileIterator {
+pub fn groupFileIterator(allocator: std.mem.Allocator, group_file: std.fs.File) GroupFileIterator {
     return .{
         .group_file = group_file,
         .group_buffered_reader = std.io.bufferedReader(group_file.reader()),
@@ -322,8 +320,8 @@ pub fn groupFileIterator(allocator: std.mem.Allocator, group_file: zsw.File) Gro
 }
 
 pub const GroupFileIterator = struct {
-    group_file: zsw.File,
-    group_buffered_reader: std.io.BufferedReader(4096, zsw.File.Reader),
+    group_file: std.fs.File,
+    group_buffered_reader: std.io.BufferedReader(4096, std.fs.File.Reader),
     line_buffer: std.ArrayList(u8),
 
     pub const Entry = struct {

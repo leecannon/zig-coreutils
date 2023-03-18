@@ -1,7 +1,6 @@
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
 const shared = @import("../shared.zig");
-const zsw = @import("zsw");
 
 const log = std.log.scoped(.yes);
 
@@ -39,14 +38,14 @@ pub fn execute(
     allocator: std.mem.Allocator,
     io: anytype,
     args: anytype,
-    system: zsw.System,
+    cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
     defer z.end();
 
     _ = exe_path;
-    _ = system;
+    _ = cwd;
 
     const string = try getString(allocator, args);
     defer if (shared.free_on_close) string.deinit(allocator);

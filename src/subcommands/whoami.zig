@@ -1,7 +1,6 @@
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
 const shared = @import("../shared.zig");
-const zsw = @import("zsw");
 
 const log = std.log.scoped(.whoami);
 
@@ -39,7 +38,7 @@ pub fn execute(
     allocator: std.mem.Allocator,
     io: anytype,
     args: anytype,
-    system: zsw.System,
+    cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), name);
@@ -50,9 +49,9 @@ pub fn execute(
     // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
-    const euid = system.geteuid();
+    const euid = std.os.linux.geteuid();
 
-    const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch
+    const passwd_file = cwd.openFile("/etc/passwd", .{}) catch
         return shared.printError(@This(), io, "unable to read '/etc/passwd'");
     defer if (shared.free_on_close) passwd_file.close();
 
@@ -75,46 +74,7 @@ pub fn execute(
     return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
 }
 
-test "whoami root" {
-    var test_system = try TestSystem.create();
-    defer test_system.destroy();
-
-    // set the effective user id to root
-    test_system.backend.linux_user_group.euid = 0;
-
-    var stdout = std.ArrayList(u8).init(std.testing.allocator);
-    defer stdout.deinit();
-
-    try subcommands.testExecute(
-        @This(),
-        &.{},
-        .{
-            .system = test_system.backend.system(),
-            .stdout = stdout.writer(),
-        },
-    );
-
-    try std.testing.expectEqualStrings("root\n", stdout.items);
-}
-
-test "whoami user" {
-    var test_system = try TestSystem.create();
-    defer test_system.destroy();
-
-    var stdout = std.ArrayList(u8).init(std.testing.allocator);
-    defer stdout.deinit();
-
-    try subcommands.testExecute(
-        @This(),
-        &.{},
-        .{
-            .system = test_system.backend.system(),
-            .stdout = stdout.writer(),
-        },
-    );
-
-    try std.testing.expectEqualStrings("user\n", stdout.items);
-}
+// TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
 
 test "whoami help" {
     try subcommands.testHelp(@This(), true);
@@ -123,60 +83,6 @@ test "whoami help" {
 test "whoami version" {
     try subcommands.testVersion(@This());
 }
-
-const TestSystem = struct {
-    backend: *BackendType,
-
-    const BackendType = zsw.Backend(.{
-        .fallback_to_host = true,
-        .file_system = true,
-        .linux_user_group = true,
-    });
-
-    pub fn create() !TestSystem {
-        const file_system = blk: {
-            const file_system = try zsw.FileSystemDescription.create(std.testing.allocator);
-            errdefer file_system.destroy();
-
-            const etc = try file_system.root.addDirectory("etc");
-
-            try etc.addFile(
-                "passwd",
-                \\root:x:0:0::/root:/bin/bash
-                \\bin:x:1:1::/:/usr/bin/nologin
-                \\daemon:x:2:2::/:/usr/bin/nologin
-                \\mail:x:8:12::/var/spool/mail:/usr/bin/nologin
-                \\ftp:x:14:11::/srv/ftp:/usr/bin/nologin
-                \\http:x:33:33::/srv/http:/usr/bin/nologin
-                \\nobody:x:65534:65534:Nobody:/:/usr/bin/nologin
-                \\user:x:1000:1001:User:/home/user:/bin/bash
-                \\
-                ,
-            );
-
-            break :blk file_system;
-        };
-        defer file_system.destroy();
-
-        var linux_user_group: zsw.LinuxUserGroupDescription = .{
-            .initial_euid = 1000,
-        };
-
-        var backend = try BackendType.create(std.testing.allocator, .{
-            .file_system = file_system,
-            .linux_user_group = linux_user_group,
-        });
-        errdefer backend.destroy();
-
-        return TestSystem{
-            .backend = backend,
-        };
-    }
-
-    pub fn destroy(self: *TestSystem) void {
-        self.backend.destroy();
-    }
-};
 
 comptime {
     refAllDeclsRecursive(@This());
