@@ -53,10 +53,9 @@ pub fn execute(
 
     const options = try parseArguments(allocator, io, args, exe_path);
 
-    return if (options.multiple)
-        multipleArguments(io, args, options)
-    else
-        singleArgument(allocator, io, args, exe_path, options);
+    if (options.multiple) return multipleArguments(io, args, options);
+
+    return singleArgument(allocator, io, args, exe_path, options);
 }
 
 fn parseArguments(
@@ -155,11 +154,35 @@ fn parseArguments(
     }
 
     return switch (state) {
-        .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing operand"),
-        .suffix => shared.printInvalidUsage(@This(), io, exe_path, "expected SUFFIX for suffix argument"),
+        .normal => shared.printInvalidUsage(
+            @This(),
+            io,
+            exe_path,
+            "missing operand",
+        ),
+        .suffix => shared.printInvalidUsage(
+            @This(),
+            io,
+            exe_path,
+            "expected SUFFIX for suffix argument",
+        ),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
-            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "unrecognized option '{s}'",
+                .{slice},
+            ),
+            .character => |character| shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "unrecognized option -- '{c}'",
+                .{character},
+            ),
         },
     };
 }
@@ -207,11 +230,13 @@ fn singleArgument(
 
     log.debug("singleArgument called, options={}", .{options});
 
+    const end_byte: u8 = if (options.zero) 0 else '\n';
+
     const basename = getBasename(options.first_arg, opt_suffix);
     log.debug("got basename: '{s}'", .{basename});
 
     io.stdout.writeAll(basename) catch |err| return shared.unableToWriteTo("stdout", io, err);
-    io.stdout.writeByte(if (options.zero) 0 else '\n') catch |err| return shared.unableToWriteTo("stdout", io, err);
+    io.stdout.writeByte(end_byte) catch |err| return shared.unableToWriteTo("stdout", io, err);
 }
 
 fn multipleArguments(
@@ -228,13 +253,7 @@ fn multipleArguments(
 
     var opt_arg: ?[]const u8 = options.first_arg;
 
-    var arg_frame = shared.tracy.namedFrame("arg");
-    defer arg_frame.end();
-
-    while (opt_arg) |arg| : ({
-        arg_frame.mark();
-        opt_arg = args.nextRaw();
-    }) {
+    while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
         const argument_zone = shared.tracy.traceNamed(@src(), "process arg");
         defer argument_zone.end();
         argument_zone.addText(arg);
@@ -249,28 +268,32 @@ fn multipleArguments(
 
 fn getBasename(buf: []const u8, opt_suffix: ?[]const u8) []const u8 {
     const basename = std.fs.path.basename(buf);
-    return if (opt_suffix) |suffix|
-        if (std.mem.lastIndexOf(u8, basename, suffix)) |end_index|
-            basename[0..end_index]
-        else
-            basename
-    else
-        basename;
+
+    const suffix = opt_suffix orelse return basename;
+
+    const end_index = std.mem.lastIndexOf(u8, basename, suffix) orelse return basename;
+
+    return basename[0..end_index];
 }
 
 test "basename no args" {
-    try subcommands.testError(@This(), &.{}, .{}, "missing operand");
+    try subcommands.testError(
+        @This(),
+        &.{},
+        .{},
+        "missing operand",
+    );
 }
 
 test "basename single" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(@This(), &.{
-        "hello/world",
-    }, .{
-        .stdout = stdout.writer(),
-    });
+    try subcommands.testExecute(
+        @This(),
+        &.{"hello/world"},
+        .{ .stdout = stdout.writer() },
+    );
 
     try std.testing.expectEqualStrings("world\n", stdout.items);
 }
@@ -279,14 +302,16 @@ test "basename multiple" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(@This(), &.{
-        "-a",
-        "hello/world",
-        "this/is/a/test",
-        "a/b/c/d",
-    }, .{
-        .stdout = stdout.writer(),
-    });
+    try subcommands.testExecute(
+        @This(),
+        &.{
+            "-a",
+            "hello/world",
+            "this/is/a/test",
+            "a/b/c/d",
+        },
+        .{ .stdout = stdout.writer() },
+    );
 
     try std.testing.expectEqualStrings(
         \\world

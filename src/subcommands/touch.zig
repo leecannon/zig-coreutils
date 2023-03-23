@@ -194,13 +194,49 @@ fn parseArguments(
     }
 
     return switch (state) {
-        .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing file operand"),
-        .reference_file => shared.printInvalidUsage(@This(), io, exe_path, "expected file path for reference file argument"),
-        .time => shared.printInvalidUsage(@This(), io, exe_path, "expected WORD string for time argument"),
-        .time_argument => |argument| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized value for time option '{s}'", .{argument}),
+        .normal => shared.printInvalidUsage(
+            @This(),
+            io,
+            exe_path,
+            "missing file operand",
+        ),
+        .reference_file => shared.printInvalidUsage(
+            @This(),
+            io,
+            exe_path,
+            "expected file path for reference file argument",
+        ),
+        .time => shared.printInvalidUsage(
+            @This(),
+            io,
+            exe_path,
+            "expected WORD string for time argument",
+        ),
+        .time_argument => |argument| shared.printInvalidUsageAlloc(
+            @This(),
+            allocator,
+            io,
+            exe_path,
+            "unrecognized value for time option '{s}'",
+            .{argument},
+        ),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
-            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "unrecognized option '{s}'",
+                .{slice},
+            ),
+            .character => |character| shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "unrecognized option -- '{c}'",
+                .{character},
+            ),
         },
     };
 }
@@ -240,20 +276,22 @@ fn performTouch(
 
     var opt_file_path: ?[]const u8 = options.first_file_path;
 
-    while (opt_file_path) |file_path| : (opt_file_path = args.nextRaw()) {
+    argument_loop: while (opt_file_path) |file_path| : (opt_file_path = args.nextRaw()) {
         const file_zone = shared.tracy.traceNamed(@src(), "process file");
         defer file_zone.end();
         file_zone.addText(file_path);
 
-        const file: std.fs.File = if (std.mem.eql(u8, file_path, "-"))
-            std.io.getStdOut()
-        else
-            switch (options.create) {
+        const file: std.fs.File = blk: {
+            if (std.mem.eql(u8, file_path, "-")) break :blk std.io.getStdOut();
+
+            const file_or_error = switch (options.create) {
                 true => cwd.createFile(file_path, .{}),
                 false => cwd.openFile(file_path, .{}),
-            } catch |err| {
+            };
+
+            break :blk file_or_error catch |err| {
                 // The file not existing is not an error if create is false.
-                if (!options.create and err == error.FileNotFound) continue;
+                if (!options.create and err == error.FileNotFound) continue :argument_loop;
 
                 return shared.printErrorAlloc(
                     @This(),
@@ -263,26 +301,30 @@ fn performTouch(
                     .{ file_path, @errorName(err) },
                 );
             };
+        };
         defer file.close();
 
-        (if (options.update == .both)
+        const possible_update_times_error = if (options.update == .both)
             file.updateTimes(times.access_time, times.modification_time)
         else blk: {
-            const stat = file.stat() catch |err|
+            const stat = file.stat() catch |err| {
                 return shared.printErrorAlloc(
-                @This(),
-                allocator,
-                io,
-                "failed to stat '{s}': {s}",
-                .{ file_path, @errorName(err) },
-            );
+                    @This(),
+                    allocator,
+                    io,
+                    "failed to stat '{s}': {s}",
+                    .{ file_path, @errorName(err) },
+                );
+            };
 
             break :blk switch (options.update) {
                 .both => unreachable,
                 .access_only => file.updateTimes(times.access_time, stat.mtime),
                 .modification_only => file.updateTimes(stat.atime, times.modification_time),
             };
-        }) catch |err|
+        };
+
+        possible_update_times_error catch |err|
             return shared.printErrorAlloc(
             @This(),
             allocator,
@@ -308,23 +350,26 @@ fn getTimes(
             };
         },
         .reference_file => |reference_file_path| {
-            const reference_file = cwd.openFile(reference_file_path, .{}) catch |err|
+            const reference_file = cwd.openFile(reference_file_path, .{}) catch |err| {
                 return shared.printErrorAlloc(
-                @This(),
-                allocator,
-                io,
-                "unable to open '{s}': {s}",
-                .{ reference_file_path, @errorName(err) },
-            );
+                    @This(),
+                    allocator,
+                    io,
+                    "unable to open '{s}': {s}",
+                    .{ reference_file_path, @errorName(err) },
+                );
+            };
             defer reference_file.close();
-            const stat = reference_file.stat() catch |err|
+
+            const stat = reference_file.stat() catch |err| {
                 return shared.printErrorAlloc(
-                @This(),
-                allocator,
-                io,
-                "unable to stat '{s}': {s}",
-                .{ reference_file_path, @errorName(err) },
-            );
+                    @This(),
+                    allocator,
+                    io,
+                    "unable to stat '{s}': {s}",
+                    .{ reference_file_path, @errorName(err) },
+                );
+            };
 
             return .{
                 .access_time = stat.atime,
@@ -369,10 +414,15 @@ const TouchOptions = struct {
 
         try writer.writeAll("TouchOptions{ .update = .");
         try writer.writeAll(@tagName(value.update));
+
         try writer.writeAll(", .create = ");
-        try (if (value.create) writer.writeAll("true") else writer.writeAll("false"));
+        const create = if (value.create) "true" else "false";
+        try writer.writeAll(create);
+
         try writer.writeAll(", .dereference = ");
-        try (if (value.dereference) writer.writeAll("true") else writer.writeAll("false"));
+        const dereference = if (value.dereference) "true" else "false";
+        try writer.writeAll(dereference);
+
         try writer.writeAll(", .time_to_use = ");
         switch (value.time_to_use) {
             .current_time => try writer.writeAll(".current_time }"),
@@ -396,9 +446,7 @@ test "touch - create file" {
     try subcommands.testExecute(
         @This(),
         &.{"FILE"},
-        .{
-            .cwd = cwd,
-        },
+        .{ .cwd = cwd },
     );
 
     // file should exist
@@ -420,9 +468,7 @@ test "touch - don't create file" {
     try subcommands.testExecute(
         @This(),
         &.{ "-a", "EXISTS" },
-        .{
-            .cwd = cwd,
-        },
+        .{ .cwd = cwd },
     );
 
     // file should still not exist

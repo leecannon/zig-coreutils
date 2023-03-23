@@ -21,63 +21,7 @@ pub fn build(b: *std.Build) !void {
     const options = b.addOptions();
     options.addOption(bool, "trace", trace);
 
-    const version = v: {
-        const version_string = b.fmt(
-            "{d}.{d}.{d}",
-            .{ coreutils_version.major, coreutils_version.minor, coreutils_version.patch },
-        );
-
-        var code: u8 = undefined;
-        const git_describe_untrimmed = b.execAllowFail(&[_][]const u8{
-            "git", "-C", b.build_root.path.?, "describe", "--match", "*.*.*", "--tags",
-        }, &code, .Ignore) catch {
-            break :v version_string;
-        };
-        const git_describe = std.mem.trim(u8, git_describe_untrimmed, " \n\r");
-
-        switch (std.mem.count(u8, git_describe, "-")) {
-            0 => {
-                // Tagged release version (e.g. 0.8.0).
-                if (!std.mem.eql(u8, git_describe, version_string)) {
-                    std.debug.print(
-                        "Zig-Coreutils version '{s}' does not match Git tag '{s}'\n",
-                        .{ version_string, git_describe },
-                    );
-                    std.process.exit(1);
-                }
-                break :v version_string;
-            },
-            2 => {
-                // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
-                var it = std.mem.split(u8, git_describe, "-");
-                const tagged_ancestor = it.next() orelse unreachable;
-                const commit_height = it.next() orelse unreachable;
-                const commit_id = it.next() orelse unreachable;
-
-                const ancestor_ver = try std.builtin.Version.parse(tagged_ancestor);
-                if (coreutils_version.order(ancestor_ver) != .gt) {
-                    std.debug.print(
-                        "Zig-Coreutils version '{}' must be greater than tagged ancestor '{}'\n",
-                        .{ coreutils_version, ancestor_ver },
-                    );
-                    std.process.exit(1);
-                }
-
-                // Check that the commit hash is prefixed with a 'g' (a Git convention).
-                if (commit_id.len < 1 or commit_id[0] != 'g') {
-                    std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
-                    break :v version_string;
-                }
-
-                // The version is reformatted in accordance with the https://semver.org specification.
-                break :v b.fmt("{s}-dev.{s}+{s}", .{ version_string, commit_height, commit_id[1..] });
-            },
-            else => {
-                std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
-                break :v version_string;
-            },
-        }
-    };
+    const version = try getVersion(b);
     options.addOption([:0]const u8, "version", try b.allocator.dupeZ(u8, version));
 
     const exe = b.addExecutable(.{
@@ -101,7 +45,6 @@ pub fn build(b: *std.Build) !void {
     }
 
     const run_cmd = exe.run();
-    // TODO: Ignore exit code for determining success - https://github.com/ziglang/zig/issues/14996
     run_cmd.stdio = .inherit;
     run_cmd.has_side_effects = true;
     run_cmd.step.dependOn(b.getInstallStep());
@@ -130,13 +73,13 @@ pub fn build(b: *std.Build) !void {
         });
     }
 
+    const test_run = test_step.run();
+    test_run.has_side_effects = true;
     const run_test_step = b.step("test", "Run the tests");
-    run_test_step.dependOn(&test_step.step);
-    // as this is set as the default step also get it to trigger an install of the main exe
-    test_step.step.dependOn(b.getInstallStep());
+    run_test_step.dependOn(&test_run.step);
 }
 
-fn includeTracy(exe: *std.Build.LibExeObjStep) void {
+fn includeTracy(exe: *std.Build.CompileStep) void {
     exe.linkLibC();
     exe.linkLibCpp();
     exe.addIncludePath("tracy/public");
@@ -153,5 +96,63 @@ fn includeTracy(exe: *std.Build.LibExeObjStep) void {
         exe.linkSystemLibrary("User32");
         exe.linkSystemLibrary("Ws2_32");
         exe.linkSystemLibrary("DbgHelp");
+    }
+}
+
+fn getVersion(b: *std.Build) ![]const u8 {
+    const version_string = b.fmt(
+        "{d}.{d}.{d}",
+        .{ coreutils_version.major, coreutils_version.minor, coreutils_version.patch },
+    );
+
+    var code: u8 = undefined;
+    const git_describe_untrimmed = b.execAllowFail(&[_][]const u8{
+        "git", "-C", b.build_root.path.?, "describe", "--match", "*.*.*", "--tags",
+    }, &code, .Ignore) catch {
+        return version_string;
+    };
+    const git_describe = std.mem.trim(u8, git_describe_untrimmed, " \n\r");
+
+    switch (std.mem.count(u8, git_describe, "-")) {
+        0 => {
+            // Tagged release version (e.g. 0.8.0).
+            if (!std.mem.eql(u8, git_describe, version_string)) {
+                std.debug.print(
+                    "Zig-Coreutils version '{s}' does not match Git tag '{s}'\n",
+                    .{ version_string, git_describe },
+                );
+                std.process.exit(1);
+            }
+            return version_string;
+        },
+        2 => {
+            // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
+            var it = std.mem.split(u8, git_describe, "-");
+            const tagged_ancestor = it.next() orelse unreachable;
+            const commit_height = it.next() orelse unreachable;
+            const commit_id = it.next() orelse unreachable;
+
+            const ancestor_ver = try std.builtin.Version.parse(tagged_ancestor);
+            if (coreutils_version.order(ancestor_ver) != .gt) {
+                std.debug.print(
+                    "Zig-Coreutils version '{}' must be greater than tagged ancestor '{}'\n",
+                    .{ coreutils_version, ancestor_ver },
+                );
+                std.process.exit(1);
+            }
+
+            // Check that the commit hash is prefixed with a 'g' (a Git convention).
+            if (commit_id.len < 1 or commit_id[0] != 'g') {
+                std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
+                return version_string;
+            }
+
+            // The version is reformatted in accordance with the https://semver.org specification.
+            return b.fmt("{s}-dev.{s}+{s}", .{ version_string, commit_height, commit_id[1..] });
+        },
+        else => {
+            std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
+            return version_string;
+        },
     }
 }

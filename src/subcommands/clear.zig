@@ -48,8 +48,9 @@ pub fn execute(
 
     const options = try parseArguments(allocator, io, args, exe_path);
 
-    io.stdout.writeAll(if (options.clear_scrollback) "\x1b[H\x1b[2J\x1b[3J" else "\x1b[H\x1b[2J") catch |err|
-        return shared.unableToWriteTo("stdout", io, err);
+    const output = if (options.clear_scrollback) "\x1b[H\x1b[2J\x1b[3J" else "\x1b[H\x1b[2J";
+
+    io.stdout.writeAll(output) catch |err| return shared.unableToWriteTo("stdout", io, err);
 }
 
 fn parseArguments(
@@ -113,8 +114,22 @@ fn parseArguments(
     return switch (state) {
         .normal => clear_options,
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '--{s}'", .{slice}),
-            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "unrecognized option '--{s}'",
+                .{slice},
+            ),
+            .character => |character| shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "unrecognized option -- '{c}'",
+                .{character},
+            ),
         },
     };
 }
@@ -127,9 +142,11 @@ test "clear no args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(@This(), &.{}, .{
-        .stdout = stdout.writer(),
-    });
+    try subcommands.testExecute(
+        @This(),
+        &.{},
+        .{ .stdout = stdout.writer() },
+    );
 
     try std.testing.expectEqualStrings("\x1b[H\x1b[2J\x1b[3J", stdout.items);
 }
@@ -138,9 +155,11 @@ test "clear - don't clear scrollback" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(@This(), &.{"-x"}, .{
-        .stdout = stdout.writer(),
-    });
+    try subcommands.testExecute(
+        @This(),
+        &.{"-x"},
+        .{ .stdout = stdout.writer() },
+    );
 
     try std.testing.expectEqualStrings("\x1b[H\x1b[2J", stdout.items);
 }

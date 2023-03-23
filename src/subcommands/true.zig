@@ -65,11 +65,13 @@ test "true ignores args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(@This(), &.{
-        "these", "arguments", "are", "ignored",
-    }, .{
-        .stdout = stdout.writer(),
-    });
+    try subcommands.testExecute(
+        @This(),
+        &.{
+            "these", "arguments", "are", "ignored",
+        },
+        .{ .stdout = stdout.writer() },
+    );
 
     try std.testing.expectEqualStrings("", stdout.items);
 }

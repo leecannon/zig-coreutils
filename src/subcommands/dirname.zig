@@ -18,14 +18,6 @@ pub const usage =
     \\
 ;
 
-// Usage: dirname [OPTION] NAME...
-// Output each NAME with its last non-slash component and trailing slashes
-// removed; if NAME contains no /'s, output '.' (meaning the current directory).
-
-//   -z, --zero     end each output line with NUL, not newline
-//       --help     display this help and exit
-//       --version  output version information and exit
-
 // io
 // .{
 //     .stderr: std.io.Writer,
@@ -125,10 +117,29 @@ fn parseArguments(
     }
 
     return switch (state) {
-        .normal => shared.printInvalidUsage(@This(), io, exe_path, "missing operand"),
+        .normal => shared.printInvalidUsage(
+            @This(),
+            io,
+            exe_path,
+            "missing operand",
+        ),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option '{s}'", .{slice}),
-            .character => |character| shared.printInvalidUsageAlloc(@This(), allocator, io, exe_path, "unrecognized option -- '{c}'", .{character}),
+            .slice => |slice| shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "unrecognized option '{s}'",
+                .{slice},
+            ),
+            .character => |character| shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "unrecognized option -- '{c}'",
+                .{character},
+            ),
         },
     };
 }
@@ -185,11 +196,13 @@ test "dirname single" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(@This(), &.{
-        "hello/world",
-    }, .{
-        .stdout = stdout.writer(),
-    });
+    try subcommands.testExecute(
+        @This(),
+        &.{
+            "hello/world",
+        },
+        .{ .stdout = stdout.writer() },
+    );
 
     try std.testing.expectEqualStrings("hello\n", stdout.items);
 }
@@ -198,13 +211,15 @@ test "dirname multiple" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(@This(), &.{
-        "hello/world",
-        "this/is/a/test",
-        "a/b/c/d",
-    }, .{
-        .stdout = stdout.writer(),
-    });
+    try subcommands.testExecute(
+        @This(),
+        &.{
+            "hello/world",
+            "this/is/a/test",
+            "a/b/c/d",
+        },
+        .{ .stdout = stdout.writer() },
+    );
 
     try std.testing.expectEqualStrings(
         \\hello

@@ -49,14 +49,18 @@ pub fn execute(
 
     const opt_arg = try args.nextWithHelpOrVersion(true);
 
-    const passwd_file = cwd.openFile("/etc/passwd", .{}) catch
-        return shared.printError(@This(), io, "unable to read '/etc/passwd'");
+    const passwd_file = cwd.openFile("/etc/passwd", .{}) catch {
+        return shared.printError(
+            @This(),
+            io,
+            "unable to read '/etc/passwd'",
+        );
+    };
     defer if (shared.free_on_close) passwd_file.close();
 
-    return if (opt_arg) |arg|
-        otherUser(allocator, io, arg, passwd_file, cwd)
-    else
-        currentUser(allocator, io, passwd_file, cwd);
+    if (opt_arg) |arg| return otherUser(allocator, io, arg, passwd_file, cwd);
+
+    return currentUser(allocator, io, passwd_file, cwd);
 }
 
 fn currentUser(
@@ -76,19 +80,37 @@ fn currentUser(
     defer passwd_file_iter.deinit();
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
-        if (std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10)) |user_id| {
-            if (user_id == euid) {
-                log.debug("found matching user id: {}", .{user_id});
+        const user_id = std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10) catch {
+            return shared.printError(
+                @This(),
+                io,
+                "format of '/etc/passwd' is invalid",
+            );
+        };
 
-                return if (std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10)) |primary_group_id|
-                    printGroups(allocator, entry.user_name, primary_group_id, io, cwd)
-                else |_|
-                    shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
-            } else log.debug("found non-matching user id: {}", .{user_id});
-        } else |_| return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
+        if (user_id != euid) {
+            log.debug("found non-matching user id: {}", .{user_id});
+            continue;
+        }
+
+        log.debug("found matching user id: {}", .{user_id});
+
+        const primary_group_id = std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10) catch {
+            return shared.printError(
+                @This(),
+                io,
+                "format of '/etc/passwd' is invalid",
+            );
+        };
+
+        return printGroups(allocator, entry.user_name, primary_group_id, io, cwd);
     }
 
-    return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
+    return shared.printError(
+        @This(),
+        io,
+        "'/etc/passwd' does not contain the current effective uid",
+    );
 }
 
 fn otherUser(
@@ -115,10 +137,15 @@ fn otherUser(
 
         log.debug("found matching user: {s}", .{entry.user_name});
 
-        return if (std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10)) |primary_group_id|
-            printGroups(allocator, entry.user_name, primary_group_id, io, cwd)
-        else |_|
-            shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
+        const primary_group_id = std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10) catch {
+            return shared.printError(
+                @This(),
+                io,
+                "format of '/etc/passwd' is invalid",
+            );
+        };
+
+        return printGroups(allocator, entry.user_name, primary_group_id, io, cwd);
     }
 
     return shared.printErrorAlloc(@This(), allocator, io, "unknown user {s}", .{arg.raw});
@@ -137,9 +164,13 @@ fn printGroups(
 
     log.debug("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
 
-    var group_file = cwd.openFile("/etc/group", .{}) catch
-        return shared.printError(@This(), io, "unable to read '/etc/group'");
-
+    var group_file = cwd.openFile("/etc/group", .{}) catch {
+        return shared.printError(
+            @This(),
+            io,
+            "unable to read '/etc/group'",
+        );
+    };
     defer if (shared.free_on_close) group_file.close();
 
     var group_file_iter = shared.groupFileIterator(allocator, group_file);
@@ -148,27 +179,35 @@ fn printGroups(
     var first = true;
 
     while (try group_file_iter.next(@This(), io)) |entry| {
-        if (std.fmt.parseUnsigned(std.os.uid_t, entry.group_id, 10)) |group_id| {
-            if (group_id == primary_group_id) {
-                if (!first) {
-                    io.stdout.writeByte(' ') catch |err| return shared.unableToWriteTo("stdout", io, err);
-                }
-                io.stdout.writeAll(entry.group_name) catch |err| return shared.unableToWriteTo("stdout", io, err);
-                first = false;
-                continue;
+        const group_id = std.fmt.parseUnsigned(std.os.uid_t, entry.group_id, 10) catch {
+            return shared.printError(
+                @This(),
+                io,
+                "format of '/etc/group' is invalid",
+            );
+        };
+
+        if (group_id == primary_group_id) {
+            if (!first) {
+                io.stdout.writeByte(' ') catch |err| return shared.unableToWriteTo("stdout", io, err);
             }
-        } else |_| return shared.printError(@This(), io, "format of '/etc/group' is invalid");
+            io.stdout.writeAll(entry.group_name) catch |err| return shared.unableToWriteTo("stdout", io, err);
+
+            first = false;
+            continue;
+        }
 
         var member_iter = entry.iterateMembers();
         while (member_iter.next()) |member| {
-            if (std.mem.eql(u8, member, user_name)) {
-                if (!first) {
-                    io.stdout.writeByte(' ') catch |err| return shared.unableToWriteTo("stdout", io, err);
-                }
-                io.stdout.writeAll(entry.group_name) catch |err| return shared.unableToWriteTo("stdout", io, err);
-                first = false;
-                break;
+            if (!std.mem.eql(u8, member, user_name)) continue;
+
+            if (!first) {
+                io.stdout.writeByte(' ') catch |err| return shared.unableToWriteTo("stdout", io, err);
             }
+
+            io.stdout.writeAll(entry.group_name) catch |err| return shared.unableToWriteTo("stdout", io, err);
+            first = false;
+            break;
         }
     }
 

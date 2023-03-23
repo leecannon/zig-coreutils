@@ -52,14 +52,18 @@ pub fn execute(
     // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
-    // FIXME: This is weird, is this acceptable to allow the other subcommand to not have to worry about u8 return value?
+    // FIXME: This is weird, is this acceptable to allow the other subcommands to not have to worry about u8 return value?
     return error.AlreadyHandled;
 }
 
 test "false no args" {
     try std.testing.expectError(
         error.AlreadyHandled,
-        subcommands.testExecute(@This(), &.{}, .{}),
+        subcommands.testExecute(
+            @This(),
+            &.{},
+            .{},
+        ),
     );
 }
 

@@ -74,7 +74,7 @@ pub fn execute(
                     exe_path,
                     subcommand.name,
                 });
-                defer allocator.free(exe_path_with_subcommand);
+                defer if (shared.free_on_close) allocator.free(exe_path_with_subcommand);
 
                 return executeSubcommand(
                     subcommand,

@@ -51,27 +51,49 @@ pub fn execute(
 
     const euid = std.os.linux.geteuid();
 
-    const passwd_file = cwd.openFile("/etc/passwd", .{}) catch
-        return shared.printError(@This(), io, "unable to read '/etc/passwd'");
+    const passwd_file = cwd.openFile("/etc/passwd", .{}) catch {
+        return shared.printError(
+            @This(),
+            io,
+            "unable to read '/etc/passwd'",
+        );
+    };
     defer if (shared.free_on_close) passwd_file.close();
 
     var passwd_file_iter = shared.passwdFileIterator(allocator, passwd_file);
     defer passwd_file_iter.deinit();
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
-        if (std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10)) |user_id| {
-            if (user_id == euid) {
-                log.debug("found matching user id: {}", .{user_id});
+        const user_id = std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10) catch {
+            return shared.printError(
+                @This(),
+                io,
+                "format of '/etc/passwd' is invalid",
+            );
+        };
 
-                io.stdout.print("{s}\n", .{entry.user_name}) catch |err| return shared.unableToWriteTo("stdout", io, err);
-                return;
-            } else {
-                log.debug("found non-matching user id: {}", .{user_id});
-            }
-        } else |_| return shared.printError(@This(), io, "format of '/etc/passwd' is invalid");
+        if (user_id != euid) {
+            log.debug("found non-matching user id: {}", .{user_id});
+            continue;
+        }
+
+        log.debug("found matching user id: {}", .{user_id});
+
+        io.stdout.print("{s}\n", .{entry.user_name}) catch |err| {
+            return shared.unableToWriteTo(
+                "stdout",
+                io,
+                err,
+            );
+        };
+        return;
     }
 
-    return shared.printError(@This(), io, "'/etc/passwd' does not contain the current effective uid");
+    return shared.printError(
+        @This(),
+        io,
+        "'/etc/passwd' does not contain the current effective uid",
+    );
 }
 
 // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?

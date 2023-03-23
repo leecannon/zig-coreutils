@@ -51,7 +51,9 @@ pub fn execute(
     defer if (shared.free_on_close) string.deinit(allocator);
 
     while (true) {
-        io.stdout.writeAll(string.value) catch |err| return shared.unableToWriteTo("stdout", io, err);
+        io.stdout.writeAll(string.value) catch |err| {
+            return shared.unableToWriteTo("stdout", io, err);
+        };
     }
 }
 
@@ -64,7 +66,9 @@ fn getString(allocator: std.mem.Allocator, args: anytype) !MaybeAllocatedString 
 
     if (try args.nextWithHelpOrVersion(true)) |arg| {
         try buffer.appendSlice(arg.raw);
-    } else return MaybeAllocatedString.not_allocated("y\n");
+    } else {
+        return MaybeAllocatedString.not_allocated("y\n");
+    }
 
     while (args.nextRaw()) |arg| {
         try buffer.append(' ');
