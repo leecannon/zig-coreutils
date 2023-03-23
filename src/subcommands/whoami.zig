@@ -51,17 +51,10 @@ pub fn execute(
 
     const euid = std.os.linux.geteuid();
 
-    const passwd_file = cwd.openFile("/etc/passwd", .{}) catch {
-        return shared.printError(
-            @This(),
-            io,
-            "unable to read '/etc/passwd'",
-        );
-    };
-    defer if (shared.free_on_close) passwd_file.close();
+    const passwd_file = try shared.mapFile(@This(), allocator, io, cwd, "/etc/passwd");
+    defer passwd_file.close();
 
-    var passwd_file_iter = shared.passwdFileIterator(allocator, passwd_file);
-    defer passwd_file_iter.deinit();
+    var passwd_file_iter = shared.passwdFileIterator(passwd_file.file_contents);
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
         const user_id = std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10) catch {

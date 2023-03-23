@@ -104,6 +104,76 @@ pub fn printInvalidUsageAlloc(
     return printInvalidUsage(subcommand, io, exe_path, error_message);
 }
 
+pub fn mapFile(
+    comptime subcommand: type,
+    allocator: std.mem.Allocator,
+    io: anytype,
+    cwd: std.fs.Dir,
+    path: []const u8,
+) error{ AlreadyHandled, OutOfMemory }!MappedFile {
+    const file = cwd.openFile(path, .{}) catch {
+        return printErrorAlloc(
+            subcommand,
+            allocator,
+            io,
+            "unable to open '{s}'",
+            .{path},
+        );
+    };
+    errdefer if (free_on_close) file.close();
+
+    const stat = file.stat() catch |err| {
+        return printErrorAlloc(
+            subcommand,
+            allocator,
+            io,
+            "unable to stat '{s}': {s}",
+            .{ path, @errorName(err) },
+        );
+    };
+
+    if (stat.size == 0) {
+        return .{
+            .file = file,
+            .file_contents = &.{},
+        };
+    }
+
+    const file_contents = std.os.mmap(
+        null,
+        stat.size,
+        std.os.PROT.READ,
+        std.os.MAP.PRIVATE,
+        file.handle,
+        0,
+    ) catch |err| {
+        return printErrorAlloc(
+            subcommand,
+            allocator,
+            io,
+            "unable to map '{s}': {s}",
+            .{ path, @errorName(err) },
+        );
+    };
+
+    return .{
+        .file = file,
+        .file_contents = file_contents,
+    };
+}
+
+pub const MappedFile = struct {
+    file: std.fs.File,
+    file_contents: []align(std.mem.page_size) const u8,
+
+    pub fn close(self: MappedFile) void {
+        if (free_on_close) {
+            std.os.munmap(self.file_contents);
+            self.file.close();
+        }
+    }
+};
+
 pub const version_string = "{s} (zig-coreutils) " ++ build_options.version ++ "\nMIT License Copyright (c) 2021-2023 Lee Cannon\n";
 
 pub fn ArgIterator(comptime T: type) type {
@@ -245,18 +315,15 @@ pub const Arg = struct {
     };
 };
 
-pub fn passwdFileIterator(allocator: std.mem.Allocator, passwd_file: std.fs.File) PasswdFileIterator {
+pub fn passwdFileIterator(passwd_file_contents: []const u8) PasswdFileIterator {
     return .{
-        .passwd_file = passwd_file,
-        .passwd_buffered_reader = std.io.bufferedReader(passwd_file.reader()),
-        .line_buffer = std.ArrayList(u8).init(allocator),
+        .passwd_file_contents = passwd_file_contents,
     };
 }
 
 pub const PasswdFileIterator = struct {
-    passwd_file: std.fs.File,
-    passwd_buffered_reader: std.io.BufferedReader(4096, std.fs.File.Reader),
-    line_buffer: std.ArrayList(u8),
+    index: usize = 0,
+    passwd_file_contents: []const u8,
 
     pub const Entry = struct {
         user_name: []const u8,
@@ -269,22 +336,16 @@ pub const PasswdFileIterator = struct {
         self: *PasswdFileIterator,
         comptime subcommand: type,
         io: anytype,
-    ) error{ OutOfMemory, AlreadyHandled }!?Entry {
-        const reader = self.passwd_buffered_reader.reader();
-        while (true) {
-            reader.readUntilDelimiterArrayList(
-                &self.line_buffer,
-                '\n',
-                std.math.maxInt(usize),
-            ) catch |err| switch (err) {
-                error.EndOfStream => return null,
-                else => return printError(subcommand, io, "unable to read '/etc/passwd'"),
-            };
-            if (self.line_buffer.items.len == 0) continue;
-            break;
-        }
+    ) error{AlreadyHandled}!?Entry {
+        if (self.index >= self.passwd_file_contents.len) return null;
 
-        var column_iter = std.mem.tokenize(u8, self.line_buffer.items, ":");
+        const remaining = self.passwd_file_contents[self.index..];
+
+        const line_length = std.mem.indexOfScalar(u8, remaining, '\n') orelse remaining.len - 1;
+
+        self.index += line_length + 1;
+
+        var column_iter = std.mem.tokenize(u8, remaining[0..line_length], ":");
 
         const user_name = column_iter.next() orelse
             return printError(subcommand, io, "format of '/etc/passwd' is invalid");
@@ -305,24 +366,17 @@ pub const PasswdFileIterator = struct {
             .primary_group_id = primary_group_id_slice,
         };
     }
-
-    pub fn deinit(self: *PasswdFileIterator) void {
-        if (free_on_close) self.line_buffer.deinit();
-    }
 };
 
-pub fn groupFileIterator(allocator: std.mem.Allocator, group_file: std.fs.File) GroupFileIterator {
+pub fn groupFileIterator(group_file_contents: []const u8) GroupFileIterator {
     return .{
-        .group_file = group_file,
-        .group_buffered_reader = std.io.bufferedReader(group_file.reader()),
-        .line_buffer = std.ArrayList(u8).init(allocator),
+        .group_file_contents = group_file_contents,
     };
 }
 
 pub const GroupFileIterator = struct {
-    group_file: std.fs.File,
-    group_buffered_reader: std.io.BufferedReader(4096, std.fs.File.Reader),
-    line_buffer: std.ArrayList(u8),
+    index: usize = 0,
+    group_file_contents: []const u8,
 
     pub const Entry = struct {
         group_name: []const u8,
@@ -339,22 +393,16 @@ pub const GroupFileIterator = struct {
         self: *GroupFileIterator,
         comptime subcommand: type,
         io: anytype,
-    ) error{ OutOfMemory, AlreadyHandled }!?Entry {
-        const reader = self.group_buffered_reader.reader();
-        while (true) {
-            reader.readUntilDelimiterArrayList(
-                &self.line_buffer,
-                '\n',
-                std.math.maxInt(usize),
-            ) catch |err| switch (err) {
-                error.EndOfStream => return null,
-                else => return printError(subcommand, io, "unable to read '/etc/group'"),
-            };
-            if (self.line_buffer.items.len == 0) continue;
-            break;
-        }
+    ) error{AlreadyHandled}!?Entry {
+        if (self.index >= self.group_file_contents.len) return null;
 
-        var column_iter = std.mem.tokenize(u8, self.line_buffer.items, ":");
+        const remaining = self.group_file_contents[self.index..];
+
+        const line_length = std.mem.indexOfScalar(u8, remaining, '\n') orelse remaining.len - 1;
+
+        self.index += line_length + 1;
+
+        var column_iter = std.mem.tokenize(u8, remaining[0..line_length], ":");
 
         const group_name = column_iter.next() orelse
             return printError(subcommand, io, "format of '/etc/group' is invalid");
@@ -371,10 +419,6 @@ pub const GroupFileIterator = struct {
             .group_id = group_id_slice,
             .members_slice = column_iter.next(),
         };
-    }
-
-    pub fn deinit(self: *GroupFileIterator) void {
-        if (free_on_close) self.line_buffer.deinit();
     }
 };
 

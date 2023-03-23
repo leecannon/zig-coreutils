@@ -49,24 +49,18 @@ pub fn execute(
 
     const opt_arg = try args.nextWithHelpOrVersion(true);
 
-    const passwd_file = cwd.openFile("/etc/passwd", .{}) catch {
-        return shared.printError(
-            @This(),
-            io,
-            "unable to read '/etc/passwd'",
-        );
-    };
-    defer if (shared.free_on_close) passwd_file.close();
+    const passwd_file = try shared.mapFile(@This(), allocator, io, cwd, "/etc/passwd");
+    defer passwd_file.close();
 
-    if (opt_arg) |arg| return otherUser(allocator, io, arg, passwd_file, cwd);
+    if (opt_arg) |arg| return otherUser(allocator, io, arg, passwd_file.file_contents, cwd);
 
-    return currentUser(allocator, io, passwd_file, cwd);
+    return currentUser(allocator, io, passwd_file.file_contents, cwd);
 }
 
 fn currentUser(
     allocator: std.mem.Allocator,
     io: anytype,
-    passwd_file: std.fs.File,
+    passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
 ) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), "current user");
@@ -76,8 +70,7 @@ fn currentUser(
 
     log.debug("currentUser called, euid: {}", .{euid});
 
-    var passwd_file_iter = shared.passwdFileIterator(allocator, passwd_file);
-    defer passwd_file_iter.deinit();
+    var passwd_file_iter = shared.passwdFileIterator(passwd_file_contents);
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
         const user_id = std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10) catch {
@@ -117,7 +110,7 @@ fn otherUser(
     allocator: std.mem.Allocator,
     io: anytype,
     arg: shared.Arg,
-    passwd_file: std.fs.File,
+    passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
 ) subcommands.Error!void {
     const z = shared.tracy.traceNamed(@src(), "other user");
@@ -126,8 +119,7 @@ fn otherUser(
 
     log.debug("otherUser called, arg='{s}'", .{arg.raw});
 
-    var passwd_file_iter = shared.passwdFileIterator(allocator, passwd_file);
-    defer passwd_file_iter.deinit();
+    var passwd_file_iter = shared.passwdFileIterator(passwd_file_contents);
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
         if (!std.mem.eql(u8, entry.user_name, arg.raw)) {
@@ -164,17 +156,10 @@ fn printGroups(
 
     log.debug("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
 
-    var group_file = cwd.openFile("/etc/group", .{}) catch {
-        return shared.printError(
-            @This(),
-            io,
-            "unable to read '/etc/group'",
-        );
-    };
-    defer if (shared.free_on_close) group_file.close();
+    const group_file = try shared.mapFile(@This(), allocator, io, cwd, "/etc/group");
+    defer group_file.close();
 
-    var group_file_iter = shared.groupFileIterator(allocator, group_file);
-    defer group_file_iter.deinit();
+    var group_file_iter = shared.groupFileIterator(group_file.file_contents);
 
     var first = true;
 
