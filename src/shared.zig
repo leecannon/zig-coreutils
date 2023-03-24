@@ -168,7 +168,7 @@ pub const MappedFile = struct {
 
     pub fn close(self: MappedFile) void {
         if (free_on_close) {
-            std.os.munmap(self.file_contents);
+            if (self.file_contents.len != 0) std.os.munmap(self.file_contents);
             self.file.close();
         }
     }
