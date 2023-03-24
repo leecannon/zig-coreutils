@@ -19,6 +19,7 @@ Currently Linux only to ease development.
  * dirname
  * false
  * groups
+ * nprocs
  * touch
  * true
  * whoami
