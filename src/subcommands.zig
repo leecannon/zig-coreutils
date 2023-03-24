@@ -10,6 +10,7 @@ pub const SUBCOMMANDS = [_]type{
     @import("subcommands/dirname.zig"),
     @import("subcommands/false.zig"),
     @import("subcommands/groups.zig"),
+    @import("subcommands/nproc.zig"),
     @import("subcommands/touch.zig"),
     @import("subcommands/true.zig"),
     @import("subcommands/whoami.zig"),

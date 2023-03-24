@@ -174,6 +174,39 @@ pub const MappedFile = struct {
     }
 };
 
+pub fn readFileIntoBuffer(
+    comptime subcommand: type,
+    allocator: std.mem.Allocator,
+    io: anytype,
+    cwd: std.fs.Dir,
+    path: []const u8,
+    buffer: []u8,
+) error{ AlreadyHandled, OutOfMemory }![]const u8 {
+    const file = cwd.openFile(path, .{}) catch {
+        return printErrorAlloc(
+            subcommand,
+            allocator,
+            io,
+            "unable to open '{s}'",
+            .{path},
+        );
+    };
+    defer if (free_on_close) file.close();
+
+    const reader = file.reader();
+    const read = reader.readAll(buffer) catch |err| {
+        return printErrorAlloc(
+            subcommand,
+            allocator,
+            io,
+            "unable to read file '{s}': {s}",
+            .{ path, @errorName(err) },
+        );
+    };
+
+    return buffer[0..read];
+}
+
 pub const version_string = "{s} (zig-coreutils) " ++ build_options.version ++ "\nMIT License Copyright (c) 2021-2023 Lee Cannon\n";
 
 pub fn ArgIterator(comptime T: type) type {
