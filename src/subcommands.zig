@@ -28,7 +28,8 @@ const SubcommandError = error{
 };
 
 const SubcommandNonError = error{
-    Help,
+    ShortHelp,
+    FullHelp,
     Version,
 };
 
@@ -107,7 +108,8 @@ fn executeSubcommand(
 
     var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
     return subcommand.execute(allocator, io, &arg_iterator, cwd, exe_path) catch |err| switch (err) {
-        error.Help => shared.printHelp(subcommand, io, exe_path),
+        error.ShortHelp => shared.printShortHelp(subcommand, io, exe_path),
+        error.FullHelp => shared.printFullHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),
         else => |narrow_err| narrow_err,
     };
@@ -177,8 +179,12 @@ pub fn testError(
 }
 
 pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !void {
-    const expected = try std.fmt.allocPrint(std.testing.allocator, subcommand.usage, .{subcommand.name});
-    defer std.testing.allocator.free(expected);
+    const full_expected_help = try std.fmt.allocPrint(
+        std.testing.allocator,
+        comptime subcommand.short_help ++ subcommand.extended_help,
+        .{subcommand.name},
+    );
+    defer std.testing.allocator.free(full_expected_help);
 
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
@@ -189,9 +195,16 @@ pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !vo
         .{ .stdout = out.writer() },
     );
 
-    try std.testing.expectEqualStrings(expected, out.items);
+    try std.testing.expectEqualStrings(full_expected_help, out.items);
 
     if (include_shorthand) {
+        const short_expected_help = try std.fmt.allocPrint(
+            std.testing.allocator,
+            subcommand.short_help,
+            .{subcommand.name},
+        );
+        defer std.testing.allocator.free(short_expected_help);
+
         out.clearRetainingCapacity();
 
         try testExecute(
@@ -200,7 +213,7 @@ pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !vo
             .{ .stdout = out.writer() },
         );
 
-        try std.testing.expectEqualStrings(expected, out.items);
+        try std.testing.expectEqualStrings(short_expected_help, out.items);
     }
 }
 

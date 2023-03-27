@@ -6,16 +6,20 @@ const log = std.log.scoped(.clear);
 
 pub const name = "clear";
 
-pub const usage =
+pub const short_help =
     \\Usage: {0s} [OPTION]
     \\
     \\Clear the screen.
     \\
-    \\     -x          don't clear the scrollback
-    \\     -h, --help  display this help and exit
-    \\     --version   output version information and exit
+    \\  -x         don't clear the scrollback
+    \\  -h         display the short help and exit
+    \\  --help     display the full help and exit
+    \\  --version  output version information and exit
     \\
 ;
+
+// No examples provided for `clear`
+pub const extended_help = "";
 
 // io
 // .{

@@ -6,16 +6,20 @@ const log = std.log.scoped(.true);
 
 pub const name = "true";
 
-pub const usage =
+pub const short_help =
     \\Usage: {0s} [ignored command line arguments]
     \\   or: {0s} OPTION
     \\
     \\Exit with a status code indicating success.
     \\
-    \\     -h, --help  display this help and exit
-    \\     --version   output version information and exit
+    \\  -h         display the short help and exit
+    \\  --help     display the full help and exit
+    \\  --version  output version information and exit
     \\
 ;
+
+// No examples provided for `true`
+pub const extended_help = "";
 
 // io
 // .{

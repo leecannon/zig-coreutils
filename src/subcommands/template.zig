@@ -6,16 +6,21 @@ const log = std.log.scoped(.template);
 
 pub const name = "template";
 
-pub const usage =
+pub const short_help =
     \\Usage: {0s} [ignored command line arguments]
     \\   or: {0s} OPTION
     \\
     \\A template subcommand
     \\
-    \\     -h, --help  display this help and exit
-    \\     --version   output version information and exit
+    \\  -h         display the short help and exit
+    \\  --help     display the full help and exit
+    \\  --version  output version information and exit
     \\
 ;
+
+// No examples provided for `template`
+// a blank line is required at the beginning to ensure correct formatting
+pub const extended_help = "";
 
 // io
 // .{

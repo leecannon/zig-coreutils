@@ -6,15 +6,25 @@ const log = std.log.scoped(.dirname);
 
 pub const name = "dirname";
 
-pub const usage =
+pub const short_help =
     \\Usage: {0s} [OPTION] NAME...
     \\
     \\Print each NAME with its last non-slash components and trailing slashes removed.
     \\If NAME contains no slashes outputs '.' (the current directory).
     \\
-    \\  -z, --zero     end each output line with NUL, not newline
-    \\      --help     display this help and exit
-    \\      --version  output version information and exit
+    \\  -z, --zero  end each output line with NUL, not newline
+    \\  -h          display the short help and exit
+    \\  --help      display the full help and exit
+    \\  --version   output version information and exit
+    \\
+;
+
+pub const extended_help = // a blank line is required at the beginning to ensure correct formatting
+    \\
+    \\Examples:
+    \\  dirname /usr/bin/          -> "/usr"
+    \\  dirname dir1/str dir2/str  -> "dir1" followed by "dir2"
+    \\  dirname stdio.h            -> "."
     \\
 ;
 

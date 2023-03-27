@@ -6,7 +6,7 @@ const log = std.log.scoped(.touch);
 
 pub const name = "touch";
 
-pub const usage =
+pub const short_help =
     \\Usage: {0s} [OPTION]... FILE...
     \\
     \\Update the access and modification times of each FILE to the current time.
@@ -16,19 +16,23 @@ pub const usage =
     \\A FILE argument string of '-' is handled specially and causes 'touch' to change 
     \\the times of the file associated with standard output.
     \\
-    \\     -a                    change only the access time
-    \\     -c, --no-create       do not create any files
-    \\     -f                    (ignored)
-    \\     -h, --no-dereference  affect symbolic link instead of any referenced file
-    \\     -m                    change only the modification time
-    \\     -r, --reference=FILE  use this file's times instead of the current time
-    \\     --time=WORD           change the specified time:
-    \\                             WORD is access, atime, or use: equivalent to -a
-    \\                             WORD is modify or mtime: equivalent to -m
-    \\     --help                display this help and exit
-    \\     --version             output version information and exit
+    \\  -a                    change only the access time
+    \\  -c, --no-create       do not create any files
+    \\  -f                    (ignored)
+    \\  -h, --no-dereference  affect symbolic link instead of any referenced file
+    \\  -m                    change only the modification time
+    \\  -r, --reference=FILE  use this file's times instead of the current time
+    \\  --time=WORD           change the specified time:
+    \\                          WORD is access, atime, or use: equivalent to -a
+    \\                          WORD is modify or mtime: equivalent to -m
+    \\  --help                display the help and exit
+    \\  --version             output version information and exit
     \\
 ;
+
+// No examples provided for `touch`
+// TODO: Should there be?
+pub const extended_help = "";
 
 // io
 // .{

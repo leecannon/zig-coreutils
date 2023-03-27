@@ -6,17 +6,22 @@ const log = std.log.scoped(.groups);
 
 pub const name = "groups";
 
-pub const usage =
+pub const short_help =
     \\Usage: {0s} [user]
     \\   or: {0s} OPTION
     \\
     \\Display the current group names. 
     \\The optional [user] parameter will display the groups for the named user.
     \\
-    \\     -h, --help  display this help and exit
-    \\     --version   output version information and exit
+    \\  -h         display the short help and exit
+    \\  --help     display the full help and exit
+    \\  --version  output version information and exit
     \\
 ;
+
+// No examples provided for `groups`
+// TODO: Should there be?
+pub const extended_help = "";
 
 // io
 // .{

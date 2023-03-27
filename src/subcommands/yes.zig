@@ -6,16 +6,20 @@ const log = std.log.scoped(.yes);
 
 pub const name = "yes";
 
-pub const usage =
+pub const short_help =
     \\Usage: {0s} [STRING]...
     \\   or: {0s} OPTION
     \\
     \\Repeatedly output a line with all specified STRING(s), or 'y'.
     \\
-    \\     -h, --help  display this help and exit
-    \\     --version   output version information and exit
+    \\  -h         display the short help and exit
+    \\  --help     display the full help and exit
+    \\  --version  output version information and exit
     \\
 ;
+
+// No examples provided for `yes`
+pub const extended_help = "";
 
 // io
 // .{

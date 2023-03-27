@@ -6,7 +6,7 @@ const log = std.log.scoped(.basename);
 
 pub const name = "basename";
 
-pub const usage =
+pub const short_help =
     \\Usage: {0s} NAME [SUFFIX]
     \\   or: {0s} OPTION... NAME...
     \\
@@ -17,8 +17,19 @@ pub const usage =
     \\  -a, --multiple       support multiple arguments and treat each as a NAME
     \\  -s, --suffix=SUFFIX  remove a trailing SUFFIX; implies -a
     \\  -z, --zero           end each output line with NUL, not newline
-    \\      --help     display this help and exit
-    \\      --version  output version information and exit
+    \\  -h                   display the short help and exit
+    \\  --help               display the full help and exit
+    \\  --version            output version information and exit
+    \\
+;
+
+pub const extended_help = // a blank line is required at the beginning to ensure correct formatting
+    \\
+    \\Examples:
+    \\  basename /usr/bin/sort          -> "sort"
+    \\  basename include/stdio.h .h     -> "stdio"
+    \\  basename -s .h include/stdio.h  -> "stdio"
+    \\  basename -a any/str1 any/str2   -> "str1" followed by "str2"
     \\
 ;
 

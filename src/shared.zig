@@ -10,12 +10,20 @@ const log = std.log.scoped(.shared);
 
 pub const tracy = @import("tracy.zig");
 
-pub fn printHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
-    const z = tracy.traceNamed(@src(), "print help");
+pub fn printShortHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
+    const z = tracy.traceNamed(@src(), "print short help");
     defer z.end();
 
-    log.debug(comptime "printing help for " ++ subcommand.name, .{});
-    io.stdout.print(subcommand.usage, .{exe_path}) catch {};
+    log.debug(comptime "printing short help for " ++ subcommand.name, .{});
+    io.stdout.print(subcommand.short_help, .{exe_path}) catch {};
+}
+
+pub fn printFullHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
+    const z = tracy.traceNamed(@src(), "print full help");
+    defer z.end();
+
+    log.debug(comptime "printing full help for " ++ subcommand.name, .{});
+    io.stdout.print(comptime subcommand.short_help ++ subcommand.extended_help, .{exe_path}) catch {};
 }
 
 pub fn printVersion(comptime subcommand: type, io: anytype) void {
@@ -275,7 +283,10 @@ pub fn ArgIterator(comptime T: type) type {
         }
 
         /// The only time `include_shorthand` should be false is if the subcommand has it's own `-h` argument.
-        pub fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) error{ Help, Version }!?Arg {
+        pub fn nextWithHelpOrVersion(
+            self: *Self,
+            comptime include_shorthand: bool,
+        ) error{ ShortHelp, FullHelp, Version }!?Arg {
             const z = tracy.traceNamed(@src(), "next arg with help/version");
             defer z.end();
 
@@ -284,7 +295,7 @@ pub fn ArgIterator(comptime T: type) type {
             switch (arg.arg_type) {
                 .longhand => |longhand| {
                     if (std.mem.eql(u8, longhand, "help")) {
-                        return error.Help;
+                        return error.FullHelp;
                     }
                     if (std.mem.eql(u8, longhand, "version")) {
                         return error.Version;
@@ -292,7 +303,7 @@ pub fn ArgIterator(comptime T: type) type {
                 },
                 .shorthand => |*shorthand| {
                     if (include_shorthand) {
-                        while (shorthand.next()) |char| if (char == 'h') return error.Help;
+                        while (shorthand.next()) |char| if (char == 'h') return error.ShortHelp;
                         shorthand.reset();
                     }
                 },
