@@ -31,7 +31,7 @@ pub const short_help =
 ;
 
 // No examples provided for `touch`
-// TODO: Should there be?
+// TODO: Should there be? https://github.com/leecannon/zig-coreutils/issues/3
 pub const extended_help = "";
 
 // io

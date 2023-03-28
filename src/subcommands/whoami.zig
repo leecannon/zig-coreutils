@@ -94,6 +94,7 @@ pub fn execute(
 }
 
 // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
+// https://github.com/leecannon/zig-coreutils/issues/1
 
 test "whoami help" {
     try subcommands.testHelp(@This(), true);
