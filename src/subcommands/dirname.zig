@@ -28,23 +28,6 @@ pub const extended_help = // a blank line is required at the beginning to ensure
     \\
 ;
 
-// io
-// .{
-//     .stderr: std.io.Writer,
-//     .stdin: std.io.Reader,
-//     .stdout: std.io.Writer,
-// },
-
-// args
-// struct {
-//     fn next(self: *Self) ?shared.Arg,
-//
-//     // intended to only be called for the first argument
-//     fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) !?shared.Arg,
-//
-//     fn nextRaw(self: *Self) ?[]const u8,
-// }
-
 pub fn execute(
     allocator: std.mem.Allocator,
     io: anytype,
@@ -246,6 +229,48 @@ test "dirname help" {
 test "dirname version" {
     try subcommands.testVersion(@This());
 }
+
+const help_zls = struct {
+    // Due to https://github.com/zigtools/zls/pull/1067 this is enough to help ZLS understand the `io` and `args` arguments
+
+    fn dummyExecute() void {
+        execute(
+            undefined,
+            @as(DummyIO, undefined),
+            @as(DummyArgs, undefined),
+            undefined,
+            undefined,
+        );
+        @panic("THIS SHOULD NEVER BE CALLED");
+    }
+
+    const DummyIO = struct {
+        stderr: std.io.Writer,
+        stdin: std.io.Reader,
+        stdout: std.io.Writer,
+    };
+
+    const DummyArgs = struct {
+        const Self = @This();
+
+        fn next(self: *Self) ?shared.Arg {
+            _ = self;
+            @panic("THIS SHOULD NEVER BE CALLED");
+        }
+
+        /// intended to only be called for the first argument
+        fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) !?shared.Arg {
+            _ = include_shorthand;
+            _ = self;
+            @panic("THIS SHOULD NEVER BE CALLED");
+        }
+
+        fn nextRaw(self: *Self) ?[]const u8 {
+            _ = self;
+            @panic("THIS SHOULD NEVER BE CALLED");
+        }
+    };
+};
 
 comptime {
     refAllDeclsRecursive(@This());
