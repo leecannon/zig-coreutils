@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) !void {
         exe.want_lto = true;
     }
 
-    exe.install();
+    b.installArtifact(exe);
 
     exe.addOptions("options", options);
 
@@ -44,7 +44,7 @@ pub fn build(b: *std.Build) !void {
         includeTracy(exe);
     }
 
-    const run_cmd = exe.run();
+    const run_cmd = b.addRunArtifact(exe);
     run_cmd.stdio = .inherit;
     run_cmd.has_side_effects = true;
     run_cmd.step.dependOn(b.getInstallStep());
@@ -73,7 +73,7 @@ pub fn build(b: *std.Build) !void {
         });
     }
 
-    const test_run = test_step.run();
+    const test_run = b.addRunArtifact(test_step);
     test_run.has_side_effects = true;
     const run_test_step = b.step("test", "Run the tests");
     run_test_step.dependOn(&test_run.step);
