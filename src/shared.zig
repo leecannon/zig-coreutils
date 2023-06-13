@@ -427,8 +427,8 @@ pub const GroupFileIterator = struct {
         group_id: []const u8,
         members_slice: ?[]const u8,
 
-        pub fn iterateMembers(self: *const Entry) std.mem.TokenIterator(u8) {
-            return std.mem.tokenize(u8, self.members_slice orelse &[_]u8{}, ",");
+        pub fn iterateMembers(self: *const Entry) std.mem.TokenIterator(u8, .scalar) {
+            return std.mem.tokenizeScalar(u8, self.members_slice orelse &[_]u8{}, ',');
         }
     };
 
