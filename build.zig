@@ -1,7 +1,7 @@
 const std = @import("std");
 const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
 
-const coreutils_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 7 };
+const coreutils_version = std.SemanticVersion{ .major = 0, .minor = 0, .patch = 7 };
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -132,7 +132,7 @@ fn getVersion(b: *std.Build) ![]const u8 {
             const commit_height = it.next() orelse unreachable;
             const commit_id = it.next() orelse unreachable;
 
-            const ancestor_ver = try std.builtin.Version.parse(tagged_ancestor);
+            const ancestor_ver = try std.SemanticVersion.parse(tagged_ancestor);
             if (coreutils_version.order(ancestor_ver) != .gt) {
                 std.debug.print(
                     "Zig-Coreutils version '{}' must be greater than tagged ancestor '{}'\n",
