@@ -138,18 +138,16 @@ comptime {
 fn refAllDeclsRecursive(comptime T: type) void {
     if (!@import("builtin").is_test) return;
     inline for (comptime std.meta.declarations(T)) |decl| {
-        if (decl.is_pub) {
-            if (@TypeOf(@field(T, decl.name)) == type) {
-                switch (@typeInfo(@field(T, decl.name))) {
-                    .Struct, .Enum, .Union, .Opaque => {
-                        refAllDeclsRecursive(@field(T, decl.name));
-                        _ = @field(T, decl.name);
-                    },
-                    .Type, .Fn => {
-                        _ = @field(T, decl.name);
-                    },
-                    else => {},
-                }
+        if (@TypeOf(@field(T, decl.name)) == type) {
+            switch (@typeInfo(@field(T, decl.name))) {
+                .Struct, .Enum, .Union, .Opaque => {
+                    refAllDeclsRecursive(@field(T, decl.name));
+                    _ = @field(T, decl.name);
+                },
+                .Type, .Fn => {
+                    _ = @field(T, decl.name);
+                },
+                else => {},
             }
         }
     }

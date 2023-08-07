@@ -82,14 +82,14 @@ pub fn build(b: *std.Build) !void {
 fn includeTracy(exe: *std.Build.CompileStep) void {
     exe.linkLibC();
     exe.linkLibCpp();
-    exe.addIncludePath("tracy/public");
+    exe.addIncludePath(.{ .path = "tracy/public" });
 
     const tracy_c_flags: []const []const u8 = if (exe.target.isWindows() and exe.target.getAbi() == .gnu)
         &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined", "-D_WIN32_WINNT=0x601" }
     else
         &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined" };
 
-    exe.addCSourceFile("tracy/public/TracyClient.cpp", tracy_c_flags);
+    exe.addCSourceFile(.{ .file = .{ .path = "tracy/public/TracyClient.cpp" }, .flags = tracy_c_flags });
 
     if (exe.target.isWindows()) {
         exe.linkSystemLibrary("Advapi32");
