@@ -49,7 +49,7 @@ fn parseArguments(
 
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
 
-    var options: TemplateOptions = .{};
+    const options: TemplateOptions = .{};
 
     const State = union(enum) {
         normal,
