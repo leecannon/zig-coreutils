@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    if (!target.isLinux()) {
+    if (target.result.os.tag != .linux) {
         std.debug.print("Currently only linux is supported\n", .{});
         return error.UnsupportedOperatingSystem;
     }
@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(exe);
 
-    exe.addOptions("options", options);
+    exe.root_module.addImport("options", options.createModule());
 
     if (trace) {
         includeTracy(exe);
@@ -56,7 +56,7 @@ pub fn build(b: *std.Build) !void {
     run_step.dependOn(&run_cmd.step);
 
     const test_step = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
-    test_step.addOptions("options", options);
+    test_step.root_module.addImport("options", options.createModule());
     if (trace) {
         includeTracy(test_step);
     }
@@ -79,19 +79,21 @@ pub fn build(b: *std.Build) !void {
     run_test_step.dependOn(&test_run.step);
 }
 
-fn includeTracy(exe: *std.Build.CompileStep) void {
+fn includeTracy(exe: *std.Build.Step.Compile) void {
     exe.linkLibC();
     exe.linkLibCpp();
     exe.addIncludePath(.{ .path = "tracy/public" });
 
-    const tracy_c_flags: []const []const u8 = if (exe.target.isWindows() and exe.target.getAbi() == .gnu)
+    const target = exe.root_module.resolved_target.?.result;
+
+    const tracy_c_flags: []const []const u8 = if (target.os.tag == .windows and target.abi == .gnu)
         &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined", "-D_WIN32_WINNT=0x601" }
     else
         &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined" };
 
     exe.addCSourceFile(.{ .file = .{ .path = "tracy/public/TracyClient.cpp" }, .flags = tracy_c_flags });
 
-    if (exe.target.isWindows()) {
+    if (target.os.tag == .windows) {
         exe.linkSystemLibrary("Advapi32");
         exe.linkSystemLibrary("User32");
         exe.linkSystemLibrary("Ws2_32");
