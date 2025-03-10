@@ -1,8 +1,5 @@
-const std = @import("std");
-const shared = @import("shared.zig");
-const builtin = @import("builtin");
-
-const log = std.log.scoped(.subcommand);
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub const SUBCOMMANDS = [_]type{
     @import("subcommands/basename.zig"),
@@ -43,12 +40,12 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) ExecuteError!void {
-    const z = shared.tracy.traceNamed(@src(), "execute");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "execute" });
     defer z.end();
 
     inline for (SUBCOMMANDS) |subcommand| {
         if (std.mem.eql(u8, subcommand.name, basename)) {
-            z.addText(basename);
+            z.text(basename);
             return executeSubcommand(
                 subcommand,
                 allocator,
@@ -70,7 +67,7 @@ pub fn execute(
 
         inline for (SUBCOMMANDS) |subcommand| {
             if (std.mem.eql(u8, subcommand.name, possible_subcommand)) {
-                z.addText(possible_subcommand);
+                z.text(possible_subcommand);
 
                 const exe_path_with_subcommand = try std.fmt.allocPrint(allocator, "{s} {s}", .{
                     exe_path,
@@ -101,7 +98,7 @@ fn executeSubcommand(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) SubcommandError!void {
-    const z = shared.tracy.traceNamed(@src(), "execute subcommand");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "execute subcommand" });
     defer z.end();
 
     log.debug("executing subcommand '{s}'", .{subcommand.name});
@@ -271,27 +268,11 @@ const VoidWriter = struct {
     }
 };
 
-comptime {
-    if (@import("builtin").is_test) _ = @import("subcommands/template.zig");
-    refAllDeclsRecursive(@This());
-}
+const std = @import("std");
+const shared = @import("shared.zig");
+const builtin = @import("builtin");
+const log = std.log.scoped(.subcommand);
 
-/// This is a copy of `std.testing.refAllDeclsRecursive` but as it is in the file it can access private decls
-/// Also it only reference structs, enums, unions, opaques, types and functions
-fn refAllDeclsRecursive(comptime T: type) void {
-    if (!@import("builtin").is_test) return;
-    inline for (comptime std.meta.declarations(T)) |decl| {
-        if (@TypeOf(@field(T, decl.name)) == type) {
-            switch (@typeInfo(@field(T, decl.name))) {
-                .Struct, .Enum, .Union, .Opaque => {
-                    refAllDeclsRecursive(@field(T, decl.name));
-                    _ = @field(T, decl.name);
-                },
-                .Type, .Fn => {
-                    _ = @field(T, decl.name);
-                },
-                else => {},
-            }
-        }
-    }
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

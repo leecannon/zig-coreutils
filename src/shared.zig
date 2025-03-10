@@ -1,17 +1,13 @@
-const std = @import("std");
-const subcommands = @import("subcommands.zig");
-const build_options = @import("options");
-const builtin = @import("builtin");
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
-pub const free_on_close = is_debug_or_test or tracy.enable;
+pub const free_on_close = is_debug_or_test or options.trace;
 
-const log = std.log.scoped(.shared);
-
-pub const tracy = @import("tracy.zig");
+pub const tracy = @import("tracy");
 
 pub fn printShortHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
-    const z = tracy.traceNamed(@src(), "print short help");
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print short help" });
     defer z.end();
 
     log.debug(comptime "printing short help for " ++ subcommand.name, .{});
@@ -19,7 +15,7 @@ pub fn printShortHelp(comptime subcommand: type, io: anytype, exe_path: []const 
 }
 
 pub fn printFullHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
-    const z = tracy.traceNamed(@src(), "print full help");
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print full help" });
     defer z.end();
 
     log.debug(comptime "printing full help for " ++ subcommand.name, .{});
@@ -27,7 +23,7 @@ pub fn printFullHelp(comptime subcommand: type, io: anytype, exe_path: []const u
 }
 
 pub fn printVersion(comptime subcommand: type, io: anytype) void {
-    const z = tracy.traceNamed(@src(), "print version");
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print version" });
     defer z.end();
 
     log.debug(comptime "printing version for " ++ subcommand.name, .{});
@@ -44,9 +40,9 @@ pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyer
 }
 
 pub fn printError(comptime subcommand: type, io: anytype, error_message: []const u8) error{AlreadyHandled} {
-    const z = tracy.traceNamed(@src(), "print error");
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error" });
     defer z.end();
-    z.addText(error_message);
+    z.text(error_message);
 
     log.debug(comptime "printing error for " ++ subcommand.name, .{});
 
@@ -67,7 +63,7 @@ pub fn printErrorAlloc(
     comptime msg: []const u8,
     args: anytype,
 ) error{ OutOfMemory, AlreadyHandled } {
-    const z = tracy.traceNamed(@src(), "print error alloc");
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error alloc" });
     defer z.end();
 
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
@@ -77,9 +73,9 @@ pub fn printErrorAlloc(
 }
 
 pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []const u8, error_message: []const u8) error{AlreadyHandled} {
-    const z = tracy.traceNamed(@src(), "print invalid usage");
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage" });
     defer z.end();
-    z.addText(error_message);
+    z.text(error_message);
 
     log.debug(comptime "printing error for " ++ subcommand.name, .{});
 
@@ -103,7 +99,7 @@ pub fn printInvalidUsageAlloc(
     comptime msg: []const u8,
     args: anytype,
 ) error{ OutOfMemory, AlreadyHandled } {
-    const z = tracy.traceNamed(@src(), "print invalid usage alloc");
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage alloc" });
     defer z.end();
 
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
@@ -147,11 +143,11 @@ pub fn mapFile(
         };
     }
 
-    const file_contents = std.os.mmap(
+    const file_contents = std.posix.mmap(
         null,
         stat.size,
-        std.os.PROT.READ,
-        std.os.MAP.PRIVATE,
+        std.posix.PROT.READ,
+        .{ .TYPE = .PRIVATE },
         file.handle,
         0,
     ) catch |err| {
@@ -172,11 +168,11 @@ pub fn mapFile(
 
 pub const MappedFile = struct {
     file: std.fs.File,
-    file_contents: []align(std.mem.page_size) const u8,
+    file_contents: []align(std.heap.page_size_min) const u8,
 
     pub fn close(self: MappedFile) void {
         if (free_on_close) {
-            if (self.file_contents.len != 0) std.os.munmap(self.file_contents);
+            if (self.file_contents.len != 0) std.posix.munmap(self.file_contents);
             self.file.close();
         }
     }
@@ -215,7 +211,7 @@ pub fn readFileIntoBuffer(
     return buffer[0..read];
 }
 
-pub const version_string = "{s} (zig-coreutils) " ++ build_options.version ++ "\nMIT License Copyright (c) 2021-2023 Lee Cannon\n";
+pub const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2021-2023 Lee Cannon\n";
 
 pub fn ArgIterator(comptime T: type) type {
     return struct {
@@ -228,11 +224,11 @@ pub fn ArgIterator(comptime T: type) type {
         }
 
         pub fn nextRaw(self: *Self) ?[:0]const u8 {
-            const z = tracy.traceNamed(@src(), "raw next arg");
+            const z: tracy.Zone = .begin(.{ .src = @src(), .name = "raw next arg" });
             defer z.end();
 
             if (self.arg_iter.next()) |arg| {
-                z.addText(arg);
+                z.text(arg);
                 return arg;
             }
 
@@ -240,12 +236,12 @@ pub fn ArgIterator(comptime T: type) type {
         }
 
         pub fn next(self: *Self) ?Arg {
-            const z = tracy.traceNamed(@src(), "next arg");
+            const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg" });
             defer z.end();
 
             const current_arg = self.arg_iter.next() orelse return null;
 
-            z.addText(current_arg);
+            z.text(current_arg);
 
             // the length checks in the below ifs allow '-' and '--' to fall through as positional arguments
             if (current_arg.len > 1 and current_arg[0] == '-') longhand_shorthand_blk: {
@@ -287,7 +283,7 @@ pub fn ArgIterator(comptime T: type) type {
             self: *Self,
             comptime include_shorthand: bool,
         ) error{ ShortHelp, FullHelp, Version }!?Arg {
-            const z = tracy.traceNamed(@src(), "next arg with help/version");
+            const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg with help/version" });
             defer z.end();
 
             var arg = self.next() orelse return null;
@@ -389,7 +385,7 @@ pub const PasswdFileIterator = struct {
 
         self.index += line_length + 1;
 
-        var column_iter = std.mem.tokenize(u8, remaining[0..line_length], ":");
+        var column_iter = std.mem.tokenizeScalar(u8, remaining[0..line_length], ':');
 
         const user_name = column_iter.next() orelse
             return printError(subcommand, io, "format of '/etc/passwd' is invalid");
@@ -446,7 +442,7 @@ pub const GroupFileIterator = struct {
 
         self.index += line_length + 1;
 
-        var column_iter = std.mem.tokenize(u8, remaining[0..line_length], ":");
+        var column_iter = std.mem.tokenizeScalar(u8, remaining[0..line_length], ':');
 
         const group_name = column_iter.next() orelse
             return printError(subcommand, io, "format of '/etc/group' is invalid");
@@ -466,26 +462,11 @@ pub const GroupFileIterator = struct {
     }
 };
 
-comptime {
-    refAllDeclsRecursive(@This());
-}
+const std = @import("std");
+const options = @import("options");
+const builtin = @import("builtin");
+const log = std.log.scoped(.shared);
 
-/// This is a copy of `std.testing.refAllDeclsRecursive` but as it is in the file it can access private decls
-/// Also it only reference structs, enums, unions, opaques, types and functions
-fn refAllDeclsRecursive(comptime T: type) void {
-    if (!@import("builtin").is_test) return;
-    inline for (comptime std.meta.declarations(T)) |decl| {
-        if (@TypeOf(@field(T, decl.name)) == type) {
-            switch (@typeInfo(@field(T, decl.name))) {
-                .Struct, .Enum, .Union, .Opaque => {
-                    refAllDeclsRecursive(@field(T, decl.name));
-                    _ = @field(T, decl.name);
-                },
-                .Type, .Fn => {
-                    _ = @field(T, decl.name);
-                },
-                else => {},
-            }
-        }
-    }
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

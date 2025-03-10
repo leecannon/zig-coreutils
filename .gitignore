@@ -1,5 +1,5 @@
-zig-cache/
+# SPDX-License-Identifier: CC0-1.0
+# SPDX-FileCopyrightText: 2024 Lee Cannon <leecannon@leecannon.xyz>
+
+.zig-cache/
 zig-out/
-.zigmod
-deps.zig
-.vscode/settings.json

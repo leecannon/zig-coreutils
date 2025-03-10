@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: CC0-1.0
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
+
+.{
+    .name = .coreutils,
+
+    .version = "0.1.0",
+
+    .minimum_zig_version = "0.14.0",
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+
+    .dependencies = .{
+        .tracy = .{
+            .url = "git+https://github.com/leecannon/tracy_zig.git?ref=no_null#b9643123e93900e56b4bafb4bb5c476ae987a3dc",
+            .hash = "tracy-0.0.0-R7l8Be82AQDxSdyBnEhvJFgu2gpyFzu5vNd65hX7p5d4",
+        },
+    },
+
+    .fingerprint = 0x3bcfe8c5bc4f06d3,
+}

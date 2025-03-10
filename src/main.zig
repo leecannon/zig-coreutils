@@ -1,39 +1,42 @@
-const std = @import("std");
-const subcommands = @import("subcommands.zig");
-const shared = @import("shared.zig");
-const options = @import("options");
-const builtin = @import("builtin");
-
-pub const enable_tracy = options.trace;
-pub const tracy_enable_callstack = true;
-
-const log = std.log.scoped(.main);
-
-var allocator_backing = if (shared.is_debug_or_test) {} else std.heap.ArenaAllocator.init(std.heap.page_allocator);
-var gpa = if (shared.is_debug_or_test)
-    std.heap.GeneralPurposeAllocator(.{}){}
-else
-    std.heap.stackFallback(std.mem.page_size, allocator_backing.allocator());
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
-    const main_z = shared.tracy.traceNamed(@src(), "main");
+    const static = struct {
+        var debug_allocator: if (shared.is_debug_or_test) std.heap.DebugAllocator(.{}) else void =
+            if (shared.is_debug_or_test) .init else {};
+        var tracy_allocator: if (options.trace) shared.tracy.Allocator else void =
+            if (options.trace) undefined else {};
+    };
+
+    const main_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "main" });
     // this causes the frame to start with our main instead of `std.start`
-    shared.tracy.frameMark();
+    shared.tracy.frameMark(null);
 
     defer {
         if (shared.is_debug_or_test) {
-            _ = gpa.deinit();
+            _ = static.debug_allocator.deinit();
         }
         main_z.end();
     }
 
-    const gpa_allocator: std.mem.Allocator = if (shared.is_debug_or_test) gpa.allocator() else gpa.get();
-    var tracy_allocator = if (enable_tracy) shared.tracy.TracyAllocator(null).init(gpa_allocator) else {};
-    const allocator = if (enable_tracy) tracy_allocator.allocator() else gpa_allocator;
+    const allocator = blk: {
+        const gpa_allocator = if (shared.is_debug_or_test)
+            static.debug_allocator.allocator()
+        else
+            std.heap.smp_allocator;
+
+        if (options.trace) {
+            static.tracy_allocator = .{ .parent = gpa_allocator };
+            break :blk static.tracy_allocator.allocator();
+        } else {
+            break :blk gpa_allocator;
+        }
+    };
 
     var argument_info = ArgumentInfo.fetch();
 
-    const io_buffers_z = shared.tracy.traceNamed(@src(), "io buffers");
+    const io_buffers_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "io buffers" });
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
     io_buffers_z.end();
@@ -74,7 +77,7 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
 
     // Only flush stdout if the command completed successfully
     // If we flush stdout after printing an error then the error message will not be the last thing printed
-    const flush_z = shared.tracy.traceNamed(@src(), "stdout flush");
+    const flush_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "stdout flush" });
     defer flush_z.end();
 
     log.debug("flushing stdout buffer on successful execution", .{});
@@ -92,7 +95,7 @@ const ArgumentInfo = struct {
     arg_iter: std.process.ArgIterator,
 
     pub fn fetch() ArgumentInfo {
-        const z = shared.tracy.traceNamed(@src(), "fetch argument info");
+        const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "fetch argument info" });
         defer z.end();
 
         var arg_iter = std.process.args();
@@ -101,7 +104,7 @@ const ArgumentInfo = struct {
         const basename = std.fs.path.basename(exe_path);
         log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 
-        return ArgumentInfo{
+        return .{
             .basename = basename,
             .exe_path = exe_path,
             .arg_iter = arg_iter,
@@ -109,26 +112,15 @@ const ArgumentInfo = struct {
     }
 };
 
-comptime {
-    refAllDeclsRecursive(@This());
-}
+const std = @import("std");
+const subcommands = @import("subcommands.zig");
+const shared = @import("shared.zig");
+const options = @import("options");
+const builtin = @import("builtin");
+const log = std.log.scoped(.main);
 
-/// This is a copy of `std.testing.refAllDeclsRecursive` but as it is in the file it can access private decls
-/// Also it only reference structs, enums, unions, opaques, types and functions
-fn refAllDeclsRecursive(comptime T: type) void {
-    if (!@import("builtin").is_test) return;
-    inline for (comptime std.meta.declarations(T)) |decl| {
-        if (@TypeOf(@field(T, decl.name)) == type) {
-            switch (@typeInfo(@field(T, decl.name))) {
-                .Struct, .Enum, .Union, .Opaque => {
-                    refAllDeclsRecursive(@field(T, decl.name));
-                    _ = @field(T, decl.name);
-                },
-                .Type, .Fn => {
-                    _ = @field(T, decl.name);
-                },
-                else => {},
-            }
-        }
-    }
+pub const tracy_impl = @import("tracy_impl");
+
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

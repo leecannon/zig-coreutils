@@ -1,8 +1,5 @@
-const std = @import("std");
-const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-
-const log = std.log.scoped(.whoami);
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub const name = "whoami";
 
@@ -28,7 +25,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z = shared.tracy.traceNamed(@src(), name);
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     _ = exe_path;
@@ -44,7 +41,7 @@ pub fn execute(
     var passwd_file_iter = shared.passwdFileIterator(passwd_file.file_contents);
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
-        const user_id = std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10) catch {
+        const user_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.user_id, 10) catch {
             return shared.printError(
                 @This(),
                 io,
@@ -129,26 +126,11 @@ const help_zls = struct {
     };
 };
 
-comptime {
-    refAllDeclsRecursive(@This());
-}
+const std = @import("std");
+const subcommands = @import("../subcommands.zig");
+const shared = @import("../shared.zig");
+const log = std.log.scoped(.whoami);
 
-/// This is a copy of `std.testing.refAllDeclsRecursive` but as it is in the file it can access private decls
-/// Also it only reference structs, enums, unions, opaques, types and functions
-fn refAllDeclsRecursive(comptime T: type) void {
-    if (!@import("builtin").is_test) return;
-    inline for (comptime std.meta.declarations(T)) |decl| {
-        if (@TypeOf(@field(T, decl.name)) == type) {
-            switch (@typeInfo(@field(T, decl.name))) {
-                .Struct, .Enum, .Union, .Opaque => {
-                    refAllDeclsRecursive(@field(T, decl.name));
-                    _ = @field(T, decl.name);
-                },
-                .Type, .Fn => {
-                    _ = @field(T, decl.name);
-                },
-                else => {},
-            }
-        }
-    }
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

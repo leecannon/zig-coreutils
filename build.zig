@@ -1,127 +1,122 @@
-const std = @import("std");
-const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
-
-const coreutils_version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 0 };
-
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    if (target.result.os.tag != .linux) {
-        std.debug.print("Currently only linux is supported\n", .{});
-        return error.UnsupportedOperatingSystem;
-    }
-
-    const coverage = b.option(bool, "coverage", "Generate test coverage data with kcov") orelse false;
-    const coverage_output_dir = b.option([]const u8, "coverage_output_dir", "Output directory for coverage data") orelse
-        b.pathJoin(&.{ b.install_prefix, "kcov" });
-
-    const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
-
-    const options = b.addOptions();
-    options.addOption(bool, "trace", trace);
-
-    const version = try getVersion(b);
-    options.addOption([:0]const u8, "version", try b.allocator.dupeZ(u8, version));
-
-    const exe = b.addExecutable(.{
-        .name = "zig-coreutils",
-        .root_source_file = .{ .path = "src/main.zig" },
+    const tracy_dep = b.dependency("tracy", .{
         .target = target,
         .optimize = optimize,
     });
 
-    if (optimize != .Debug) {
-        exe.link_function_sections = true;
-        exe.want_lto = true;
-    }
+    const coreutils_module = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
-    b.installArtifact(exe);
+    const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
 
-    exe.root_module.addImport("options", options.createModule());
+    const options = b.addOptions();
+    options.addOption(
+        []const u8,
+        "version",
+        try getVersionString(b, coreutils_version, b.build_root.path.?),
+    );
+    options.addOption(bool, "trace", trace);
+    coreutils_module.addImport("options", options.createModule());
+    coreutils_module.addImport("tracy", tracy_dep.module("tracy"));
 
     if (trace) {
-        includeTracy(exe);
+        coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_enabled"));
+    } else {
+        coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_disabled"));
     }
 
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.stdio = .inherit;
-    run_cmd.has_side_effects = true;
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
-
-    const test_step = b.addTest(.{ .root_source_file = .{ .path = "src/main.zig" } });
-    test_step.root_module.addImport("options", options.createModule());
-    if (trace) {
-        includeTracy(test_step);
-    }
-
-    if (coverage) {
-        const src_dir = b.pathJoin(&.{ b.build_root.path.?, "src" });
-        const include_pattern = b.fmt("--include-pattern={s}", .{src_dir});
-
-        test_step.setExecCmd(&[_]?[]const u8{
-            "kcov",
-            include_pattern,
-            coverage_output_dir,
-            null,
+    // exe
+    {
+        const coreutils_exe = b.addExecutable(.{
+            .name = "coreutils",
+            .root_module = coreutils_module,
         });
+        b.installArtifact(coreutils_exe);
+
+        const run_coreutils_exe = b.addRunArtifact(coreutils_exe);
+        run_coreutils_exe.step.dependOn(b.getInstallStep());
+        run_coreutils_exe.stdio = .inherit;
+        if (b.args) |args| {
+            run_coreutils_exe.addArgs(args);
+        }
+
+        const run_step = b.step("run", "Run the app");
+        run_step.dependOn(&run_coreutils_exe.step);
     }
 
-    const test_run = b.addRunArtifact(test_step);
-    test_run.has_side_effects = true;
-    const run_test_step = b.step("test", "Run the tests");
-    run_test_step.dependOn(&test_run.step);
-}
+    // test
+    {
+        const coreutils_test = b.addTest(.{
+            .root_module = coreutils_module,
+            .target = target,
+            .optimize = optimize,
+        });
 
-fn includeTracy(exe: *std.Build.Step.Compile) void {
-    exe.linkLibC();
-    exe.linkLibCpp();
-    exe.addIncludePath(.{ .path = "tracy/public" });
+        const coverage = b.option(
+            bool,
+            "coverage",
+            "Generate test coverage with kcov",
+        ) orelse false;
 
-    const target = exe.root_module.resolved_target.?.result;
+        if (coverage) {
+            coreutils_test.setExecCmd(&[_]?[]const u8{
+                "kcov",
+                b.fmt("--include-pattern={s}", .{try b.build_root.join(b.allocator, &.{"src"})}),
+                b.pathJoin(&.{ b.install_prefix, "kcov" }),
+                null,
+            });
+        }
 
-    const tracy_c_flags: []const []const u8 = if (target.os.tag == .windows and target.abi == .gnu)
-        &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined", "-D_WIN32_WINNT=0x601" }
-    else
-        &.{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined" };
+        const run_coreutils_test = b.addRunArtifact(coreutils_test);
 
-    exe.addCSourceFile(.{ .file = .{ .path = "tracy/public/TracyClient.cpp" }, .flags = tracy_c_flags });
+        const test_step = b.step("test", "Run the tests");
+        test_step.dependOn(&run_coreutils_test.step);
+    }
 
-    if (target.os.tag == .windows) {
-        exe.linkSystemLibrary("Advapi32");
-        exe.linkSystemLibrary("User32");
-        exe.linkSystemLibrary("Ws2_32");
-        exe.linkSystemLibrary("DbgHelp");
+    // check
+    {
+        const coreutils_exe_check = b.addExecutable(.{
+            .name = "check_coreutils",
+            .root_module = coreutils_module,
+        });
+        const coreutils_test_check = b.addTest(.{
+            .root_module = coreutils_module,
+        });
+
+        const check_step = b.step("check", "");
+        check_step.dependOn(&coreutils_exe_check.step);
+        check_step.dependOn(&coreutils_test_check.step);
     }
 }
 
-fn getVersion(b: *std.Build) ![]const u8 {
+/// Gets the version string.
+fn getVersionString(b: *std.Build, base_semantic_version: std.SemanticVersion, root_path: []const u8) ![]const u8 {
     const version_string = b.fmt(
         "{d}.{d}.{d}",
-        .{ coreutils_version.major, coreutils_version.minor, coreutils_version.patch },
+        .{ base_semantic_version.major, base_semantic_version.minor, base_semantic_version.patch },
     );
 
-    var code: u8 = undefined;
-    const git_describe_untrimmed = b.runAllowFail(&[_][]const u8{
-        "git", "-C", b.build_root.path.?, "describe", "--match", "*.*.*", "--tags",
-    }, &code, .Ignore) catch {
-        return version_string;
+    var exit_code: u8 = undefined;
+    const raw_git_describe_output = b.runAllowFail(&[_][]const u8{
+        "git", "-C", root_path, "describe", "--match", "*.*.*", "--tags", "--abbrev=9",
+    }, &exit_code, .Ignore) catch {
+        return b.fmt("{s}-unknown", .{version_string});
     };
-    const git_describe = std.mem.trim(u8, git_describe_untrimmed, " \n\r");
+    const git_describe_output = std.mem.trim(u8, raw_git_describe_output, " \n\r");
 
-    switch (std.mem.count(u8, git_describe, "-")) {
+    switch (std.mem.count(u8, git_describe_output, "-")) {
         0 => {
             // Tagged release version (e.g. 0.8.0).
-            if (!std.mem.eql(u8, git_describe, version_string)) {
+            if (!std.mem.eql(u8, git_describe_output, version_string)) {
                 std.debug.print(
-                    "Zig-Coreutils version '{s}' does not match Git tag '{s}'\n",
-                    .{ version_string, git_describe },
+                    "version '{s}' does not match Git tag '{s}'\n",
+                    .{ version_string, git_describe_output },
                 );
                 std.process.exit(1);
             }
@@ -129,23 +124,23 @@ fn getVersion(b: *std.Build) ![]const u8 {
         },
         2 => {
             // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
-            var it = std.mem.split(u8, git_describe, "-");
-            const tagged_ancestor = it.next() orelse unreachable;
-            const commit_height = it.next() orelse unreachable;
-            const commit_id = it.next() orelse unreachable;
+            var hash_iterator = std.mem.splitScalar(u8, git_describe_output, '-');
+            const tagged_ancestor_version_string = hash_iterator.next() orelse unreachable;
+            const commit_height = hash_iterator.next() orelse unreachable;
+            const commit_id = hash_iterator.next() orelse unreachable;
 
-            const ancestor_ver = try std.SemanticVersion.parse(tagged_ancestor);
-            if (coreutils_version.order(ancestor_ver) != .gt) {
+            const ancestor_version = try std.SemanticVersion.parse(tagged_ancestor_version_string);
+            if (base_semantic_version.order(ancestor_version) != .gt) {
                 std.debug.print(
-                    "Zig-Coreutils version '{}' must be greater than tagged ancestor '{}'\n",
-                    .{ coreutils_version, ancestor_ver },
+                    "version '{}' must be greater than tagged ancestor '{}'\n",
+                    .{ base_semantic_version, ancestor_version },
                 );
                 std.process.exit(1);
             }
 
             // Check that the commit hash is prefixed with a 'g' (a Git convention).
             if (commit_id.len < 1 or commit_id[0] != 'g') {
-                std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
+                std.debug.print("unexpected `git describe` output: {s}\n", .{git_describe_output});
                 return version_string;
             }
 
@@ -153,8 +148,45 @@ fn getVersion(b: *std.Build) ![]const u8 {
             return b.fmt("{s}-dev.{s}+{s}", .{ version_string, commit_height, commit_id[1..] });
         },
         else => {
-            std.debug.print("Unexpected `git describe` output: {s}\n", .{git_describe});
+            std.debug.print("unexpected `git describe` output: {s}\n", .{git_describe_output});
             return version_string;
         },
     }
 }
+
+comptime {
+    const current_zig = builtin.zig_version;
+    const min_zig = std.SemanticVersion.parse(build_zig_zon.minimum_zig_version) catch unreachable;
+    if (current_zig.order(min_zig) == .lt) {
+        @compileError(std.fmt.comptimePrint(
+            "Your Zig version {} does not meet the minimum build requirement of {}",
+            .{ current_zig, min_zig },
+        ));
+    }
+}
+
+const coreutils_version = std.SemanticVersion.parse(build_zig_zon.version) catch unreachable;
+
+const build_zig_zon: BuildZigZon = @import("build.zig.zon");
+
+// requirement to have a type will be removed by https://github.com/ziglang/zig/pull/22907
+const BuildZigZon = struct {
+    name: @TypeOf(.enum_literal),
+    version: []const u8,
+    minimum_zig_version: []const u8,
+    dependencies: Deps,
+    paths: []const []const u8,
+    fingerprint: u64,
+
+    pub const Deps = struct {
+        tracy: UrlDep,
+
+        const UrlDep = struct {
+            url: []const u8,
+            hash: []const u8,
+        };
+    };
+};
+
+const std = @import("std");
+const builtin = @import("builtin");

@@ -1,8 +1,5 @@
-const std = @import("std");
-const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-
-const log = std.log.scoped(.groups);
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub const name = "groups";
 
@@ -30,7 +27,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z = shared.tracy.traceNamed(@src(), name);
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     _ = exe_path;
@@ -51,7 +48,7 @@ fn currentUser(
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
 ) subcommands.Error!void {
-    const z = shared.tracy.traceNamed(@src(), "current user");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "current user" });
     defer z.end();
 
     const euid = std.os.linux.geteuid();
@@ -61,7 +58,7 @@ fn currentUser(
     var passwd_file_iter = shared.passwdFileIterator(passwd_file_contents);
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
-        const user_id = std.fmt.parseUnsigned(std.os.uid_t, entry.user_id, 10) catch {
+        const user_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.user_id, 10) catch {
             return shared.printError(
                 @This(),
                 io,
@@ -76,7 +73,7 @@ fn currentUser(
 
         log.debug("found matching user id: {}", .{user_id});
 
-        const primary_group_id = std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10) catch {
+        const primary_group_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.primary_group_id, 10) catch {
             return shared.printError(
                 @This(),
                 io,
@@ -101,9 +98,9 @@ fn otherUser(
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
 ) subcommands.Error!void {
-    const z = shared.tracy.traceNamed(@src(), "other user");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "other user" });
     defer z.end();
-    z.addText(arg.raw);
+    z.text(arg.raw);
 
     log.debug("otherUser called, arg='{s}'", .{arg.raw});
 
@@ -117,7 +114,7 @@ fn otherUser(
 
         log.debug("found matching user: {s}", .{entry.user_name});
 
-        const primary_group_id = std.fmt.parseUnsigned(std.os.uid_t, entry.primary_group_id, 10) catch {
+        const primary_group_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.primary_group_id, 10) catch {
             return shared.printError(
                 @This(),
                 io,
@@ -134,13 +131,13 @@ fn otherUser(
 fn printGroups(
     allocator: std.mem.Allocator,
     user_name: []const u8,
-    primary_group_id: std.os.uid_t,
+    primary_group_id: std.posix.uid_t,
     io: anytype,
     cwd: std.fs.Dir,
 ) !void {
-    const z = shared.tracy.traceNamed(@src(), "print groups");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "print groups" });
     defer z.end();
-    z.addText(user_name);
+    z.text(user_name);
 
     log.debug("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
 
@@ -152,7 +149,7 @@ fn printGroups(
     var first = true;
 
     while (try group_file_iter.next(@This(), io)) |entry| {
-        const group_id = std.fmt.parseUnsigned(std.os.uid_t, entry.group_id, 10) catch {
+        const group_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.group_id, 10) catch {
             return shared.printError(
                 @This(),
                 io,
@@ -240,26 +237,11 @@ const help_zls = struct {
     };
 };
 
-comptime {
-    refAllDeclsRecursive(@This());
-}
+const std = @import("std");
+const subcommands = @import("../subcommands.zig");
+const shared = @import("../shared.zig");
+const log = std.log.scoped(.groups);
 
-/// This is a copy of `std.testing.refAllDeclsRecursive` but as it is in the file it can access private decls
-/// Also it only reference structs, enums, unions, opaques, types and functions
-fn refAllDeclsRecursive(comptime T: type) void {
-    if (!@import("builtin").is_test) return;
-    inline for (comptime std.meta.declarations(T)) |decl| {
-        if (@TypeOf(@field(T, decl.name)) == type) {
-            switch (@typeInfo(@field(T, decl.name))) {
-                .Struct, .Enum, .Union, .Opaque => {
-                    refAllDeclsRecursive(@field(T, decl.name));
-                    _ = @field(T, decl.name);
-                },
-                .Type, .Fn => {
-                    _ = @field(T, decl.name);
-                },
-                else => {},
-            }
-        }
-    }
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

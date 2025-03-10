@@ -1,10 +1,6 @@
-const std = @import("std");
-const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-
-const log = std.log.scoped(.nproc);
-const mem = std.mem;
-const fmt = std.fmt;
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
+// SPDX-FileCopyrightText: 2024 Leon Henrik Plickat
 
 pub const name = "nproc";
 
@@ -30,7 +26,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z = shared.tracy.traceNamed(@src(), name);
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     _ = exe_path;
@@ -56,7 +52,7 @@ pub fn execute(
 
 fn getLastCpuIndex(str: []const u8) error{InvalidFormat}!usize {
     // Contains string like "0-3" listing the index range of the processors.
-    var it = mem.split(u8, str, "-");
+    var it = mem.splitScalar(u8, str, '-');
     // Also catches str.len == 0.
     if (it.next() == null) return error.InvalidFormat;
     const last_index_str = it.next() orelse return error.InvalidFormat;
@@ -131,26 +127,13 @@ const help_zls = struct {
     };
 };
 
-comptime {
-    refAllDeclsRecursive(@This());
-}
+const std = @import("std");
+const subcommands = @import("../subcommands.zig");
+const shared = @import("../shared.zig");
+const log = std.log.scoped(.nproc);
+const mem = std.mem;
+const fmt = std.fmt;
 
-/// This is a copy of `std.testing.refAllDeclsRecursive` but as it is in the file it can access private decls
-/// Also it only reference structs, enums, unions, opaques, types and functions
-fn refAllDeclsRecursive(comptime T: type) void {
-    if (!@import("builtin").is_test) return;
-    inline for (comptime std.meta.declarations(T)) |decl| {
-        if (@TypeOf(@field(T, decl.name)) == type) {
-            switch (@typeInfo(@field(T, decl.name))) {
-                .Struct, .Enum, .Union, .Opaque => {
-                    refAllDeclsRecursive(@field(T, decl.name));
-                    _ = @field(T, decl.name);
-                },
-                .Type, .Fn => {
-                    _ = @field(T, decl.name);
-                },
-                else => {},
-            }
-        }
-    }
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

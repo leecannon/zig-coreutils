@@ -1,8 +1,5 @@
-const std = @import("std");
-const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-
-const log = std.log.scoped(.dirname);
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub const name = "dirname";
 
@@ -35,7 +32,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z = shared.tracy.traceNamed(@src(), name);
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     _ = cwd;
@@ -51,7 +48,7 @@ fn parseArguments(
     args: anytype,
     exe_path: []const u8,
 ) !DirnameOptions {
-    const z = shared.tracy.traceNamed(@src(), "parse arguments");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
     defer z.end();
 
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
@@ -148,7 +145,7 @@ fn performDirname(
     args: anytype,
     options: DirnameOptions,
 ) !void {
-    const z = shared.tracy.traceNamed(@src(), "perform dirname");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
     defer z.end();
 
     log.debug("performDirname called, options={}", .{options});
@@ -157,16 +154,16 @@ fn performDirname(
 
     var opt_arg: ?[]const u8 = options.first_arg;
 
-    var arg_frame = shared.tracy.namedFrame("arg");
-    defer arg_frame.end();
+    shared.tracy.frameMarkStart("arg");
+    defer shared.tracy.frameMarkEnd("arg");
 
     while (opt_arg) |arg| : ({
-        arg_frame.mark();
+        shared.tracy.frameMark("arg");
         opt_arg = args.nextRaw();
     }) {
-        const argument_zone = shared.tracy.traceNamed(@src(), "process arg");
+        const argument_zone: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
         defer argument_zone.end();
-        argument_zone.addText(arg);
+        argument_zone.text(arg);
 
         const dirname = getDirname(arg);
         log.debug("got dirname: '{s}'", .{dirname});
@@ -272,26 +269,11 @@ const help_zls = struct {
     };
 };
 
-comptime {
-    refAllDeclsRecursive(@This());
-}
+const std = @import("std");
+const subcommands = @import("../subcommands.zig");
+const shared = @import("../shared.zig");
+const log = std.log.scoped(.dirname);
 
-/// This is a copy of `std.testing.refAllDeclsRecursive` but as it is in the file it can access private decls
-/// Also it only reference structs, enums, unions, opaques, types and functions
-fn refAllDeclsRecursive(comptime T: type) void {
-    if (!@import("builtin").is_test) return;
-    inline for (comptime std.meta.declarations(T)) |decl| {
-        if (@TypeOf(@field(T, decl.name)) == type) {
-            switch (@typeInfo(@field(T, decl.name))) {
-                .Struct, .Enum, .Union, .Opaque => {
-                    refAllDeclsRecursive(@field(T, decl.name));
-                    _ = @field(T, decl.name);
-                },
-                .Type, .Fn => {
-                    _ = @field(T, decl.name);
-                },
-                else => {},
-            }
-        }
-    }
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

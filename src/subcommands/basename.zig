@@ -1,8 +1,5 @@
-const std = @import("std");
-const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-
-const log = std.log.scoped(.basename);
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub const name = "basename";
 
@@ -40,7 +37,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z = shared.tracy.traceNamed(@src(), name);
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     _ = cwd;
@@ -58,7 +55,7 @@ fn parseArguments(
     args: anytype,
     exe_path: []const u8,
 ) !BasenameOptions {
-    const z = shared.tracy.traceNamed(@src(), "parse arguments");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
     defer z.end();
 
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
@@ -196,12 +193,12 @@ fn singleArgument(
     exe_path: []const u8,
     options: BasenameOptions,
 ) !void {
-    const z = shared.tracy.traceNamed(@src(), "single argument");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "single argument" });
     defer z.end();
-    z.addText(options.first_arg);
+    z.text(options.first_arg);
 
     const opt_suffix: ?[]const u8 = blk: {
-        const suffix_zone = shared.tracy.traceNamed(@src(), "get suffix");
+        const suffix_zone: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "get suffix" });
         defer suffix_zone.end();
 
         const arg = args.nextRaw() orelse break :blk null;
@@ -217,7 +214,7 @@ fn singleArgument(
             );
         }
 
-        suffix_zone.addText(arg);
+        suffix_zone.text(arg);
 
         break :blk arg;
     };
@@ -238,7 +235,7 @@ fn multipleArguments(
     args: anytype,
     options: BasenameOptions,
 ) !void {
-    const z = shared.tracy.traceNamed(@src(), "multiple arguments");
+    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "multiple arguments" });
     defer z.end();
 
     log.debug("multipleArguments called, options={}", .{options});
@@ -248,9 +245,9 @@ fn multipleArguments(
     var opt_arg: ?[]const u8 = options.first_arg;
 
     while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
-        const argument_zone = shared.tracy.traceNamed(@src(), "process arg");
+        const argument_zone: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
         defer argument_zone.end();
-        argument_zone.addText(arg);
+        argument_zone.text(arg);
 
         const basename = getBasename(arg, options.opt_multiple_suffix);
         log.debug("got basename: '{s}'", .{basename});
@@ -365,26 +362,11 @@ const help_zls = struct {
     };
 };
 
-comptime {
-    refAllDeclsRecursive(@This());
-}
+const std = @import("std");
+const subcommands = @import("../subcommands.zig");
+const shared = @import("../shared.zig");
+const log = std.log.scoped(.basename);
 
-/// This is a copy of `std.testing.refAllDeclsRecursive` but as it is in the file it can access private decls
-/// Also it only reference structs, enums, unions, opaques, types and functions
-fn refAllDeclsRecursive(comptime T: type) void {
-    if (!@import("builtin").is_test) return;
-    inline for (comptime std.meta.declarations(T)) |decl| {
-        if (@TypeOf(@field(T, decl.name)) == type) {
-            switch (@typeInfo(@field(T, decl.name))) {
-                .Struct, .Enum, .Union, .Opaque => {
-                    refAllDeclsRecursive(@field(T, decl.name));
-                    _ = @field(T, decl.name);
-                },
-                .Type, .Fn => {
-                    _ = @field(T, decl.name);
-                },
-                else => {},
-            }
-        }
-    }
+comptime {
+    std.testing.refAllDeclsRecursive(@This());
 }

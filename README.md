@@ -7,7 +7,7 @@ Wherever their options are annoying, force inefficent implementation or are very
 
 Any tools not in GNU coreutils are acceptable as well.
 
-Currently Linux only to ease development.
+Currently POSIX only to ease development.
 
 ---
 
