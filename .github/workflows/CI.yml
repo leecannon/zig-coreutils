@@ -6,7 +6,7 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - ".github/workflows/CI.yml"
       - "**.zig"
@@ -16,9 +16,6 @@ on:
       - ".github/workflows/CI.yml"
       - "**.zig"
       - "**.zig.zon"
-  schedule:
-    - cron: "0 0 * * *"
-  workflow_dispatch:
 
 jobs:
   CI:
