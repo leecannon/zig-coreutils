@@ -1,4 +1,0 @@
-[submodule "tracy"]
-	path = tracy
-	url = https://github.com/wolfpld/tracy.git
-	branch = tags/v0.7.8
