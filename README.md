@@ -1,4 +1,4 @@
-# zig-coreutils [![CI](https://github.com/leecannon/zig-coreutils/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/leecannon/zig-coreutils/actions/workflows/main.yml)
+# zig-coreutils [![CI](https://github.com/leecannon/zig-coreutils/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/leecannon/zig-coreutils/actions/workflows/CI.yml)
 
 A single executable implementation of various coreutils.
 
