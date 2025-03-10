@@ -1,7 +1,7 @@
 const std = @import("std");
 const SUBCOMMANDS = @import("src/subcommands.zig").SUBCOMMANDS;
 
-const coreutils_version = std.SemanticVersion{ .major = 0, .minor = 0, .patch = 7 };
+const coreutils_version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 0 };
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
