@@ -211,7 +211,7 @@ pub fn readFileIntoBuffer(
     return buffer[0..read];
 }
 
-pub const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2021-2023 Lee Cannon\n";
+pub const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2025 Lee Cannon\n";
 
 pub fn ArgIterator(comptime T: type) type {
     return struct {
