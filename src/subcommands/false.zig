@@ -33,7 +33,6 @@ pub fn execute(
     _ = cwd;
     _ = allocator;
 
-    // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
     // FIXME: This is weird, is this acceptable to allow the other subcommands to not have to worry about u8 return value?

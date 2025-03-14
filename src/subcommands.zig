@@ -32,7 +32,7 @@ const SubcommandNonError = error{
 
 pub const Error = SubcommandError || SubcommandNonError;
 
-pub fn execute(
+pub fn tryExecute(
     allocator: std.mem.Allocator,
     os_arg_iter: std.process.ArgIterator,
     io: shared.IO,
@@ -227,7 +227,11 @@ pub fn testVersion(comptime subcommand: type) !void {
         },
     );
 
-    const expected = try std.fmt.allocPrint(std.testing.allocator, shared.version_string, .{subcommand.name});
+    const expected = try std.fmt.allocPrint(
+        std.testing.allocator,
+        shared.version_string,
+        .{subcommand.name},
+    );
     defer std.testing.allocator.free(expected);
 
     try std.testing.expectEqualStrings(expected, out.items);

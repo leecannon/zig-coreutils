@@ -35,13 +35,12 @@ pub fn execute(
     defer if (shared.free_on_close) string.deinit(allocator);
 
     while (true) {
-        io.stdout.writeAll(string.value) catch |err| {
+        io.stdout.writeAll(string.value) catch |err|
             return shared.unableToWriteTo("stdout", io, err);
-        };
     }
 }
 
-fn getString(allocator: std.mem.Allocator, args: *shared.ArgIterator) !MaybeAllocatedString {
+fn getString(allocator: std.mem.Allocator, args: *shared.ArgIterator) !shared.MaybeAllocatedString {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
@@ -51,7 +50,7 @@ fn getString(allocator: std.mem.Allocator, args: *shared.ArgIterator) !MaybeAllo
     if (try args.nextWithHelpOrVersion(true)) |arg| {
         try buffer.appendSlice(arg.raw);
     } else {
-        return MaybeAllocatedString.not_allocated("y\n");
+        return .not_allocated("y\n");
     }
 
     while (args.nextRaw()) |arg| {
@@ -61,40 +60,7 @@ fn getString(allocator: std.mem.Allocator, args: *shared.ArgIterator) !MaybeAllo
 
     try buffer.append('\n');
 
-    return MaybeAllocatedString.allocated(try buffer.toOwnedSlice());
-}
-
-const MaybeAllocatedString = MaybeAllocated([]const u8, freeSlice);
-
-fn freeSlice(self: []const u8, allocator: std.mem.Allocator) void {
-    allocator.free(self);
-}
-
-fn MaybeAllocated(comptime T: type, comptime dealloc: fn (self: T, allocator: std.mem.Allocator) void) type {
-    return struct {
-        is_allocated: bool,
-        value: T,
-
-        pub fn allocated(value: T) @This() {
-            return .{
-                .is_allocated = true,
-                .value = value,
-            };
-        }
-
-        pub fn not_allocated(value: T) @This() {
-            return .{
-                .is_allocated = false,
-                .value = value,
-            };
-        }
-
-        pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
-            if (self.is_allocated) {
-                dealloc(self.value, allocator);
-            }
-        }
-    };
+    return .allocated(try buffer.toOwnedSlice());
 }
 
 test "yes help" {

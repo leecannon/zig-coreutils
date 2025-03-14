@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+pub const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2025 Lee Cannon\n";
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 pub const free_on_close = is_debug_or_test or options.trace;
 
@@ -29,6 +30,8 @@ pub fn printVersion(comptime subcommand: type, io: IO) void {
 }
 
 pub fn unableToWriteTo(comptime destination: []const u8, io: IO, err: anyerror) error{AlreadyHandled} {
+    @branchHint(.cold);
+
     blk: {
         io.stderr.writeAll(comptime "unable to write to " ++ destination ++ ": ") catch break :blk;
         io.stderr.writeAll(@errorName(err)) catch break :blk;
@@ -38,6 +41,8 @@ pub fn unableToWriteTo(comptime destination: []const u8, io: IO, err: anyerror) 
 }
 
 pub fn printError(comptime subcommand: type, io: IO, error_message: []const u8) error{AlreadyHandled} {
+    @branchHint(.cold);
+
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error" });
     defer z.end();
     z.text(error_message);
@@ -61,6 +66,8 @@ pub fn printErrorAlloc(
     comptime msg: []const u8,
     args: anytype,
 ) error{ OutOfMemory, AlreadyHandled } {
+    @branchHint(.cold);
+
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error alloc" });
     defer z.end();
 
@@ -70,7 +77,14 @@ pub fn printErrorAlloc(
     return printError(subcommand, io, error_message);
 }
 
-pub fn printInvalidUsage(comptime subcommand: type, io: IO, exe_path: []const u8, error_message: []const u8) error{AlreadyHandled} {
+pub fn printInvalidUsage(
+    comptime subcommand: type,
+    io: IO,
+    exe_path: []const u8,
+    error_message: []const u8,
+) error{AlreadyHandled} {
+    @branchHint(.cold);
+
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage" });
     defer z.end();
     z.text(error_message);
@@ -97,6 +111,8 @@ pub fn printInvalidUsageAlloc(
     comptime msg: []const u8,
     args: anytype,
 ) error{ OutOfMemory, AlreadyHandled } {
+    @branchHint(.cold);
+
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage alloc" });
     defer z.end();
 
@@ -119,7 +135,7 @@ pub fn mapFile(
     cwd: std.fs.Dir,
     path: []const u8,
 ) error{ AlreadyHandled, OutOfMemory }!MappedFile {
-    const file = cwd.openFile(path, .{}) catch {
+    const file = cwd.openFile(path, .{}) catch
         return printErrorAlloc(
             subcommand,
             allocator,
@@ -127,10 +143,9 @@ pub fn mapFile(
             "unable to open '{s}'",
             .{path},
         );
-    };
     errdefer if (free_on_close) file.close();
 
-    const stat = file.stat() catch |err| {
+    const stat = file.stat() catch |err|
         return printErrorAlloc(
             subcommand,
             allocator,
@@ -138,9 +153,9 @@ pub fn mapFile(
             "unable to stat '{s}': {s}",
             .{ path, @errorName(err) },
         );
-    };
 
     if (stat.size == 0) {
+        @branchHint(.unlikely);
         return .{
             .file = file,
             .file_contents = &.{},
@@ -154,7 +169,7 @@ pub fn mapFile(
         .{ .TYPE = .PRIVATE },
         file.handle,
         0,
-    ) catch |err| {
+    ) catch |err|
         return printErrorAlloc(
             subcommand,
             allocator,
@@ -162,7 +177,6 @@ pub fn mapFile(
             "unable to map '{s}': {s}",
             .{ path, @errorName(err) },
         );
-    };
 
     return .{
         .file = file,
@@ -176,7 +190,10 @@ pub const MappedFile = struct {
 
     pub fn close(self: MappedFile) void {
         if (free_on_close) {
-            if (self.file_contents.len != 0) std.posix.munmap(self.file_contents);
+            if (self.file_contents.len != 0) {
+                @branchHint(.likely);
+                std.posix.munmap(self.file_contents);
+            }
             self.file.close();
         }
     }
@@ -190,7 +207,7 @@ pub fn readFileIntoBuffer(
     path: []const u8,
     buffer: []u8,
 ) error{ AlreadyHandled, OutOfMemory }![]const u8 {
-    const file = cwd.openFile(path, .{}) catch {
+    const file = cwd.openFile(path, .{}) catch
         return printErrorAlloc(
             subcommand,
             allocator,
@@ -198,11 +215,10 @@ pub fn readFileIntoBuffer(
             "unable to open '{s}'",
             .{path},
         );
-    };
     defer if (free_on_close) file.close();
 
     const reader = file.reader();
-    const read = reader.readAll(buffer) catch |err| {
+    const read = reader.readAll(buffer) catch |err|
         return printErrorAlloc(
             subcommand,
             allocator,
@@ -210,12 +226,9 @@ pub fn readFileIntoBuffer(
             "unable to read file '{s}': {s}",
             .{ path, @errorName(err) },
         );
-    };
 
     return buffer[0..read];
 }
-
-pub const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2025 Lee Cannon\n";
 
 pub const ArgIterator = union(enum) {
     args: std.process.ArgIterator,
@@ -229,6 +242,7 @@ pub const ArgIterator = union(enum) {
         defer z.end();
 
         if (self.dispatchNext()) |arg| {
+            @branchHint(.likely);
             z.text(arg);
             return arg;
         }
@@ -240,7 +254,10 @@ pub const ArgIterator = union(enum) {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg" });
         defer z.end();
 
-        const current_arg = self.dispatchNext() orelse return null;
+        const current_arg = self.dispatchNext() orelse {
+            @branchHint(.unlikely);
+            return null;
+        };
 
         z.text(current_arg);
 
@@ -261,22 +278,34 @@ pub const ArgIterator = union(enum) {
 
                     log.debug("longhand argument with value \"{s}\" = \"{s}\"", .{ longhand, value });
 
-                    return Arg.init(current_arg, .{ .longhand_with_value = .{ .longhand = longhand, .value = value } });
+                    return .init(
+                        current_arg,
+                        .{ .longhand_with_value = .{ .longhand = longhand, .value = value } },
+                    );
                 }
 
                 log.debug("longhand argument \"{s}\"", .{entire_longhand});
-                return Arg.init(current_arg, .{ .longhand = entire_longhand });
+                return .init(
+                    current_arg,
+                    .{ .longhand = entire_longhand },
+                );
             }
 
             // this check allows '--' to fall through as a positional argument
             if (current_arg[1] != '-') {
                 log.debug("shorthand argument \"{s}\"", .{current_arg});
-                return Arg.init(current_arg, .{ .shorthand = .{ .value = current_arg } });
+                return .init(
+                    current_arg,
+                    .{ .shorthand = .{ .value = current_arg } },
+                );
             }
         }
 
         log.debug("positional \"{s}\"", .{current_arg});
-        return Arg.init(current_arg, .positional);
+        return .init(
+            current_arg,
+            .positional,
+        );
     }
 
     /// The only time `include_shorthand` should be false is if the subcommand has it's own `-h` argument.
@@ -395,15 +424,23 @@ pub const PasswdFileIterator = struct {
         comptime subcommand: type,
         io: IO,
     ) error{AlreadyHandled}!?Entry {
-        if (self.index >= self.passwd_file_contents.len) return null;
+        if (self.index >= self.passwd_file_contents.len) {
+            @branchHint(.unlikely);
+            return null;
+        }
 
         const remaining = self.passwd_file_contents[self.index..];
 
-        const line_length = std.mem.indexOfScalar(u8, remaining, '\n') orelse remaining.len - 1;
+        const line_length =
+            std.mem.indexOfScalar(u8, remaining, '\n') orelse remaining.len - 1;
 
         self.index += line_length + 1;
 
-        var column_iter = std.mem.tokenizeScalar(u8, remaining[0..line_length], ':');
+        var column_iter = std.mem.tokenizeScalar(
+            u8,
+            remaining[0..line_length],
+            ':',
+        );
 
         const user_name = column_iter.next() orelse
             return printError(subcommand, io, "format of '/etc/passwd' is invalid");
@@ -452,15 +489,23 @@ pub const GroupFileIterator = struct {
         comptime subcommand: type,
         io: IO,
     ) error{AlreadyHandled}!?Entry {
-        if (self.index >= self.group_file_contents.len) return null;
+        if (self.index >= self.group_file_contents.len) {
+            @branchHint(.unlikely);
+            return null;
+        }
 
         const remaining = self.group_file_contents[self.index..];
 
-        const line_length = std.mem.indexOfScalar(u8, remaining, '\n') orelse remaining.len - 1;
+        const line_length =
+            std.mem.indexOfScalar(u8, remaining, '\n') orelse remaining.len - 1;
 
         self.index += line_length + 1;
 
-        var column_iter = std.mem.tokenizeScalar(u8, remaining[0..line_length], ':');
+        var column_iter = std.mem.tokenizeScalar(
+            u8,
+            remaining[0..line_length],
+            ':',
+        );
 
         const group_name = column_iter.next() orelse
             return printError(subcommand, io, "format of '/etc/group' is invalid");
@@ -479,6 +524,42 @@ pub const GroupFileIterator = struct {
         };
     }
 };
+
+pub const MaybeAllocatedString = MaybeAllocated(
+    []const u8,
+    struct {
+        fn freeSlice(self: []const u8, allocator: std.mem.Allocator) void {
+            allocator.free(self);
+        }
+    }.freeSlice,
+);
+
+pub fn MaybeAllocated(comptime T: type, comptime dealloc: fn (self: T, allocator: std.mem.Allocator) void) type {
+    return struct {
+        is_allocated: bool,
+        value: T,
+
+        pub fn allocated(value: T) @This() {
+            return .{
+                .is_allocated = true,
+                .value = value,
+            };
+        }
+
+        pub fn not_allocated(value: T) @This() {
+            return .{
+                .is_allocated = false,
+                .value = value,
+            };
+        }
+
+        pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+            if (self.is_allocated) {
+                dealloc(self.value, allocator);
+            }
+        }
+    };
+}
 
 const builtin = @import("builtin");
 const log = std.log.scoped(.shared);

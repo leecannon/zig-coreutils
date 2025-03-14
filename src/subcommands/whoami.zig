@@ -30,7 +30,6 @@ pub fn execute(
 
     _ = exe_path;
 
-    // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
     const euid = std.os.linux.geteuid();
@@ -41,13 +40,12 @@ pub fn execute(
     var passwd_file_iter = shared.passwdFileIterator(passwd_file.file_contents);
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
-        const user_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.user_id, 10) catch {
+        const user_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.user_id, 10) catch
             return shared.printError(
                 @This(),
                 io,
                 "format of '/etc/passwd' is invalid",
             );
-        };
 
         if (user_id != euid) {
             log.debug("found non-matching user id: {}", .{user_id});
@@ -56,13 +54,13 @@ pub fn execute(
 
         log.debug("found matching user id: {}", .{user_id});
 
-        io.stdout.print("{s}\n", .{entry.user_name}) catch |err| {
+        io.stdout.print("{s}\n", .{entry.user_name}) catch |err|
             return shared.unableToWriteTo(
                 "stdout",
                 io,
                 err,
             );
-        };
+
         return;
     }
 

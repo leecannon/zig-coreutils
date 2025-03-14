@@ -44,9 +44,107 @@ pub fn execute(
 
     const options = try parseArguments(allocator, io, args, exe_path);
 
-    if (options.multiple) return multipleArguments(io, args, options);
+    return switch (options.mode) {
+        .single => singleArgument(allocator, io, args, exe_path, options),
+        .multiple => multipleArguments(io, args, options),
+    };
+}
 
-    return singleArgument(allocator, io, args, exe_path, options);
+const BasenameOptions = struct {
+    line_end: LineEnd = .newline,
+    mode: Mode = .single,
+    first_arg: []const u8 = undefined,
+
+    const LineEnd = enum(u8) {
+        newline = '\n',
+        zero = 0,
+    };
+
+    const Mode = union(enum) {
+        single,
+        multiple: ?[]const u8,
+    };
+};
+
+fn singleArgument(
+    allocator: std.mem.Allocator,
+    io: shared.IO,
+    args: *shared.ArgIterator,
+    exe_path: []const u8,
+    options: BasenameOptions,
+) !void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "single argument" });
+    defer z.end();
+    z.text(options.first_arg);
+
+    const opt_suffix: ?[]const u8 = blk: {
+        const suffix_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "get suffix" });
+        defer suffix_zone.end();
+
+        const arg = args.nextRaw() orelse break :blk null;
+
+        if (args.nextRaw()) |additional_arg| {
+            return shared.printInvalidUsageAlloc(
+                @This(),
+                allocator,
+                io,
+                exe_path,
+                "extra operand '{s}'",
+                .{additional_arg},
+            );
+        }
+
+        suffix_zone.text(arg);
+
+        break :blk arg;
+    };
+
+    log.debug("singleArgument called, options={}", .{options});
+
+    const basename = getBasename(options.first_arg, opt_suffix);
+    log.debug("got basename: '{s}'", .{basename});
+
+    io.stdout.writeAll(basename) catch |err|
+        return shared.unableToWriteTo("stdout", io, err);
+    io.stdout.writeByte(@intFromEnum(options.line_end)) catch |err|
+        return shared.unableToWriteTo("stdout", io, err);
+}
+
+fn multipleArguments(
+    io: shared.IO,
+    args: *shared.ArgIterator,
+    options: BasenameOptions,
+) !void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "multiple arguments" });
+    defer z.end();
+
+    log.debug("multipleArguments called, options={}", .{options});
+
+    var opt_arg: ?[]const u8 = options.first_arg;
+
+    while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
+        const argument_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
+        defer argument_zone.end();
+        argument_zone.text(arg);
+
+        const basename = getBasename(arg, options.mode.multiple);
+        log.debug("got basename: '{s}'", .{basename});
+
+        io.stdout.writeAll(basename) catch |err|
+            return shared.unableToWriteTo("stdout", io, err);
+        io.stdout.writeByte(@intFromEnum(options.line_end)) catch |err|
+            return shared.unableToWriteTo("stdout", io, err);
+    }
+}
+
+fn getBasename(buf: []const u8, opt_suffix: ?[]const u8) []const u8 {
+    const basename = std.fs.path.basename(buf);
+
+    const suffix = opt_suffix orelse return basename;
+
+    const end_index = std.mem.lastIndexOf(u8, basename, suffix) orelse return basename;
+
+    return basename[0..end_index];
 }
 
 fn parseArguments(
@@ -78,49 +176,70 @@ fn parseArguments(
     while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
-                if (state != .normal) break;
+                if (state != .normal) {
+                    @branchHint(.cold);
+                    break;
+                }
 
                 if (std.mem.eql(u8, longhand, "zero")) {
-                    basename_options.zero = true;
+                    basename_options.line_end = .zero;
                     log.debug("got zero longhand", .{});
                 } else if (std.mem.eql(u8, longhand, "multiple")) {
-                    basename_options.multiple = true;
+                    if (basename_options.mode != .multiple) {
+                        basename_options.mode = .{ .multiple = null };
+                    }
                     log.debug("got multiple longhand", .{});
                 } else if (std.mem.eql(u8, longhand, "suffix")) {
                     state = .suffix;
                     log.debug("got suffix longhand", .{});
                 } else {
-                    state = .{ .invalid_argument = .{ .slice = longhand } };
+                    @branchHint(.cold);
+                    state = .{
+                        .invalid_argument = .{ .slice = longhand },
+                    };
                     break;
                 }
             },
             .longhand_with_value => |longhand_with_value| {
-                if (state != .normal) break;
+                if (state != .normal) {
+                    @branchHint(.cold);
+                    break;
+                }
 
                 if (std.mem.eql(u8, longhand_with_value.longhand, "suffix")) {
-                    basename_options.multiple = true;
-                    basename_options.opt_multiple_suffix = longhand_with_value.value;
+                    basename_options.mode = .{ .multiple = longhand_with_value.value };
                     log.debug("got suffix longhand with value = {s}", .{longhand_with_value.value});
                 } else {
-                    state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
+                    @branchHint(.cold);
+                    state = .{
+                        .invalid_argument = .{ .slice = longhand_with_value.longhand },
+                    };
                     break;
                 }
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
-                    if (state != .normal) break;
+                    if (state != .normal) {
+                        @branchHint(.cold);
+                        break;
+                    }
 
                     if (char == 'z') {
-                        basename_options.zero = true;
+                        basename_options.line_end = .zero;
                         log.debug("got zero shorthand", .{});
                     } else if (char == 'a') {
-                        basename_options.multiple = true;
+                        if (basename_options.mode != .multiple) {
+                            basename_options.mode = .{ .multiple = null };
+                        }
                         log.debug("got multiple shorthand", .{});
                     } else if (char == 's') {
                         state = .suffix;
                         log.debug("got suffix shorthand", .{});
                     } else {
-                        state = .{ .invalid_argument = .{ .character = char } };
+                        @branchHint(.cold);
+                        state = .{
+                            .invalid_argument = .{ .character = char },
+                        };
                         break;
                     }
                 }
@@ -129,13 +248,15 @@ fn parseArguments(
                 switch (state) {
                     .normal => {},
                     .suffix => {
-                        basename_options.multiple = true;
-                        basename_options.opt_multiple_suffix = arg.raw;
+                        basename_options.mode = .{ .multiple = arg.raw };
                         log.debug("got suffix value: '{s}'", .{arg.raw});
                         state = .normal;
                         continue;
                     },
-                    else => break,
+                    else => {
+                        @branchHint(.cold);
+                        break;
+                    },
                 }
 
                 basename_options.first_arg = arg.raw;
@@ -176,95 +297,6 @@ fn parseArguments(
             ),
         },
     };
-}
-
-const BasenameOptions = struct {
-    zero: bool = false,
-    multiple: bool = false,
-    opt_multiple_suffix: ?[]const u8 = null,
-
-    first_arg: []const u8 = undefined,
-};
-
-fn singleArgument(
-    allocator: std.mem.Allocator,
-    io: shared.IO,
-    args: *shared.ArgIterator,
-    exe_path: []const u8,
-    options: BasenameOptions,
-) !void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "single argument" });
-    defer z.end();
-    z.text(options.first_arg);
-
-    const opt_suffix: ?[]const u8 = blk: {
-        const suffix_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "get suffix" });
-        defer suffix_zone.end();
-
-        const arg = args.nextRaw() orelse break :blk null;
-
-        if (args.nextRaw()) |additional_arg| {
-            return shared.printInvalidUsageAlloc(
-                @This(),
-                allocator,
-                io,
-                exe_path,
-                "extra operand '{s}'",
-                .{additional_arg},
-            );
-        }
-
-        suffix_zone.text(arg);
-
-        break :blk arg;
-    };
-
-    log.debug("singleArgument called, options={}", .{options});
-
-    const end_byte: u8 = if (options.zero) 0 else '\n';
-
-    const basename = getBasename(options.first_arg, opt_suffix);
-    log.debug("got basename: '{s}'", .{basename});
-
-    io.stdout.writeAll(basename) catch |err| return shared.unableToWriteTo("stdout", io, err);
-    io.stdout.writeByte(end_byte) catch |err| return shared.unableToWriteTo("stdout", io, err);
-}
-
-fn multipleArguments(
-    io: shared.IO,
-    args: *shared.ArgIterator,
-    options: BasenameOptions,
-) !void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "multiple arguments" });
-    defer z.end();
-
-    log.debug("multipleArguments called, options={}", .{options});
-
-    const end_byte: u8 = if (options.zero) 0 else '\n';
-
-    var opt_arg: ?[]const u8 = options.first_arg;
-
-    while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
-        const argument_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
-        defer argument_zone.end();
-        argument_zone.text(arg);
-
-        const basename = getBasename(arg, options.opt_multiple_suffix);
-        log.debug("got basename: '{s}'", .{basename});
-
-        io.stdout.writeAll(basename) catch |err| return shared.unableToWriteTo("stdout", io, err);
-        io.stdout.writeByte(end_byte) catch |err| return shared.unableToWriteTo("stdout", io, err);
-    }
-}
-
-fn getBasename(buf: []const u8, opt_suffix: ?[]const u8) []const u8 {
-    const basename = std.fs.path.basename(buf);
-
-    const suffix = opt_suffix orelse return basename;
-
-    const end_index = std.mem.lastIndexOf(u8, basename, suffix) orelse return basename;
-
-    return basename[0..end_index];
 }
 
 test "basename no args" {

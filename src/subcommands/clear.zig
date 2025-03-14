@@ -32,10 +32,18 @@ pub fn execute(
 
     const options = try parseArguments(allocator, io, args, exe_path);
 
-    const output = if (options.clear_scrollback) "\x1b[H\x1b[2J\x1b[3J" else "\x1b[H\x1b[2J";
-
-    io.stdout.writeAll(output) catch |err| return shared.unableToWriteTo("stdout", io, err);
+    io.stdout.writeAll(
+        if (options.clear_scrollback)
+            "\x1b[H\x1b[2J\x1b[3J"
+        else
+            "\x1b[H\x1b[2J",
+    ) catch |err|
+        return shared.unableToWriteTo("stdout", io, err);
 }
+
+const ClearOptions = struct {
+    clear_scrollback: bool = true,
+};
 
 fn parseArguments(
     allocator: std.mem.Allocator,
@@ -65,30 +73,29 @@ fn parseArguments(
     while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
-                if (state != .normal) break;
+                @branchHint(.cold);
                 state = .{ .invalid_argument = .{ .slice = longhand } };
                 break;
             },
             .longhand_with_value => |longhand_with_value| {
-                if (state != .normal) break;
+                @branchHint(.cold);
                 state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
                 break;
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
-                    if (state != .normal) break;
-
                     if (char == 'x') {
                         clear_options.clear_scrollback = false;
                         log.debug("got dont clear scrollback option", .{});
                     } else {
+                        @branchHint(.cold);
                         state = .{ .invalid_argument = .{ .character = char } };
                         break;
                     }
                 }
             },
             .positional => {
-                if (state != .normal) break;
+                @branchHint(.cold);
                 state = .{ .invalid_argument = .{ .slice = arg.raw } };
                 break;
             },
@@ -117,10 +124,6 @@ fn parseArguments(
         },
     };
 }
-
-const ClearOptions = struct {
-    clear_scrollback: bool = true,
-};
 
 test "clear no args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);

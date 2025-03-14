@@ -37,9 +37,10 @@ pub fn execute(
     const passwd_file = try shared.mapFile(@This(), allocator, io, cwd, "/etc/passwd");
     defer passwd_file.close();
 
-    if (opt_arg) |arg| return otherUser(allocator, io, arg, passwd_file.file_contents, cwd);
-
-    return currentUser(allocator, io, passwd_file.file_contents, cwd);
+    return if (opt_arg) |arg|
+        otherUser(allocator, io, arg, passwd_file.file_contents, cwd)
+    else
+        currentUser(allocator, io, passwd_file.file_contents, cwd);
 }
 
 fn currentUser(
@@ -58,13 +59,16 @@ fn currentUser(
     var passwd_file_iter = shared.passwdFileIterator(passwd_file_contents);
 
     while (try passwd_file_iter.next(@This(), io)) |entry| {
-        const user_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.user_id, 10) catch {
+        const user_id = std.fmt.parseUnsigned(
+            std.posix.uid_t,
+            entry.user_id,
+            10,
+        ) catch
             return shared.printError(
                 @This(),
                 io,
                 "format of '/etc/passwd' is invalid",
             );
-        };
 
         if (user_id != euid) {
             log.debug("found non-matching user id: {}", .{user_id});
@@ -73,13 +77,16 @@ fn currentUser(
 
         log.debug("found matching user id: {}", .{user_id});
 
-        const primary_group_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.primary_group_id, 10) catch {
+        const primary_group_id = std.fmt.parseUnsigned(
+            std.posix.uid_t,
+            entry.primary_group_id,
+            10,
+        ) catch
             return shared.printError(
                 @This(),
                 io,
                 "format of '/etc/passwd' is invalid",
             );
-        };
 
         return printGroups(allocator, entry.user_name, primary_group_id, io, cwd);
     }
@@ -114,13 +121,16 @@ fn otherUser(
 
         log.debug("found matching user: {s}", .{entry.user_name});
 
-        const primary_group_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.primary_group_id, 10) catch {
+        const primary_group_id = std.fmt.parseUnsigned(
+            std.posix.uid_t,
+            entry.primary_group_id,
+            10,
+        ) catch
             return shared.printError(
                 @This(),
                 io,
                 "format of '/etc/passwd' is invalid",
             );
-        };
 
         return printGroups(allocator, entry.user_name, primary_group_id, io, cwd);
     }
@@ -139,7 +149,10 @@ fn printGroups(
     defer z.end();
     z.text(user_name);
 
-    log.debug("printGroups called, user_name='{s}', primary_group_id={}", .{ user_name, primary_group_id });
+    log.debug(
+        "printGroups called, user_name='{s}', primary_group_id={}",
+        .{ user_name, primary_group_id },
+    );
 
     const group_file = try shared.mapFile(@This(), allocator, io, cwd, "/etc/group");
     defer group_file.close();
@@ -149,19 +162,20 @@ fn printGroups(
     var first = true;
 
     while (try group_file_iter.next(@This(), io)) |entry| {
-        const group_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.group_id, 10) catch {
+        const group_id = std.fmt.parseUnsigned(std.posix.uid_t, entry.group_id, 10) catch
             return shared.printError(
                 @This(),
                 io,
                 "format of '/etc/group' is invalid",
             );
-        };
 
         if (group_id == primary_group_id) {
             if (!first) {
-                io.stdout.writeByte(' ') catch |err| return shared.unableToWriteTo("stdout", io, err);
+                io.stdout.writeByte(' ') catch |err|
+                    return shared.unableToWriteTo("stdout", io, err);
             }
-            io.stdout.writeAll(entry.group_name) catch |err| return shared.unableToWriteTo("stdout", io, err);
+            io.stdout.writeAll(entry.group_name) catch |err|
+                return shared.unableToWriteTo("stdout", io, err);
 
             first = false;
             continue;
@@ -172,16 +186,19 @@ fn printGroups(
             if (!std.mem.eql(u8, member, user_name)) continue;
 
             if (!first) {
-                io.stdout.writeByte(' ') catch |err| return shared.unableToWriteTo("stdout", io, err);
+                io.stdout.writeByte(' ') catch |err|
+                    return shared.unableToWriteTo("stdout", io, err);
             }
 
-            io.stdout.writeAll(entry.group_name) catch |err| return shared.unableToWriteTo("stdout", io, err);
+            io.stdout.writeAll(entry.group_name) catch |err|
+                return shared.unableToWriteTo("stdout", io, err);
             first = false;
             break;
         }
     }
 
-    io.stdout.writeByte('\n') catch |err| return shared.unableToWriteTo("stdout", io, err);
+    io.stdout.writeByte('\n') catch |err|
+        return shared.unableToWriteTo("stdout", io, err);
 }
 
 // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?

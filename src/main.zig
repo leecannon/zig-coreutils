@@ -47,7 +47,7 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
         .stdout = std_out_buffered.writer().any(),
     };
 
-    subcommands.execute(
+    subcommands.tryExecute(
         allocator,
         arg_iter,
         io,
@@ -76,9 +76,6 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
 
     // Only flush stdout if the command completed successfully
     // If we flush stdout after printing an error then the error message will not be the last thing printed
-    const flush_z: tracy.Zone = .begin(.{ .src = @src(), .name = "stdout flush" });
-    defer flush_z.end();
-
     std_out_buffered.flush() catch |err| {
         shared.unableToWriteTo("stdout", io, err) catch {};
         return 1;

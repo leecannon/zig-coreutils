@@ -31,23 +31,30 @@ pub fn execute(
 
     _ = exe_path;
 
-    // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 
     const path = "/sys/devices/system/cpu/online";
     var buffer: [8]u8 = undefined;
-    const file_contents = try shared.readFileIntoBuffer(@This(), allocator, io, cwd, path, &buffer);
-    const nproc = 1 + (getLastCpuIndex(std.mem.trim(u8, file_contents, &std.ascii.whitespace)) catch {
+    const file_contents = try shared.readFileIntoBuffer(
+        @This(),
+        allocator,
+        io,
+        cwd,
+        path,
+        &buffer,
+    );
+
+    const last_cpu_index = getLastCpuIndex(
+        std.mem.trim(u8, file_contents, &std.ascii.whitespace),
+    ) catch
         return shared.printError(
             @This(),
             io,
             "format of '" ++ path ++ "' is invalid: '{s}'",
         );
-    });
 
-    io.stdout.print("{}\n", .{nproc}) catch |err| {
+    io.stdout.print("{}\n", .{1 + last_cpu_index}) catch |err|
         return shared.unableToWriteTo("stdout", io, err);
-    };
 }
 
 fn getLastCpuIndex(str: []const u8) error{InvalidFormat}!usize {
@@ -61,20 +68,19 @@ fn getLastCpuIndex(str: []const u8) error{InvalidFormat}!usize {
     return last_index;
 }
 
-test "nproc getLastCpuIndex()" {
-    const testing = std.testing;
+test getLastCpuIndex {
     const valid_input = "0-3";
-    try testing.expect(try getLastCpuIndex(valid_input) == 3);
+    try std.testing.expect(try getLastCpuIndex(valid_input) == 3);
     const invalid_input_a = "0-";
-    try testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_a));
+    try std.testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_a));
     const invalid_input_b = "0";
-    try testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_b));
+    try std.testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_b));
     const invalid_input_c = "0-4-5";
-    try testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_c));
+    try std.testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_c));
     const invalid_input_d = "invalid";
-    try testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_d));
+    try std.testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_d));
     const invalid_input_e = "";
-    try testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_e));
+    try std.testing.expectError(error.InvalidFormat, getLastCpuIndex(invalid_input_e));
 }
 
 test "nproc help" {

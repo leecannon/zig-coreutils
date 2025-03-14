@@ -33,7 +33,6 @@ pub fn execute(
     _ = cwd;
     _ = allocator;
 
-    // Only the first argument is checked for help or version
     _ = try args.nextWithHelpOrVersion(true);
 }
 

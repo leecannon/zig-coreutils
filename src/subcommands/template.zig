@@ -35,6 +35,8 @@ pub fn execute(
     _ = options;
 }
 
+const TemplateOptions = struct {};
+
 fn parseArguments(
     allocator: std.mem.Allocator,
     io: shared.IO,
@@ -63,24 +65,24 @@ fn parseArguments(
     while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
-                if (state != .normal) break;
+                @branchHint(.cold);
                 state = .{ .invalid_argument = .{ .slice = longhand } };
                 break;
             },
             .longhand_with_value => |longhand_with_value| {
-                if (state != .normal) break;
+                @branchHint(.cold);
                 state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
                 break;
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
-                    if (state != .normal) break;
+                    @branchHint(.cold);
                     state = .{ .invalid_argument = .{ .character = char } };
                     break;
                 }
             },
             .positional => {
-                if (state != .normal) break;
+                @branchHint(.cold);
                 state = .{ .invalid_argument = .{ .slice = arg.raw } };
                 break;
             },
@@ -109,8 +111,6 @@ fn parseArguments(
         },
     };
 }
-
-const TemplateOptions = struct {};
 
 test "template no args" {
     try subcommands.testExecute(@This(), &.{}, .{});

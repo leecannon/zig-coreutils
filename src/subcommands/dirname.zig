@@ -42,6 +42,46 @@ pub fn execute(
     return performDirname(io, args, options);
 }
 
+const DirnameOptions = struct {
+    line_end: LineEnd = .newline,
+    first_arg: []const u8 = undefined,
+
+    const LineEnd = enum(u8) {
+        newline = '\n',
+        zero = 0,
+    };
+};
+
+fn performDirname(
+    io: shared.IO,
+    args: *shared.ArgIterator,
+    options: DirnameOptions,
+) !void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
+    defer z.end();
+
+    log.debug("performDirname called, options={}", .{options});
+
+    var opt_arg: ?[]const u8 = options.first_arg;
+
+    while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
+        const argument_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
+        defer argument_zone.end();
+        argument_zone.text(arg);
+
+        const dirname = if (std.fs.path.dirname(arg)) |dir|
+            dir
+        else
+            ".";
+        log.debug("got dirname: '{s}'", .{dirname});
+
+        io.stdout.writeAll(dirname) catch |err|
+            return shared.unableToWriteTo("stdout", io, err);
+        io.stdout.writeByte(@intFromEnum(options.line_end)) catch |err|
+            return shared.unableToWriteTo("stdout", io, err);
+    }
+}
+
 fn parseArguments(
     allocator: std.mem.Allocator,
     io: shared.IO,
@@ -70,36 +110,33 @@ fn parseArguments(
     while (opt_arg) |*arg| : (opt_arg = args.next()) {
         switch (arg.arg_type) {
             .longhand => |longhand| {
-                if (state != .normal) break;
-
                 if (std.mem.eql(u8, longhand, "zero")) {
-                    dir_options.zero = true;
+                    dir_options.line_end = .zero;
                     log.debug("got zero longhand", .{});
                 } else {
+                    @branchHint(.cold);
                     state = .{ .invalid_argument = .{ .slice = longhand } };
                     break;
                 }
             },
             .longhand_with_value => |longhand_with_value| {
+                @branchHint(.cold);
                 state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
                 break;
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
-                    if (state != .normal) break;
-
                     if (char == 'z') {
-                        dir_options.zero = true;
+                        dir_options.line_end = .zero;
                         log.debug("got zero shorthand", .{});
                     } else {
+                        @branchHint(.cold);
                         state = .{ .invalid_argument = .{ .character = char } };
                         break;
                     }
                 }
             },
             .positional => {
-                if (state != .normal) break;
-
                 dir_options.first_arg = arg.raw;
                 return dir_options;
             },
@@ -132,44 +169,6 @@ fn parseArguments(
             ),
         },
     };
-}
-
-const DirnameOptions = struct {
-    zero: bool = false,
-
-    first_arg: []const u8 = undefined,
-};
-
-fn performDirname(
-    io: shared.IO,
-    args: *shared.ArgIterator,
-    options: DirnameOptions,
-) !void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
-    defer z.end();
-
-    log.debug("performDirname called, options={}", .{options});
-
-    const end_byte: u8 = if (options.zero) 0 else '\n';
-
-    var opt_arg: ?[]const u8 = options.first_arg;
-
-    while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
-        const argument_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
-        defer argument_zone.end();
-        argument_zone.text(arg);
-
-        const dirname = getDirname(arg);
-        log.debug("got dirname: '{s}'", .{dirname});
-
-        io.stdout.writeAll(dirname) catch |err| return shared.unableToWriteTo("stdout", io, err);
-        io.stdout.writeByte(end_byte) catch |err| return shared.unableToWriteTo("stdout", io, err);
-    }
-}
-
-fn getDirname(buf: []const u8) []const u8 {
-    if (std.fs.path.dirname(buf)) |dir| return dir;
-    return ".";
 }
 
 test "dirname no args" {
