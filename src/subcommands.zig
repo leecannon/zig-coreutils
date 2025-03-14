@@ -177,12 +177,13 @@ pub fn testError(
 }
 
 pub fn testHelp(comptime subcommand: type, comptime include_shorthand: bool) !void {
-    const full_expected_help = try std.fmt.allocPrint(
+    const full_expected_help = if (@hasDecl(subcommand, "extended_help")) try std.fmt.allocPrint(
         std.testing.allocator,
         comptime subcommand.short_help ++ subcommand.extended_help,
         .{subcommand.name},
-    );
-    defer std.testing.allocator.free(full_expected_help);
+    ) else subcommand.short_help;
+
+    defer if (@hasDecl(subcommand, "extended_help")) std.testing.allocator.free(full_expected_help);
 
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();

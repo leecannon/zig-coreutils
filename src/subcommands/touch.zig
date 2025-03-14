@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+// TODO: Extended help examples https://github.com/leecannon/zig-coreutils/issues/3
+
 pub const name = "touch";
 
 pub const short_help =
@@ -26,10 +28,6 @@ pub const short_help =
     \\  --version             output version information and exit
     \\
 ;
-
-// No examples provided for `touch`
-// TODO: Should there be? https://github.com/leecannon/zig-coreutils/issues/3
-pub const extended_help = "";
 
 pub fn execute(
     allocator: std.mem.Allocator,

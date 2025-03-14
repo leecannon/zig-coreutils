@@ -15,9 +15,6 @@ pub const short_help =
     \\
 ;
 
-// No examples provided for `yes`
-pub const extended_help = "";
-
 pub fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,

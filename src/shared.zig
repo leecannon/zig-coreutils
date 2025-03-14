@@ -18,7 +18,11 @@ pub fn printFullHelp(comptime subcommand: type, io: IO, exe_path: []const u8) vo
     defer z.end();
 
     log.debug(comptime "printing full help for " ++ subcommand.name, .{});
-    io.stdout.print(comptime subcommand.short_help ++ subcommand.extended_help, .{exe_path}) catch {};
+    if (@hasDecl(subcommand, "extended_help")) {
+        io.stdout.print(comptime subcommand.short_help ++ subcommand.extended_help, .{exe_path}) catch {};
+    } else {
+        io.stdout.print(comptime subcommand.short_help, .{exe_path}) catch {};
+    }
 }
 
 pub fn printVersion(comptime subcommand: type, io: IO) void {
