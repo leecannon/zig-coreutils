@@ -2,22 +2,19 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
+    // this causes the frame to start with our main instead of `std.start`
+    shared.tracy.frameMark(null);
+    const main_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "main" });
+    defer main_z.end();
+
     const static = struct {
         var debug_allocator: if (shared.is_debug_or_test) std.heap.DebugAllocator(.{}) else void =
             if (shared.is_debug_or_test) .init else {};
         var tracy_allocator: if (options.trace) shared.tracy.Allocator else void =
             if (options.trace) undefined else {};
     };
-
-    const main_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "main" });
-    // this causes the frame to start with our main instead of `std.start`
-    shared.tracy.frameMark(null);
-
     defer {
-        if (shared.is_debug_or_test) {
-            _ = static.debug_allocator.deinit();
-        }
-        main_z.end();
+        if (shared.is_debug_or_test) _ = static.debug_allocator.deinit();
     }
 
     const allocator = blk: {
@@ -36,10 +33,8 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
 
     var argument_info = ArgumentInfo.fetch();
 
-    const io_buffers_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "io buffers" });
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
-    io_buffers_z.end();
 
     const stderr_writer = std.io.getStdErr().writer();
     const io = .{
@@ -80,7 +75,6 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
     const flush_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "stdout flush" });
     defer flush_z.end();
 
-    log.debug("flushing stdout buffer on successful execution", .{});
     std_out_buffered.flush() catch |err| {
         shared.unableToWriteTo("stdout", io, err) catch {};
         return 1;

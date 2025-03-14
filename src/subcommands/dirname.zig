@@ -154,13 +154,7 @@ fn performDirname(
 
     var opt_arg: ?[]const u8 = options.first_arg;
 
-    shared.tracy.frameMarkStart("arg");
-    defer shared.tracy.frameMarkEnd("arg");
-
-    while (opt_arg) |arg| : ({
-        shared.tracy.frameMark("arg");
-        opt_arg = args.nextRaw();
-    }) {
+    while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
         const argument_zone: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
         defer argument_zone.end();
         argument_zone.text(arg);
