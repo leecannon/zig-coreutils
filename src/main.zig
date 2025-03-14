@@ -37,10 +37,10 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
 
     const stderr_writer = std.io.getStdErr().writer();
-    const io = .{
-        .stderr = stderr_writer,
-        .stdin = std_in_buffered.reader(),
-        .stdout = std_out_buffered.writer(),
+    const io: shared.IO = .{
+        .stderr = stderr_writer.any(),
+        .stdin = std_in_buffered.reader().any(),
+        .stdout = std_out_buffered.writer().any(),
     };
 
     subcommands.execute(

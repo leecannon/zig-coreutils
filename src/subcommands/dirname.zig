@@ -27,7 +27,7 @@ pub const extended_help = // a blank line is required at the beginning to ensure
 
 pub fn execute(
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: shared.IO,
     args: anytype,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -44,7 +44,7 @@ pub fn execute(
 
 fn parseArguments(
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: shared.IO,
     args: anytype,
     exe_path: []const u8,
 ) !DirnameOptions {
@@ -141,7 +141,7 @@ const DirnameOptions = struct {
 };
 
 fn performDirname(
-    io: anytype,
+    io: shared.IO,
     args: anytype,
     options: DirnameOptions,
 ) !void {
@@ -222,24 +222,18 @@ test "dirname version" {
 }
 
 const help_zls = struct {
-    // Due to https://github.com/zigtools/zls/pull/1067 this is enough to help ZLS understand the `io` and `args` arguments
+    // Due to https://github.com/zigtools/zls/pull/1067 this is enough to help ZLS understand the `args` argument
 
     fn dummyExecute() void {
         execute(
             undefined,
-            @as(DummyIO, undefined),
+            undefined,
             @as(DummyArgs, undefined),
             undefined,
             undefined,
         );
         @panic("THIS SHOULD NEVER BE CALLED");
     }
-
-    const DummyIO = struct {
-        stderr: std.io.AnyWriter,
-        stdin: std.io.AnyReader,
-        stdout: std.io.AnyWriter,
-    };
 
     const DummyArgs = struct {
         const Self = @This();

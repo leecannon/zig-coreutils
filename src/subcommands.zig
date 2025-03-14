@@ -35,7 +35,7 @@ pub const Error = SubcommandError || SubcommandNonError;
 pub fn execute(
     allocator: std.mem.Allocator,
     arg_iter: *std.process.ArgIterator,
-    io: anytype,
+    io: shared.IO,
     basename: []const u8,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -94,7 +94,7 @@ fn executeSubcommand(
     comptime subcommand: type,
     allocator: std.mem.Allocator,
     arg_iter: anytype,
-    io: anytype,
+    io: shared.IO,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) SubcommandError!void {
@@ -130,9 +130,9 @@ pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, s
         std.testing.allocator,
         &arg_iter,
         .{
-            .stderr = stderr,
-            .stdin = stdin,
-            .stdout = stdout,
+            .stderr = stderr.any(),
+            .stdin = stdin.any(),
+            .stdout = stdout.any(),
         },
         cwd,
         subcommand.name,

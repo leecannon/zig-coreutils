@@ -22,7 +22,7 @@ pub const extended_help = "";
 
 pub fn execute(
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: shared.IO,
     args: anytype,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -44,7 +44,7 @@ pub fn execute(
 
 fn currentUser(
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: shared.IO,
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
 ) subcommands.Error!void {
@@ -93,7 +93,7 @@ fn currentUser(
 
 fn otherUser(
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: shared.IO,
     arg: shared.Arg,
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
@@ -132,7 +132,7 @@ fn printGroups(
     allocator: std.mem.Allocator,
     user_name: []const u8,
     primary_group_id: std.posix.uid_t,
-    io: anytype,
+    io: shared.IO,
     cwd: std.fs.Dir,
 ) !void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print groups" });
@@ -196,24 +196,18 @@ test "groups version" {
 }
 
 const help_zls = struct {
-    // Due to https://github.com/zigtools/zls/pull/1067 this is enough to help ZLS understand the `io` and `args` arguments
+    // Due to https://github.com/zigtools/zls/pull/1067 this is enough to help ZLS understand the `args` argument
 
     fn dummyExecute() void {
         execute(
             undefined,
-            @as(DummyIO, undefined),
+            undefined,
             @as(DummyArgs, undefined),
             undefined,
             undefined,
         );
         @panic("THIS SHOULD NEVER BE CALLED");
     }
-
-    const DummyIO = struct {
-        stderr: std.io.AnyWriter,
-        stdin: std.io.AnyReader,
-        stdout: std.io.AnyWriter,
-    };
 
     const DummyArgs = struct {
         const Self = @This();

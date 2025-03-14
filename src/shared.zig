@@ -4,7 +4,7 @@
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 pub const free_on_close = is_debug_or_test or options.trace;
 
-pub fn printShortHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
+pub fn printShortHelp(comptime subcommand: type, io: IO, exe_path: []const u8) void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print short help" });
     defer z.end();
 
@@ -12,7 +12,7 @@ pub fn printShortHelp(comptime subcommand: type, io: anytype, exe_path: []const 
     io.stdout.print(subcommand.short_help, .{exe_path}) catch {};
 }
 
-pub fn printFullHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
+pub fn printFullHelp(comptime subcommand: type, io: IO, exe_path: []const u8) void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print full help" });
     defer z.end();
 
@@ -20,7 +20,7 @@ pub fn printFullHelp(comptime subcommand: type, io: anytype, exe_path: []const u
     io.stdout.print(comptime subcommand.short_help ++ subcommand.extended_help, .{exe_path}) catch {};
 }
 
-pub fn printVersion(comptime subcommand: type, io: anytype) void {
+pub fn printVersion(comptime subcommand: type, io: IO) void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print version" });
     defer z.end();
 
@@ -28,7 +28,7 @@ pub fn printVersion(comptime subcommand: type, io: anytype) void {
     io.stdout.print(version_string, .{subcommand.name}) catch {};
 }
 
-pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyerror) error{AlreadyHandled} {
+pub fn unableToWriteTo(comptime destination: []const u8, io: IO, err: anyerror) error{AlreadyHandled} {
     blk: {
         io.stderr.writeAll(comptime "unable to write to " ++ destination ++ ": ") catch break :blk;
         io.stderr.writeAll(@errorName(err)) catch break :blk;
@@ -37,7 +37,7 @@ pub fn unableToWriteTo(comptime destination: []const u8, io: anytype, err: anyer
     return error.AlreadyHandled;
 }
 
-pub fn printError(comptime subcommand: type, io: anytype, error_message: []const u8) error{AlreadyHandled} {
+pub fn printError(comptime subcommand: type, io: IO, error_message: []const u8) error{AlreadyHandled} {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error" });
     defer z.end();
     z.text(error_message);
@@ -57,7 +57,7 @@ pub fn printError(comptime subcommand: type, io: anytype, error_message: []const
 pub fn printErrorAlloc(
     comptime subcommand: type,
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: IO,
     comptime msg: []const u8,
     args: anytype,
 ) error{ OutOfMemory, AlreadyHandled } {
@@ -70,7 +70,7 @@ pub fn printErrorAlloc(
     return printError(subcommand, io, error_message);
 }
 
-pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []const u8, error_message: []const u8) error{AlreadyHandled} {
+pub fn printInvalidUsage(comptime subcommand: type, io: IO, exe_path: []const u8, error_message: []const u8) error{AlreadyHandled} {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage" });
     defer z.end();
     z.text(error_message);
@@ -92,7 +92,7 @@ pub fn printInvalidUsage(comptime subcommand: type, io: anytype, exe_path: []con
 pub fn printInvalidUsageAlloc(
     comptime subcommand: type,
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: IO,
     exe_path: []const u8,
     comptime msg: []const u8,
     args: anytype,
@@ -106,10 +106,16 @@ pub fn printInvalidUsageAlloc(
     return printInvalidUsage(subcommand, io, exe_path, error_message);
 }
 
+pub const IO = struct {
+    stderr: std.io.AnyWriter,
+    stdin: std.io.AnyReader,
+    stdout: std.io.AnyWriter,
+};
+
 pub fn mapFile(
     comptime subcommand: type,
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: IO,
     cwd: std.fs.Dir,
     path: []const u8,
 ) error{ AlreadyHandled, OutOfMemory }!MappedFile {
@@ -179,7 +185,7 @@ pub const MappedFile = struct {
 pub fn readFileIntoBuffer(
     comptime subcommand: type,
     allocator: std.mem.Allocator,
-    io: anytype,
+    io: IO,
     cwd: std.fs.Dir,
     path: []const u8,
     buffer: []u8,
@@ -373,7 +379,7 @@ pub const PasswdFileIterator = struct {
     pub fn next(
         self: *PasswdFileIterator,
         comptime subcommand: type,
-        io: anytype,
+        io: IO,
     ) error{AlreadyHandled}!?Entry {
         if (self.index >= self.passwd_file_contents.len) return null;
 
@@ -430,7 +436,7 @@ pub const GroupFileIterator = struct {
     pub fn next(
         self: *GroupFileIterator,
         comptime subcommand: type,
-        io: anytype,
+        io: IO,
     ) error{AlreadyHandled}!?Entry {
         if (self.index >= self.group_file_contents.len) return null;
 
