@@ -217,103 +217,117 @@ pub fn readFileIntoBuffer(
 
 pub const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2025 Lee Cannon\n";
 
-pub fn ArgIterator(comptime T: type) type {
-    return struct {
-        arg_iter: T,
+pub const ArgIterator = union(enum) {
+    args: std.process.ArgIterator,
+    slice: struct {
+        slice: []const [:0]const u8,
+        index: usize = 0,
+    },
 
-        const Self = @This();
+    pub fn nextRaw(self: *ArgIterator) ?[:0]const u8 {
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "raw next arg" });
+        defer z.end();
 
-        pub fn init(arg_iter: T) Self {
-            return .{ .arg_iter = arg_iter };
-        }
-
-        pub fn nextRaw(self: *Self) ?[:0]const u8 {
-            const z: tracy.Zone = .begin(.{ .src = @src(), .name = "raw next arg" });
-            defer z.end();
-
-            if (self.arg_iter.next()) |arg| {
-                z.text(arg);
-                return arg;
-            }
-
-            return null;
-        }
-
-        pub fn next(self: *Self) ?Arg {
-            const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg" });
-            defer z.end();
-
-            const current_arg = self.arg_iter.next() orelse return null;
-
-            z.text(current_arg);
-
-            // the length checks in the below ifs allow '-' and '--' to fall through as positional arguments
-            if (current_arg.len > 1 and current_arg[0] == '-') longhand_shorthand_blk: {
-                if (current_arg.len > 2 and current_arg[1] == '-') {
-                    // longhand argument e.g. '--help'
-
-                    const entire_longhand = current_arg[2..];
-
-                    if (std.mem.indexOfScalar(u8, entire_longhand, '=')) |equal_index| {
-                        // if equal_index is zero then the argument starts with '--=' which we do not count as a valid
-                        // version of either longhand argument type nor a shorthand argument, so break out to make it positional
-                        if (equal_index == 0) break :longhand_shorthand_blk;
-
-                        const longhand = entire_longhand[0..equal_index];
-                        const value = entire_longhand[equal_index + 1 ..];
-
-                        log.debug("longhand argument with value \"{s}\" = \"{s}\"", .{ longhand, value });
-
-                        return Arg.init(current_arg, .{ .longhand_with_value = .{ .longhand = longhand, .value = value } });
-                    }
-
-                    log.debug("longhand argument \"{s}\"", .{entire_longhand});
-                    return Arg.init(current_arg, .{ .longhand = entire_longhand });
-                }
-
-                // this check allows '--' to fall through as a positional argument
-                if (current_arg[1] != '-') {
-                    log.debug("shorthand argument \"{s}\"", .{current_arg});
-                    return Arg.init(current_arg, .{ .shorthand = .{ .value = current_arg } });
-                }
-            }
-
-            log.debug("positional \"{s}\"", .{current_arg});
-            return Arg.init(current_arg, .positional);
-        }
-
-        /// The only time `include_shorthand` should be false is if the subcommand has it's own `-h` argument.
-        pub fn nextWithHelpOrVersion(
-            self: *Self,
-            comptime include_shorthand: bool,
-        ) error{ ShortHelp, FullHelp, Version }!?Arg {
-            const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg with help/version" });
-            defer z.end();
-
-            var arg = self.next() orelse return null;
-
-            switch (arg.arg_type) {
-                .longhand => |longhand| {
-                    if (std.mem.eql(u8, longhand, "help")) {
-                        return error.FullHelp;
-                    }
-                    if (std.mem.eql(u8, longhand, "version")) {
-                        return error.Version;
-                    }
-                },
-                .shorthand => |*shorthand| {
-                    if (include_shorthand) {
-                        while (shorthand.next()) |char| if (char == 'h') return error.ShortHelp;
-                        shorthand.reset();
-                    }
-                },
-                else => {},
-            }
-
+        if (self.dispatchNext()) |arg| {
+            z.text(arg);
             return arg;
         }
-    };
-}
+
+        return null;
+    }
+
+    pub fn next(self: *ArgIterator) ?Arg {
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg" });
+        defer z.end();
+
+        const current_arg = self.dispatchNext() orelse return null;
+
+        z.text(current_arg);
+
+        // the length checks in the below ifs allow '-' and '--' to fall through as positional arguments
+        if (current_arg.len > 1 and current_arg[0] == '-') longhand_shorthand_blk: {
+            if (current_arg.len > 2 and current_arg[1] == '-') {
+                // longhand argument e.g. '--help'
+
+                const entire_longhand = current_arg[2..];
+
+                if (std.mem.indexOfScalar(u8, entire_longhand, '=')) |equal_index| {
+                    // if equal_index is zero then the argument starts with '--=' which we do not count as a valid
+                    // version of either longhand argument type nor a shorthand argument, so break out to make it positional
+                    if (equal_index == 0) break :longhand_shorthand_blk;
+
+                    const longhand = entire_longhand[0..equal_index];
+                    const value = entire_longhand[equal_index + 1 ..];
+
+                    log.debug("longhand argument with value \"{s}\" = \"{s}\"", .{ longhand, value });
+
+                    return Arg.init(current_arg, .{ .longhand_with_value = .{ .longhand = longhand, .value = value } });
+                }
+
+                log.debug("longhand argument \"{s}\"", .{entire_longhand});
+                return Arg.init(current_arg, .{ .longhand = entire_longhand });
+            }
+
+            // this check allows '--' to fall through as a positional argument
+            if (current_arg[1] != '-') {
+                log.debug("shorthand argument \"{s}\"", .{current_arg});
+                return Arg.init(current_arg, .{ .shorthand = .{ .value = current_arg } });
+            }
+        }
+
+        log.debug("positional \"{s}\"", .{current_arg});
+        return Arg.init(current_arg, .positional);
+    }
+
+    /// The only time `include_shorthand` should be false is if the subcommand has it's own `-h` argument.
+    pub fn nextWithHelpOrVersion(
+        self: *ArgIterator,
+        comptime include_shorthand: bool,
+    ) error{ ShortHelp, FullHelp, Version }!?Arg {
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg with help/version" });
+        defer z.end();
+
+        var arg = self.next() orelse return null;
+
+        switch (arg.arg_type) {
+            .longhand => |longhand| {
+                if (std.mem.eql(u8, longhand, "help")) {
+                    return error.FullHelp;
+                }
+                if (std.mem.eql(u8, longhand, "version")) {
+                    return error.Version;
+                }
+            },
+            .shorthand => |*shorthand| {
+                if (include_shorthand) {
+                    while (shorthand.next()) |char| if (char == 'h') return error.ShortHelp;
+                    shorthand.reset();
+                }
+            },
+            else => {},
+        }
+
+        return arg;
+    }
+
+    inline fn dispatchNext(self: *ArgIterator) ?[:0]const u8 {
+        switch (self.*) {
+            .args => |*args| {
+                @branchHint(if (builtin.is_test) .cold else .likely);
+                return args.next();
+            },
+            .slice => |*slice| {
+                @branchHint(if (builtin.is_test) .likely else .cold);
+                if (slice.index < slice.slice.len) {
+                    @branchHint(.likely);
+                    defer slice.index += 1;
+                    return slice.slice[slice.index];
+                }
+                return null;
+            },
+        }
+    }
+};
 
 pub const Arg = struct {
     raw: []const u8,

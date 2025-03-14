@@ -34,7 +34,7 @@ pub const Error = SubcommandError || SubcommandNonError;
 
 pub fn execute(
     allocator: std.mem.Allocator,
-    arg_iter: *std.process.ArgIterator,
+    os_arg_iter: std.process.ArgIterator,
     io: shared.IO,
     basename: []const u8,
     cwd: std.fs.Dir,
@@ -43,13 +43,15 @@ pub fn execute(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "execute" });
     defer z.end();
 
+    var arg_iter: shared.ArgIterator = .{ .args = os_arg_iter };
+
     inline for (SUBCOMMANDS) |subcommand| {
         if (std.mem.eql(u8, subcommand.name, basename)) {
             z.text(basename);
             return executeSubcommand(
                 subcommand,
                 allocator,
-                arg_iter,
+                &arg_iter,
                 io,
                 cwd,
                 exe_path,
@@ -59,7 +61,7 @@ pub fn execute(
 
     // if the basename of the executable does not match any of the subcommands then try
     // to use the first argument as the subcommand name
-    if (arg_iter.next()) |possible_subcommand| {
+    if (arg_iter.nextRaw()) |possible_subcommand| {
         log.debug("no subcommand found matching basename '{s}', trying first argument '{s}'", .{
             basename,
             possible_subcommand,
@@ -78,7 +80,7 @@ pub fn execute(
                 return executeSubcommand(
                     subcommand,
                     allocator,
-                    arg_iter,
+                    &arg_iter,
                     io,
                     cwd,
                     exe_path_with_subcommand,
@@ -93,7 +95,7 @@ pub fn execute(
 fn executeSubcommand(
     comptime subcommand: type,
     allocator: std.mem.Allocator,
-    arg_iter: anytype,
+    arg_iter: *shared.ArgIterator,
     io: shared.IO,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -103,8 +105,7 @@ fn executeSubcommand(
 
     log.debug("executing subcommand '{s}'", .{subcommand.name});
 
-    var arg_iterator = shared.ArgIterator(@TypeOf(arg_iter)).init(arg_iter);
-    return subcommand.execute(allocator, io, &arg_iterator, cwd, exe_path) catch |err| switch (err) {
+    return subcommand.execute(allocator, io, arg_iter, cwd, exe_path) catch |err| switch (err) {
         error.ShortHelp => shared.printShortHelp(subcommand, io, exe_path),
         error.FullHelp => shared.printFullHelp(subcommand, io, exe_path),
         error.Version => shared.printVersion(subcommand, io),
@@ -123,7 +124,7 @@ pub fn testExecute(comptime subcommand: type, arguments: []const [:0]const u8, s
     defer if (!cwd_provided) tmp_dir.cleanup();
     const cwd = if (cwd_provided) settings.cwd else tmp_dir.dir;
 
-    var arg_iter = SliceArgIterator{ .slice = arguments };
+    var arg_iter: shared.ArgIterator = .{ .slice = .{ .slice = arguments } };
 
     return executeSubcommand(
         subcommand,

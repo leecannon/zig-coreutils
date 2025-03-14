@@ -31,7 +31,11 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
         }
     };
 
-    var argument_info = ArgumentInfo.fetch();
+    var arg_iter = std.process.args();
+
+    const exe_path = arg_iter.next() orelse unreachable;
+    const basename = std.fs.path.basename(exe_path);
+    log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
@@ -45,17 +49,17 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
 
     subcommands.execute(
         allocator,
-        &argument_info.arg_iter,
+        arg_iter,
         io,
-        argument_info.basename,
+        basename,
         std.fs.cwd(),
-        argument_info.exe_path,
+        exe_path,
     ) catch |err| {
         switch (err) {
             error.NoSubcommand => {
                 blk: {
                     stderr_writer.writeByte('\'') catch break :blk;
-                    stderr_writer.writeAll(argument_info.basename) catch break :blk;
+                    stderr_writer.writeAll(basename) catch break :blk;
                     stderr_writer.writeAll("' subcommand not found\n") catch break :blk;
                 }
                 // this error only occurs in one place, no need to print error return trace
@@ -82,29 +86,6 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
 
     return 0;
 }
-
-const ArgumentInfo = struct {
-    basename: []const u8,
-    exe_path: [:0]const u8,
-    arg_iter: std.process.ArgIterator,
-
-    pub fn fetch() ArgumentInfo {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "fetch argument info" });
-        defer z.end();
-
-        var arg_iter = std.process.args();
-
-        const exe_path = arg_iter.next() orelse unreachable;
-        const basename = std.fs.path.basename(exe_path);
-        log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
-
-        return .{
-            .basename = basename,
-            .exe_path = exe_path,
-            .arg_iter = arg_iter,
-        };
-    }
-};
 
 const builtin = @import("builtin");
 const log = std.log.scoped(.main);

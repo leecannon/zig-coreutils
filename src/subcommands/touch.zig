@@ -34,7 +34,7 @@ pub const extended_help = "";
 pub fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
-    args: anytype,
+    args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
@@ -49,7 +49,7 @@ pub fn execute(
 fn parseArguments(
     allocator: std.mem.Allocator,
     io: shared.IO,
-    args: anytype,
+    args: *shared.ArgIterator,
     exe_path: []const u8,
 ) !TouchOptions {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
@@ -245,7 +245,7 @@ fn parseTimeArgument(argument: []const u8) ?TouchOptions.Update {
 fn performTouch(
     allocator: std.mem.Allocator,
     io: shared.IO,
-    args: anytype,
+    args: *shared.ArgIterator,
     options: TouchOptions,
     cwd: std.fs.Dir,
 ) !void {
@@ -484,42 +484,6 @@ fn setupTestDirectory() !std.testing.TmpDir {
     _ = try tmp_dir.dir.createFile("EXISTS", .{});
     return tmp_dir;
 }
-
-const help_zls = struct {
-    // Due to https://github.com/zigtools/zls/pull/1067 this is enough to help ZLS understand the `args` argument
-
-    fn dummyExecute() void {
-        execute(
-            undefined,
-            undefined,
-            @as(DummyArgs, undefined),
-            undefined,
-            undefined,
-        );
-        @panic("THIS SHOULD NEVER BE CALLED");
-    }
-
-    const DummyArgs = struct {
-        const Self = @This();
-
-        fn next(self: *Self) ?shared.Arg {
-            _ = self;
-            @panic("THIS SHOULD NEVER BE CALLED");
-        }
-
-        /// intended to only be called for the first argument
-        fn nextWithHelpOrVersion(self: *Self, comptime include_shorthand: bool) !?shared.Arg {
-            _ = include_shorthand;
-            _ = self;
-            @panic("THIS SHOULD NEVER BE CALLED");
-        }
-
-        fn nextRaw(self: *Self) ?[]const u8 {
-            _ = self;
-            @panic("THIS SHOULD NEVER BE CALLED");
-        }
-    };
-};
 
 const log = std.log.scoped(.touch);
 const shared = @import("../shared.zig");
