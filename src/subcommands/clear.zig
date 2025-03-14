@@ -171,9 +171,9 @@ const help_zls = struct {
     }
 
     const DummyIO = struct {
-        stderr: std.io.Writer,
-        stdin: std.io.Reader,
-        stdout: std.io.Writer,
+        stderr: std.io.AnyWriter,
+        stdin: std.io.AnyReader,
+        stdout: std.io.AnyWriter,
     };
 
     const DummyArgs = struct {
