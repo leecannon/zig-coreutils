@@ -31,6 +31,7 @@ pub fn execute(
     _ = cwd;
 
     const options = try parseArguments(allocator, io, args, exe_path);
+    log.debug("options={}", .{options});
 
     io.stdout.writeAll(
         if (options.clear_scrollback)
@@ -43,6 +44,17 @@ pub fn execute(
 
 const ClearOptions = struct {
     clear_scrollback: bool = true,
+
+    pub fn format(
+        options: ClearOptions,
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        try writer.writeAll("ClearOptions{ .clear_scrollback = ");
+        try writer.writeAll(if (options.clear_scrollback) "true" else "false");
+        try writer.writeAll(" }");
+    }
 };
 
 fn parseArguments(

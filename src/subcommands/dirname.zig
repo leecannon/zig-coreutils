@@ -38,6 +38,7 @@ pub fn execute(
     _ = cwd;
 
     const options = try parseArguments(allocator, io, args, exe_path);
+    log.debug("options={}", .{options});
 
     return performDirname(io, args, options);
 }
@@ -50,6 +51,19 @@ const DirnameOptions = struct {
         newline = '\n',
         zero = 0,
     };
+
+    pub fn format(
+        options: DirnameOptions,
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        try writer.writeAll("DirnameOptions{ .line_end = .");
+        try writer.writeAll(@tagName(options.line_end));
+        try writer.writeAll(", .first_arg = \"");
+        try writer.writeAll(options.first_arg);
+        try writer.writeAll("\" }");
+    }
 };
 
 fn performDirname(
@@ -60,7 +74,7 @@ fn performDirname(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
     defer z.end();
 
-    log.debug("performDirname called, options={}", .{options});
+    log.debug("performDirname called", .{});
 
     var opt_arg: ?[]const u8 = options.first_arg;
 

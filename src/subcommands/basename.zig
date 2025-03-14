@@ -43,6 +43,7 @@ pub fn execute(
     _ = cwd;
 
     const options = try parseArguments(allocator, io, args, exe_path);
+    log.debug("options={}", .{options});
 
     return switch (options.mode) {
         .single => singleArgument(allocator, io, args, exe_path, options),
@@ -62,8 +63,37 @@ const BasenameOptions = struct {
 
     const Mode = union(enum) {
         single,
+        /// Value is optional suffix
         multiple: ?[]const u8,
     };
+
+    pub fn format(
+        options: BasenameOptions,
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        try writer.writeAll("BasenameOptions{ .line_end = .");
+        try writer.writeAll(@tagName(options.line_end));
+
+        try writer.writeAll(", .mode = .");
+        switch (options.mode) {
+            .single => try writer.writeAll("single"),
+            .multiple => |opt_suffix| {
+                if (opt_suffix) |suffix| {
+                    try writer.writeAll("multiple, .suffix = \"");
+                    try writer.writeAll(suffix);
+                    try writer.writeAll("\"");
+                } else {
+                    try writer.writeAll("multiple");
+                }
+            },
+        }
+
+        try writer.writeAll(", .first_arg = \"");
+        try writer.writeAll(options.first_arg);
+        try writer.writeAll("\" }");
+    }
 };
 
 fn singleArgument(
@@ -99,7 +129,7 @@ fn singleArgument(
         break :blk arg;
     };
 
-    log.debug("singleArgument called, options={}", .{options});
+    log.debug("singleArgument called", .{});
 
     const basename = getBasename(options.first_arg, opt_suffix);
     log.debug("got basename: '{s}'", .{basename});
@@ -118,7 +148,7 @@ fn multipleArguments(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "multiple arguments" });
     defer z.end();
 
-    log.debug("multipleArguments called, options={}", .{options});
+    log.debug("multipleArguments called", .{});
 
     var opt_arg: ?[]const u8 = options.first_arg;
 

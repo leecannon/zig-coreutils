@@ -42,6 +42,7 @@ pub fn execute(
     defer z.end();
 
     const options = try parseArguments(allocator, io, args, exe_path);
+    log.debug("options={}", .{options});
 
     return performTouch(allocator, io, args, options, cwd);
 }
@@ -56,7 +57,7 @@ fn performTouch(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform touch" });
     defer z.end();
 
-    log.debug("performTouch called, options={}", .{options});
+    log.debug("performTouch called", .{});
 
     const times = try getTimes(allocator, io, options.time_to_use, cwd);
 

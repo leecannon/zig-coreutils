@@ -32,10 +32,20 @@ pub fn execute(
     _ = cwd;
 
     const options = try parseArguments(allocator, io, args, exe_path);
-    _ = options;
+    log.debug("options={}", .{options});
 }
 
-const TemplateOptions = struct {};
+const TemplateOptions = struct {
+    pub fn format(
+        options: TemplateOptions,
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = options;
+        try writer.writeAll("TemplateOptions{ }");
+    }
+};
 
 fn parseArguments(
     allocator: std.mem.Allocator,
