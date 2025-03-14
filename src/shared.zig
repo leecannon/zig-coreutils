@@ -4,8 +4,6 @@
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 pub const free_on_close = is_debug_or_test or options.trace;
 
-pub const tracy = @import("tracy");
-
 pub fn printShortHelp(comptime subcommand: type, io: anytype, exe_path: []const u8) void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print short help" });
     defer z.end();
@@ -462,10 +460,11 @@ pub const GroupFileIterator = struct {
     }
 };
 
-const std = @import("std");
-const options = @import("options");
 const builtin = @import("builtin");
 const log = std.log.scoped(.shared);
+const options = @import("options");
+const std = @import("std");
+const tracy = @import("tracy");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

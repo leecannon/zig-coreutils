@@ -32,7 +32,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     _ = cwd;
@@ -48,7 +48,7 @@ fn parseArguments(
     args: anytype,
     exe_path: []const u8,
 ) !DirnameOptions {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
     defer z.end();
 
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
@@ -145,7 +145,7 @@ fn performDirname(
     args: anytype,
     options: DirnameOptions,
 ) !void {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
     defer z.end();
 
     log.debug("performDirname called, options={}", .{options});
@@ -155,7 +155,7 @@ fn performDirname(
     var opt_arg: ?[]const u8 = options.first_arg;
 
     while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
-        const argument_zone: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
+        const argument_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
         defer argument_zone.end();
         argument_zone.text(arg);
 
@@ -263,10 +263,11 @@ const help_zls = struct {
     };
 };
 
+const log = std.log.scoped(.dirname);
+const shared = @import("../shared.zig");
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-const log = std.log.scoped(.dirname);
+const tracy = @import("tracy");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

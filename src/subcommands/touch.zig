@@ -38,7 +38,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     const options = try parseArguments(allocator, io, args, exe_path);
@@ -52,7 +52,7 @@ fn parseArguments(
     args: anytype,
     exe_path: []const u8,
 ) !TouchOptions {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
     defer z.end();
 
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(false);
@@ -249,7 +249,7 @@ fn performTouch(
     options: TouchOptions,
     cwd: std.fs.Dir,
 ) !void {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "perform touch" });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform touch" });
     defer z.end();
 
     log.debug("performTouch called, options={}", .{options});
@@ -261,7 +261,7 @@ fn performTouch(
     var opt_file_path: ?[]const u8 = options.first_file_path;
 
     argument_loop: while (opt_file_path) |file_path| : (opt_file_path = args.nextRaw()) {
-        const file_zone: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "process file" });
+        const file_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process file" });
         defer file_zone.end();
         file_zone.text(file_path);
 
@@ -527,10 +527,11 @@ const help_zls = struct {
     };
 };
 
+const log = std.log.scoped(.touch);
+const shared = @import("../shared.zig");
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-const log = std.log.scoped(.touch);
+const tracy = @import("tracy");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

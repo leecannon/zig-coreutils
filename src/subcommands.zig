@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const SUBCOMMANDS = [_]type{
+const SUBCOMMANDS = [_]type{
     @import("subcommands/basename.zig"),
     @import("subcommands/clear.zig"),
     @import("subcommands/dirname.zig"),
@@ -40,7 +40,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) ExecuteError!void {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "execute" });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "execute" });
     defer z.end();
 
     inline for (SUBCOMMANDS) |subcommand| {
@@ -98,7 +98,7 @@ fn executeSubcommand(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) SubcommandError!void {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "execute subcommand" });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "execute subcommand" });
     defer z.end();
 
     log.debug("executing subcommand '{s}'", .{subcommand.name});
@@ -268,10 +268,11 @@ const VoidWriter = struct {
     }
 };
 
-const std = @import("std");
-const shared = @import("shared.zig");
 const builtin = @import("builtin");
 const log = std.log.scoped(.subcommand);
+const shared = @import("shared.zig");
+const std = @import("std");
+const tracy = @import("tracy");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

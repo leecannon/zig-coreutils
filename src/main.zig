@@ -3,14 +3,14 @@
 
 pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
     // this causes the frame to start with our main instead of `std.start`
-    shared.tracy.frameMark(null);
-    const main_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "main" });
+    tracy.frameMark(null);
+    const main_z: tracy.Zone = .begin(.{ .src = @src(), .name = "main" });
     defer main_z.end();
 
     const static = struct {
         var debug_allocator: if (shared.is_debug_or_test) std.heap.DebugAllocator(.{}) else void =
             if (shared.is_debug_or_test) .init else {};
-        var tracy_allocator: if (options.trace) shared.tracy.Allocator else void =
+        var tracy_allocator: if (options.trace) tracy.Allocator else void =
             if (options.trace) undefined else {};
     };
     defer {
@@ -72,7 +72,7 @@ pub fn main() if (shared.is_debug_or_test) subcommands.ExecuteError!u8 else u8 {
 
     // Only flush stdout if the command completed successfully
     // If we flush stdout after printing an error then the error message will not be the last thing printed
-    const flush_z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "stdout flush" });
+    const flush_z: tracy.Zone = .begin(.{ .src = @src(), .name = "stdout flush" });
     defer flush_z.end();
 
     std_out_buffered.flush() catch |err| {
@@ -89,7 +89,7 @@ const ArgumentInfo = struct {
     arg_iter: std.process.ArgIterator,
 
     pub fn fetch() ArgumentInfo {
-        const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = "fetch argument info" });
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "fetch argument info" });
         defer z.end();
 
         var arg_iter = std.process.args();
@@ -106,12 +106,13 @@ const ArgumentInfo = struct {
     }
 };
 
-const std = @import("std");
-const subcommands = @import("subcommands.zig");
-const shared = @import("shared.zig");
-const options = @import("options");
 const builtin = @import("builtin");
 const log = std.log.scoped(.main);
+const options = @import("options");
+const shared = @import("shared.zig");
+const std = @import("std");
+const subcommands = @import("subcommands.zig");
+const tracy = @import("tracy");
 
 pub const tracy_impl = @import("tracy_impl");
 

@@ -25,7 +25,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     _ = io;
@@ -110,10 +110,11 @@ const help_zls = struct {
     };
 };
 
+const log = std.log.scoped(.true);
+const shared = @import("../shared.zig");
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-const log = std.log.scoped(.true);
+const tracy = @import("tracy");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

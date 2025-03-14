@@ -26,7 +26,7 @@ pub fn execute(
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) subcommands.Error!void {
-    const z: shared.tracy.Zone = .begin(.{ .src = @src(), .name = name });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
     _ = exe_path;
@@ -37,7 +37,7 @@ pub fn execute(
     const path = "/sys/devices/system/cpu/online";
     var buffer: [8]u8 = undefined;
     const file_contents = try shared.readFileIntoBuffer(@This(), allocator, io, cwd, path, &buffer);
-    const nproc = 1 + (getLastCpuIndex(mem.trim(u8, file_contents, &std.ascii.whitespace)) catch {
+    const nproc = 1 + (getLastCpuIndex(std.mem.trim(u8, file_contents, &std.ascii.whitespace)) catch {
         return shared.printError(
             @This(),
             io,
@@ -52,11 +52,11 @@ pub fn execute(
 
 fn getLastCpuIndex(str: []const u8) error{InvalidFormat}!usize {
     // Contains string like "0-3" listing the index range of the processors.
-    var it = mem.splitScalar(u8, str, '-');
+    var it = std.mem.splitScalar(u8, str, '-');
     // Also catches str.len == 0.
     if (it.next() == null) return error.InvalidFormat;
     const last_index_str = it.next() orelse return error.InvalidFormat;
-    const last_index = fmt.parseInt(usize, last_index_str, 10) catch return error.InvalidFormat;
+    const last_index = std.fmt.parseInt(usize, last_index_str, 10) catch return error.InvalidFormat;
     if (it.next() != null) return error.InvalidFormat;
     return last_index;
 }
@@ -127,12 +127,11 @@ const help_zls = struct {
     };
 };
 
+const log = std.log.scoped(.nproc);
+const shared = @import("../shared.zig");
 const std = @import("std");
 const subcommands = @import("../subcommands.zig");
-const shared = @import("../shared.zig");
-const log = std.log.scoped(.nproc);
-const mem = std.mem;
-const fmt = std.fmt;
+const tracy = @import("tracy");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());
