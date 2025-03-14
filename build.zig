@@ -104,7 +104,7 @@ fn getVersionString(b: *std.Build, base_semantic_version: std.SemanticVersion, r
 
     var exit_code: u8 = undefined;
     const raw_git_describe_output = b.runAllowFail(&[_][]const u8{
-        "git", "-C", "--git-dir", ".git", root_path, "describe", "--match", "*.*.*", "--tags", "--abbrev=9",
+        "git", "-C", root_path, "--git-dir", ".git", "describe", "--match", "*.*.*", "--tags", "--abbrev=9",
     }, &exit_code, .Ignore) catch {
         return b.fmt("{s}-unknown", .{version_string});
     };
