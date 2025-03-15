@@ -36,7 +36,7 @@ pub fn execute(
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
@@ -330,7 +330,7 @@ fn parseArguments(
 }
 
 test "basename no args" {
-    try subcommands.testError(
+    try shared.testError(
         @This(),
         &.{},
         .{},
@@ -342,7 +342,7 @@ test "basename single" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(
+    try shared.testExecute(
         @This(),
         &.{"hello/world"},
         .{ .stdout = stdout.writer() },
@@ -355,7 +355,7 @@ test "basename multiple" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(
+    try shared.testExecute(
         @This(),
         &.{
             "-a",
@@ -375,17 +375,16 @@ test "basename multiple" {
 }
 
 test "basename help" {
-    try subcommands.testHelp(@This(), true);
+    try shared.testHelp(@This(), true);
 }
 
 test "basename version" {
-    try subcommands.testVersion(@This());
+    try shared.testVersion(@This());
 }
 
 const log = std.log.scoped(.basename);
 const shared = @import("../shared.zig");
 const std = @import("std");
-const subcommands = @import("../subcommands.zig");
 const tracy = @import("tracy");
 
 comptime {

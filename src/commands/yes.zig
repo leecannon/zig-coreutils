@@ -21,7 +21,7 @@ pub fn execute(
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
@@ -61,17 +61,16 @@ fn getString(allocator: std.mem.Allocator, args: *shared.ArgIterator) !shared.Ma
 }
 
 test "yes help" {
-    try subcommands.testHelp(@This(), true);
+    try shared.testHelp(@This(), true);
 }
 
 test "yes version" {
-    try subcommands.testVersion(@This());
+    try shared.testVersion(@This());
 }
 
 const log = std.log.scoped(.yes);
 const shared = @import("../shared.zig");
 const std = @import("std");
-const subcommands = @import("../subcommands.zig");
 const tracy = @import("tracy");
 
 comptime {

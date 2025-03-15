@@ -1,36 +1,44 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const version_string = "{s} (zig-coreutils) " ++ options.version ++ "\nMIT License Copyright (c) 2025 Lee Cannon\n";
+pub const base_version_string = "zig-coreutils " ++ options.version ++ "\nMIT License Copyright (c) 2025 Lee Cannon\n";
+pub const version_string = "{s} - " ++ base_version_string;
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 pub const free_on_close = is_debug_or_test or options.trace;
 
-pub fn printShortHelp(comptime subcommand: type, io: IO, exe_path: []const u8) void {
+pub fn printShortHelp(comptime command: type, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print short help" });
     defer z.end();
 
-    log.debug(comptime "printing short help for " ++ subcommand.name, .{});
-    io.stdout.print(subcommand.short_help, .{exe_path}) catch {};
+    log.debug(comptime "printing short help for " ++ command.name, .{});
+    io.stdout.print(command.short_help, .{exe_path}) catch |err|
+        return unableToWriteTo("stdout", io, err);
 }
 
-pub fn printFullHelp(comptime subcommand: type, io: IO, exe_path: []const u8) void {
+pub fn printFullHelp(comptime command: type, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print full help" });
     defer z.end();
 
-    log.debug(comptime "printing full help for " ++ subcommand.name, .{});
-    if (@hasDecl(subcommand, "extended_help")) {
-        io.stdout.print(comptime subcommand.short_help ++ subcommand.extended_help, .{exe_path}) catch {};
+    log.debug(comptime "printing full help for " ++ command.name, .{});
+    if (@hasDecl(command, "extended_help")) {
+        io.stdout.print(
+            comptime command.short_help ++ command.extended_help,
+            .{exe_path},
+        ) catch |err|
+            return unableToWriteTo("stdout", io, err);
     } else {
-        io.stdout.print(comptime subcommand.short_help, .{exe_path}) catch {};
+        io.stdout.print(comptime command.short_help, .{exe_path}) catch |err|
+            return unableToWriteTo("stdout", io, err);
     }
 }
 
-pub fn printVersion(comptime subcommand: type, io: IO) void {
+pub fn printVersion(comptime command: type, io: IO) error{AlreadyHandled}!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print version" });
     defer z.end();
 
-    log.debug(comptime "printing version for " ++ subcommand.name, .{});
-    io.stdout.print(version_string, .{subcommand.name}) catch {};
+    log.debug(comptime "printing version for " ++ command.name, .{});
+    io.stdout.print(version_string, .{command.name}) catch |err|
+        return unableToWriteTo("stdout", io, err);
 }
 
 pub fn unableToWriteTo(comptime destination: []const u8, io: IO, err: anyerror) error{AlreadyHandled} {
@@ -44,17 +52,17 @@ pub fn unableToWriteTo(comptime destination: []const u8, io: IO, err: anyerror) 
     return error.AlreadyHandled;
 }
 
-pub fn printError(comptime subcommand: type, io: IO, error_message: []const u8) error{AlreadyHandled} {
+pub fn printError(comptime command: type, io: IO, error_message: []const u8) error{AlreadyHandled} {
     @branchHint(.cold);
 
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error" });
     defer z.end();
     z.text(error_message);
 
-    log.debug(comptime "printing error for " ++ subcommand.name, .{});
+    log.debug(comptime "printing error for " ++ command.name, .{});
 
     output: {
-        io.stderr.writeAll(subcommand.name) catch break :output;
+        io.stderr.writeAll(command.name) catch break :output;
         io.stderr.writeAll(": ") catch break :output;
         io.stderr.writeAll(error_message) catch break :output;
         io.stderr.writeByte('\n') catch break :output;
@@ -64,7 +72,7 @@ pub fn printError(comptime subcommand: type, io: IO, error_message: []const u8) 
 }
 
 pub fn printErrorAlloc(
-    comptime subcommand: type,
+    comptime command: type,
     allocator: std.mem.Allocator,
     io: IO,
     comptime msg: []const u8,
@@ -78,11 +86,11 @@ pub fn printErrorAlloc(
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
     defer if (free_on_close) allocator.free(error_message);
 
-    return printError(subcommand, io, error_message);
+    return printError(command, io, error_message);
 }
 
 pub fn printInvalidUsage(
-    comptime subcommand: type,
+    comptime command: type,
     io: IO,
     exe_path: []const u8,
     error_message: []const u8,
@@ -93,13 +101,13 @@ pub fn printInvalidUsage(
     defer z.end();
     z.text(error_message);
 
-    log.debug(comptime "printing error for " ++ subcommand.name, .{});
+    log.debug(comptime "printing error for " ++ command.name, .{});
 
     output: {
         io.stderr.writeAll(exe_path) catch break :output;
         io.stderr.writeAll(": ") catch break :output;
         io.stderr.writeAll(error_message) catch break :output;
-        io.stderr.writeAll("\nTry '") catch break :output;
+        io.stderr.writeAll("\nview '") catch break :output;
         io.stderr.writeAll(exe_path) catch break :output;
         io.stderr.writeAll(" --help' for more information\n") catch break :output;
     }
@@ -108,7 +116,7 @@ pub fn printInvalidUsage(
 }
 
 pub fn printInvalidUsageAlloc(
-    comptime subcommand: type,
+    comptime command: type,
     allocator: std.mem.Allocator,
     io: IO,
     exe_path: []const u8,
@@ -123,7 +131,7 @@ pub fn printInvalidUsageAlloc(
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
     defer if (free_on_close) allocator.free(error_message);
 
-    return printInvalidUsage(subcommand, io, exe_path, error_message);
+    return printInvalidUsage(command, io, exe_path, error_message);
 }
 
 pub const IO = struct {
@@ -133,7 +141,7 @@ pub const IO = struct {
 };
 
 pub fn mapFile(
-    comptime subcommand: type,
+    comptime command: type,
     allocator: std.mem.Allocator,
     io: IO,
     cwd: std.fs.Dir,
@@ -141,7 +149,7 @@ pub fn mapFile(
 ) error{ AlreadyHandled, OutOfMemory }!MappedFile {
     const file = cwd.openFile(path, .{}) catch
         return printErrorAlloc(
-            subcommand,
+            command,
             allocator,
             io,
             "unable to open '{s}'",
@@ -151,7 +159,7 @@ pub fn mapFile(
 
     const stat = file.stat() catch |err|
         return printErrorAlloc(
-            subcommand,
+            command,
             allocator,
             io,
             "unable to stat '{s}': {s}",
@@ -175,7 +183,7 @@ pub fn mapFile(
         0,
     ) catch |err|
         return printErrorAlloc(
-            subcommand,
+            command,
             allocator,
             io,
             "unable to map '{s}': {s}",
@@ -204,7 +212,7 @@ pub const MappedFile = struct {
 };
 
 pub fn readFileIntoBuffer(
-    comptime subcommand: type,
+    comptime command: type,
     allocator: std.mem.Allocator,
     io: IO,
     cwd: std.fs.Dir,
@@ -213,7 +221,7 @@ pub fn readFileIntoBuffer(
 ) error{ AlreadyHandled, OutOfMemory }![]const u8 {
     const file = cwd.openFile(path, .{}) catch
         return printErrorAlloc(
-            subcommand,
+            command,
             allocator,
             io,
             "unable to open '{s}'",
@@ -224,7 +232,7 @@ pub fn readFileIntoBuffer(
     const reader = file.reader();
     const read = reader.readAll(buffer) catch |err|
         return printErrorAlloc(
-            subcommand,
+            command,
             allocator,
             io,
             "unable to read file '{s}': {s}",
@@ -312,7 +320,7 @@ pub const ArgIterator = union(enum) {
         );
     }
 
-    /// The only time `include_shorthand` should be false is if the subcommand has it's own `-h` argument.
+    /// The only time `include_shorthand` should be false is if the command has it's own `-h` argument.
     pub fn nextWithHelpOrVersion(
         self: *ArgIterator,
         comptime include_shorthand: bool,
@@ -425,7 +433,7 @@ pub const PasswdFileIterator = struct {
     /// The returned `Entry` is invalidated on any subsequent call to `next`
     pub fn next(
         self: *PasswdFileIterator,
-        comptime subcommand: type,
+        comptime command: type,
         io: IO,
     ) error{AlreadyHandled}!?Entry {
         if (self.index >= self.passwd_file_contents.len) {
@@ -447,17 +455,17 @@ pub const PasswdFileIterator = struct {
         );
 
         const user_name = column_iter.next() orelse
-            return printError(subcommand, io, "format of '/etc/passwd' is invalid");
+            return printError(command, io, "format of '/etc/passwd' is invalid");
 
         // skip password stand-in
         _ = column_iter.next() orelse
-            return printError(subcommand, io, "format of '/etc/passwd' is invalid");
+            return printError(command, io, "format of '/etc/passwd' is invalid");
 
         const user_id_slice = column_iter.next() orelse
-            return printError(subcommand, io, "format of '/etc/passwd' is invalid");
+            return printError(command, io, "format of '/etc/passwd' is invalid");
 
         const primary_group_id_slice = column_iter.next() orelse
-            return printError(subcommand, io, "format of '/etc/passwd' is invalid");
+            return printError(command, io, "format of '/etc/passwd' is invalid");
 
         return .{
             .user_name = user_name,
@@ -490,7 +498,7 @@ pub const GroupFileIterator = struct {
     /// The returned `Entry` is invalidated on any subsequent call to `next`
     pub fn next(
         self: *GroupFileIterator,
-        comptime subcommand: type,
+        comptime command: type,
         io: IO,
     ) error{AlreadyHandled}!?Entry {
         if (self.index >= self.group_file_contents.len) {
@@ -512,14 +520,14 @@ pub const GroupFileIterator = struct {
         );
 
         const group_name = column_iter.next() orelse
-            return printError(subcommand, io, "format of '/etc/group' is invalid");
+            return printError(command, io, "format of '/etc/group' is invalid");
 
         // skip password stand-in
         _ = column_iter.next() orelse
-            return printError(subcommand, io, "format of '/etc/group' is invalid");
+            return printError(command, io, "format of '/etc/group' is invalid");
 
         const group_id_slice = column_iter.next() orelse
-            return printError(subcommand, io, "format of '/etc/group' is invalid");
+            return printError(command, io, "format of '/etc/group' is invalid");
 
         return .{
             .group_name = group_name,
@@ -564,6 +572,203 @@ pub fn MaybeAllocated(comptime T: type, comptime dealloc: fn (self: T, allocator
         }
     };
 }
+
+pub const CommandExposedError = error{
+    OutOfMemory,
+    UnableToParseArguments,
+    AlreadyHandled,
+};
+
+const CommandNonError = error{
+    ShortHelp,
+    FullHelp,
+    Version,
+};
+
+pub const CommandError = CommandExposedError || CommandNonError;
+
+pub fn narrowCommandError(
+    comptime command: type,
+    io: IO,
+    exe_path: []const u8,
+    err: CommandError,
+) CommandExposedError!void {
+    return switch (err) {
+        error.ShortHelp => printShortHelp(command, io, exe_path),
+        error.FullHelp => printFullHelp(command, io, exe_path),
+        error.Version => printVersion(command, io),
+        else => |narrow_err| narrow_err,
+    };
+}
+
+pub fn testExecute(
+    comptime command: type,
+    arguments: []const [:0]const u8,
+    settings: anytype,
+) CommandExposedError!void {
+    const SettingsType = @TypeOf(settings);
+    const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
+    const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
+    const stderr = if (@hasField(SettingsType, "stderr")) settings.stderr else VoidWriter.writer();
+
+    const cwd_provided = @hasField(SettingsType, "cwd");
+    var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
+    defer if (!cwd_provided) tmp_dir.cleanup();
+    const cwd = if (cwd_provided) settings.cwd else tmp_dir.dir;
+
+    var arg_iter: ArgIterator = .{ .slice = .{ .slice = arguments } };
+
+    const io: IO = .{
+        .stderr = stderr.any(),
+        .stdin = stdin.any(),
+        .stdout = stdout.any(),
+    };
+
+    return command.execute(
+        std.testing.allocator,
+        io,
+        &arg_iter,
+        cwd,
+        command.name,
+    ) catch |full_err| narrowCommandError(command, io, command.name, full_err);
+}
+
+pub fn testError(
+    comptime command: type,
+    arguments: []const [:0]const u8,
+    settings: anytype,
+    expected_error: []const u8,
+) !void {
+    const SettingsType = @TypeOf(settings);
+    if (@hasField(SettingsType, "stderr")) @compileError("there is already a stderr defined on this settings type");
+    const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else VoidReader.reader();
+    const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else VoidWriter.writer();
+
+    const cwd_provided = @hasField(SettingsType, "cwd");
+    var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
+    defer if (!cwd_provided) tmp_dir.cleanup();
+    const cwd = if (cwd_provided) settings.cwd else tmp_dir.dir;
+
+    var stderr = std.ArrayList(u8).init(std.testing.allocator);
+    defer stderr.deinit();
+
+    try std.testing.expectError(error.AlreadyHandled, testExecute(
+        command,
+        arguments,
+        .{
+            .stderr = stderr.writer(),
+            .stdin = stdin,
+            .stdout = stdout,
+            .cwd = cwd,
+        },
+    ));
+
+    std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_error) != null) catch |err| {
+        std.debug.print("\nEXPECTED: {s}\n\nACTUAL: {s}\n", .{ expected_error, stderr.items });
+        return err;
+    };
+}
+
+pub fn testHelp(comptime command: type, comptime include_shorthand: bool) !void {
+    const full_help = try std.fmt.allocPrint(
+        std.testing.allocator,
+        if (@hasDecl(command, "extended_help"))
+            comptime command.short_help ++ command.extended_help
+        else
+            command.short_help,
+        .{command.name},
+    );
+
+    defer std.testing.allocator.free(full_help);
+
+    var out = std.ArrayList(u8).init(std.testing.allocator);
+    defer out.deinit();
+
+    try testExecute(
+        command,
+        &.{"--help"},
+        .{ .stdout = out.writer() },
+    );
+
+    try std.testing.expectEqualStrings(full_help, out.items);
+
+    if (include_shorthand) {
+        const short_expected_help = try std.fmt.allocPrint(
+            std.testing.allocator,
+            command.short_help,
+            .{command.name},
+        );
+        defer std.testing.allocator.free(short_expected_help);
+
+        out.clearRetainingCapacity();
+
+        try testExecute(
+            command,
+            &.{"-h"},
+            .{ .stdout = out.writer() },
+        );
+
+        try std.testing.expectEqualStrings(short_expected_help, out.items);
+    }
+}
+
+pub fn testVersion(comptime command: type) !void {
+    var out = std.ArrayList(u8).init(std.testing.allocator);
+    defer out.deinit();
+
+    try testExecute(
+        command,
+        &.{"--version"},
+        .{
+            .stdout = out.writer(),
+        },
+    );
+
+    const expected = try std.fmt.allocPrint(
+        std.testing.allocator,
+        version_string,
+        .{command.name},
+    );
+    defer std.testing.allocator.free(expected);
+
+    try std.testing.expectEqualStrings(expected, out.items);
+}
+
+const SliceArgIterator = struct {
+    slice: []const [:0]const u8,
+    index: usize = 0,
+
+    pub fn next(self: *SliceArgIterator) ?[:0]const u8 {
+        if (self.index < self.slice.len) {
+            defer self.index += 1;
+            return self.slice[self.index];
+        }
+        return null;
+    }
+};
+
+const VoidReader = struct {
+    pub const Reader = std.io.Reader(void, error{}, read);
+    pub fn reader() Reader {
+        return .{ .context = {} };
+    }
+
+    fn read(_: void, buffer: []u8) error{}!usize {
+        _ = buffer;
+        return 0;
+    }
+};
+
+const VoidWriter = struct {
+    pub const Writer = std.io.Writer(void, error{}, write);
+    pub fn writer() Writer {
+        return .{ .context = {} };
+    }
+
+    fn write(_: void, bytes: []const u8) error{}!usize {
+        return bytes.len;
+    }
+};
 
 const builtin = @import("builtin");
 const log = std.log.scoped(.shared);

@@ -13,7 +13,7 @@ Currently POSIX only to ease development.
 
 ## Progress
 
-### Subcommands completed:
+### Commands completed:
  * basename
  * clear
  * dirname
@@ -25,7 +25,7 @@ Currently POSIX only to ease development.
  * whoami
  * yes
 
-### Subcommands todo:
+### Commands todo:
  * [
  * b2sum
  * base32

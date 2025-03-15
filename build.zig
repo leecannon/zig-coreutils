@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) !void {
     // exe
     {
         const coreutils_exe = b.addExecutable(.{
-            .name = "coreutils",
+            .name = "zig-coreutils",
             .root_module = coreutils_module,
         });
         b.installArtifact(coreutils_exe);

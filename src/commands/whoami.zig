@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+// TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
+// https://github.com/leecannon/zig-coreutils/issues/1
+
 pub const name = "whoami";
 
 pub const short_help =
@@ -21,7 +24,7 @@ pub fn execute(
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
@@ -68,21 +71,17 @@ pub fn execute(
     );
 }
 
-// TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
-// https://github.com/leecannon/zig-coreutils/issues/1
-
 test "whoami help" {
-    try subcommands.testHelp(@This(), true);
+    try shared.testHelp(@This(), true);
 }
 
 test "whoami version" {
-    try subcommands.testVersion(@This());
+    try shared.testVersion(@This());
 }
 
 const log = std.log.scoped(.whoami);
 const shared = @import("../shared.zig");
 const std = @import("std");
-const subcommands = @import("../subcommands.zig");
 const tracy = @import("tracy");
 
 comptime {

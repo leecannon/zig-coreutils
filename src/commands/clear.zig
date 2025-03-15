@@ -1,23 +1,19 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "template";
+pub const name = "clear";
 
 pub const short_help =
-    \\Usage: {0s} [ignored command line arguments]
-    \\   or: {0s} OPTION
+    \\Usage: {0s} [OPTION]
     \\
-    \\A template subcommand
+    \\Clear the screen.
     \\
+    \\  -x         don't clear the scrollback
     \\  -h         display the short help and exit
     \\  --help     display the full help and exit
     \\  --version  output version information and exit
     \\
 ;
-
-// No examples provided for `template`
-// a blank line is required at the beginning to ensure correct formatting
-pub const extended_help = "";
 
 pub fn execute(
     allocator: std.mem.Allocator,
@@ -25,7 +21,7 @@ pub fn execute(
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
@@ -33,17 +29,28 @@ pub fn execute(
 
     const options = try parseArguments(allocator, io, args, exe_path);
     log.debug("options={}", .{options});
+
+    io.stdout.writeAll(
+        if (options.clear_scrollback)
+            "\x1b[H\x1b[2J\x1b[3J"
+        else
+            "\x1b[H\x1b[2J",
+    ) catch |err|
+        return shared.unableToWriteTo("stdout", io, err);
 }
 
-const TemplateOptions = struct {
+const ClearOptions = struct {
+    clear_scrollback: bool = true,
+
     pub fn format(
-        options: TemplateOptions,
+        options: ClearOptions,
         comptime _: []const u8,
         _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void {
-        _ = options;
-        try writer.writeAll("TemplateOptions{ }");
+        try writer.writeAll("ClearOptions{ .clear_scrollback = ");
+        try writer.writeAll(if (options.clear_scrollback) "true" else "false");
+        try writer.writeAll(" }");
     }
 };
 
@@ -52,13 +59,13 @@ fn parseArguments(
     io: shared.IO,
     args: *shared.ArgIterator,
     exe_path: []const u8,
-) !TemplateOptions {
+) !ClearOptions {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
     defer z.end();
 
     var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
 
-    const options: TemplateOptions = .{};
+    var clear_options: ClearOptions = .{};
 
     const State = union(enum) {
         normal,
@@ -86,9 +93,14 @@ fn parseArguments(
             },
             .shorthand => |*shorthand| {
                 while (shorthand.next()) |char| {
-                    @branchHint(.cold);
-                    state = .{ .invalid_argument = .{ .character = char } };
-                    break;
+                    if (char == 'x') {
+                        clear_options.clear_scrollback = false;
+                        log.debug("got dont clear scrollback option", .{});
+                    } else {
+                        @branchHint(.cold);
+                        state = .{ .invalid_argument = .{ .character = char } };
+                        break;
+                    }
                 }
             },
             .positional => {
@@ -100,7 +112,7 @@ fn parseArguments(
     }
 
     return switch (state) {
-        .normal => options,
+        .normal => clear_options,
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
             .slice => |slice| shared.printInvalidUsageAlloc(
                 @This(),
@@ -122,22 +134,43 @@ fn parseArguments(
     };
 }
 
-test "template no args" {
-    try subcommands.testExecute(@This(), &.{}, .{});
+test "clear no args" {
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    try shared.testExecute(
+        @This(),
+        &.{},
+        .{ .stdout = stdout.writer() },
+    );
+
+    try std.testing.expectEqualStrings("\x1b[H\x1b[2J\x1b[3J", stdout.items);
 }
 
-test "template help" {
-    try subcommands.testHelp(@This(), true);
+test "clear - don't clear scrollback" {
+    var stdout = std.ArrayList(u8).init(std.testing.allocator);
+    defer stdout.deinit();
+
+    try shared.testExecute(
+        @This(),
+        &.{"-x"},
+        .{ .stdout = stdout.writer() },
+    );
+
+    try std.testing.expectEqualStrings("\x1b[H\x1b[2J", stdout.items);
 }
 
-test "template version" {
-    try subcommands.testVersion(@This());
+test "clear help" {
+    try shared.testHelp(@This(), true);
 }
 
-const log = std.log.scoped(.template);
+test "clear version" {
+    try shared.testVersion(@This());
+}
+
+const log = std.log.scoped(.clear);
 const shared = @import("../shared.zig");
 const std = @import("std");
-const subcommands = @import("../subcommands.zig");
 const tracy = @import("tracy");
 
 comptime {

@@ -2,6 +2,9 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 // SPDX-FileCopyrightText: 2024 Leon Henrik Plickat
 
+// TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
+// https://github.com/leecannon/zig-coreutils/issues/1
+
 pub const name = "nproc";
 
 pub const short_help =
@@ -22,7 +25,7 @@ pub fn execute(
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
@@ -81,17 +84,16 @@ test getLastCpuIndex {
 }
 
 test "nproc help" {
-    try subcommands.testHelp(@This(), true);
+    try shared.testHelp(@This(), true);
 }
 
 test "nproc version" {
-    try subcommands.testVersion(@This());
+    try shared.testVersion(@This());
 }
 
 const log = std.log.scoped(.nproc);
 const shared = @import("../shared.zig");
 const std = @import("std");
-const subcommands = @import("../subcommands.zig");
 const tracy = @import("tracy");
 
 comptime {

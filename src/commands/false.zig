@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "true";
+pub const name = "false";
 
 pub const short_help =
     \\Usage: {0s} [ignored command line arguments]
     \\   or: {0s} OPTION
     \\
-    \\Exit with a status code indicating success.
+    \\Exit with a status code indicating failure.
     \\
     \\  -h         display the short help and exit
     \\  --help     display the full help and exit
@@ -21,7 +21,7 @@ pub fn execute(
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
@@ -31,43 +31,49 @@ pub fn execute(
     _ = allocator;
 
     _ = try args.nextWithHelpOrVersion(true);
+
+    // FIXME: This is weird, is this acceptable to allow the other shared to not have to worry about u8 return value?
+    return error.AlreadyHandled;
 }
 
-test "true no args" {
-    try subcommands.testExecute(
-        @This(),
-        &.{},
-        .{},
+test "false no args" {
+    try std.testing.expectError(
+        error.AlreadyHandled,
+        shared.testExecute(
+            @This(),
+            &.{},
+            .{},
+        ),
     );
 }
 
-test "true ignores args" {
+test "false ignores args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try subcommands.testExecute(
-        @This(),
-        &.{
-            "these", "arguments", "are", "ignored",
-        },
-        .{ .stdout = stdout.writer() },
+    try std.testing.expectError(
+        error.AlreadyHandled,
+        shared.testExecute(
+            @This(),
+            &.{ "these", "arguments", "are", "ignored" },
+            .{},
+        ),
     );
 
     try std.testing.expectEqualStrings("", stdout.items);
 }
 
-test "true help" {
-    try subcommands.testHelp(@This(), true);
+test "false help" {
+    try shared.testHelp(@This(), true);
 }
 
-test "true version" {
-    try subcommands.testVersion(@This());
+test "false version" {
+    try shared.testVersion(@This());
 }
 
-const log = std.log.scoped(.true);
+const log = std.log.scoped(.false);
 const shared = @import("../shared.zig");
 const std = @import("std");
-const subcommands = @import("../subcommands.zig");
 const tracy = @import("tracy");
 
 comptime {

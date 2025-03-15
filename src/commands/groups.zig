@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 // TODO: Extended help examples https://github.com/leecannon/zig-coreutils/issues/3
+// TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
+// https://github.com/leecannon/zig-coreutils/issues/1
 
 pub const name = "groups";
 
@@ -24,7 +26,7 @@ pub fn execute(
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
     defer z.end();
 
@@ -46,7 +48,7 @@ fn currentUser(
     io: shared.IO,
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "current user" });
     defer z.end();
 
@@ -102,7 +104,7 @@ fn otherUser(
     arg: shared.Arg,
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
-) subcommands.Error!void {
+) shared.CommandError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "other user" });
     defer z.end();
     z.text(arg.raw);
@@ -199,21 +201,17 @@ fn printGroups(
         return shared.unableToWriteTo("stdout", io, err);
 }
 
-// TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
-// https://github.com/leecannon/zig-coreutils/issues/1
-
 test "groups help" {
-    try subcommands.testHelp(@This(), true);
+    try shared.testHelp(@This(), true);
 }
 
 test "groups version" {
-    try subcommands.testVersion(@This());
+    try shared.testVersion(@This());
 }
 
 const log = std.log.scoped(.groups);
 const shared = @import("../shared.zig");
 const std = @import("std");
-const subcommands = @import("../subcommands.zig");
 const tracy = @import("tracy");
 
 comptime {
