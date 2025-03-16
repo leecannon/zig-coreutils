@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "template";
+pub const command: Command = .{
+    .name = "template",
 
-pub const short_help =
-    \\Usage: {0s} [ignored command line arguments]
-    \\   or: {0s} OPTION
+    .short_help =
+    \\Usage: {NAME} [ignored command line arguments]
+    \\   or: {NAME} OPTION
     \\
     \\A template command
     \\
@@ -13,19 +14,19 @@ pub const short_help =
     \\  --help     display the full help and exit
     \\  --version  output version information and exit
     \\
-;
+    ,
 
-// No examples provided for `template`
-pub const extended_help = "";
+    .execute = execute,
+};
 
-pub fn execute(
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) shared.Error!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     _ = cwd;
@@ -101,16 +102,14 @@ fn parseArguments(
     return switch (state) {
         .normal => options,
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(
-                @This(),
+            .slice => |slice| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
                 "unrecognized option '--{s}'",
                 .{slice},
             ),
-            .character => |character| shared.printInvalidUsageAlloc(
-                @This(),
+            .character => |character| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
@@ -126,17 +125,18 @@ test "template no args" {
 }
 
 test "template help" {
-    try shared.testHelp(@This(), true);
+    try command.testHelp(true);
 }
 
 test "template version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 const log = std.log.scoped(.template);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "clear";
+pub const command: Command = .{
+    .name = "clear",
 
-pub const short_help =
-    \\Usage: {0s} [OPTION]
+    .short_help =
+    \\Usage: {NAME} [OPTION]
     \\
     \\Clear the screen.
     \\
@@ -13,16 +14,26 @@ pub const short_help =
     \\  --help     display the full help and exit
     \\  --version  output version information and exit
     \\
-;
+    ,
 
-pub fn execute(
+    .extended_help =
+    \\Examples:
+    \\  clear
+    \\  clear -x
+    \\
+    ,
+
+    .execute = execute,
+};
+
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+) Command.Error!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     _ = cwd;
@@ -114,16 +125,14 @@ fn parseArguments(
     return switch (state) {
         .normal => clear_options,
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(
-                @This(),
+            .slice => |slice| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
                 "unrecognized option '--{s}'",
                 .{slice},
             ),
-            .character => |character| shared.printInvalidUsageAlloc(
-                @This(),
+            .character => |character| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
@@ -138,8 +147,7 @@ test "clear no args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{},
         .{ .stdout = stdout.writer() },
     );
@@ -151,8 +159,7 @@ test "clear - don't clear scrollback" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{"-x"},
         .{ .stdout = stdout.writer() },
     );
@@ -161,17 +168,18 @@ test "clear - don't clear scrollback" {
 }
 
 test "clear help" {
-    try shared.testHelp(@This(), true);
+    try command.testHelp(true);
 }
 
 test "clear version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 const log = std.log.scoped(.clear);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "dirname";
+pub const command: Command = .{
+    .name = "dirname",
 
-pub const short_help =
-    \\Usage: {0s} [OPTION] NAME...
+    .short_help =
+    \\Usage: {NAME} [OPTION] NAME...
     \\
     \\Print each NAME with its last non-slash components and trailing slashes removed.
     \\If NAME contains no slashes outputs '.' (the current directory).
@@ -14,24 +15,27 @@ pub const short_help =
     \\  --help      display the full help and exit
     \\  --version   output version information and exit
     \\
-;
+    ,
 
-pub const extended_help =
+    .extended_help =
     \\Examples:
     \\  dirname /usr/bin/          -> "/usr"
     \\  dirname dir1/str dir2/str  -> "dir1" followed by "dir2"
     \\  dirname stdio.h            -> "."
     \\
-;
+    ,
 
-pub fn execute(
+    .execute = execute,
+};
+
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+) Command.Error!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     _ = cwd;
@@ -157,23 +161,20 @@ fn parseArguments(
     }
 
     return switch (state) {
-        .normal => shared.printInvalidUsage(
-            @This(),
+        .normal => command.printInvalidUsage(
             io,
             exe_path,
             "missing operand",
         ),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(
-                @This(),
+            .slice => |slice| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
                 "unrecognized option '{s}'",
                 .{slice},
             ),
-            .character => |character| shared.printInvalidUsageAlloc(
-                @This(),
+            .character => |character| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
@@ -185,15 +186,14 @@ fn parseArguments(
 }
 
 test "dirname no args" {
-    try shared.testError(@This(), &.{}, .{}, "missing operand");
+    try command.testError(&.{}, .{}, "missing operand");
 }
 
 test "dirname single" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{
             "hello/world",
         },
@@ -207,8 +207,7 @@ test "dirname multiple" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{
             "hello/world",
             "this/is/a/test",
@@ -226,17 +225,18 @@ test "dirname multiple" {
 }
 
 test "dirname help" {
-    try shared.testHelp(@This(), true);
+    try command.testHelp(true);
 }
 
 test "dirname version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 const log = std.log.scoped(.dirname);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

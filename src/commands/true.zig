@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "true";
+pub const command: Command = .{
+    .name = "true",
 
-pub const short_help =
-    \\Usage: {0s} [ignored command line arguments]
-    \\   or: {0s} OPTION
+    .short_help =
+    \\Usage: {NAME} [ignored command line arguments]
+    \\   or: {NAME} OPTION
     \\
     \\Exit with a status code indicating success.
     \\
@@ -13,16 +14,19 @@ pub const short_help =
     \\  --help     display the full help and exit
     \\  --version  output version information and exit
     \\
-;
+    ,
 
-pub fn execute(
+    .execute = execute,
+};
+
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+) Command.Error!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     _ = io;
@@ -34,8 +38,7 @@ pub fn execute(
 }
 
 test "true no args" {
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{},
         .{},
     );
@@ -45,8 +48,7 @@ test "true ignores args" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{
             "these", "arguments", "are", "ignored",
         },
@@ -57,17 +59,18 @@ test "true ignores args" {
 }
 
 test "true help" {
-    try shared.testHelp(@This(), true);
+    try command.testHelp(true);
 }
 
 test "true version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 const log = std.log.scoped(.true);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub fn main() if (shared.is_debug_or_test) shared.CommandExposedError!u8 else u8 {
+pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     // this causes the frame to start with our main instead of `std.start`
     tracy.frameMark(null);
     const main_z: tracy.Zone = .begin(.{ .src = @src(), .name = "main" });
@@ -58,7 +58,7 @@ pub fn main() if (shared.is_debug_or_test) shared.CommandExposedError!u8 else u8
         switch (err) {
             error.OutOfMemory => stderr_writer.writeAll("out of memory\n") catch {},
             error.UnableToParseArguments => stderr_writer.writeAll("unable to parse arguments\n") catch {},
-            error.AlreadyHandled => return 1, // TODO: should this error be return as well?
+            error.AlreadyHandled => return 1, // TODO: should this error be returned as well?
         }
 
         if (shared.is_debug_or_test) return err;
@@ -73,43 +73,32 @@ pub fn main() if (shared.is_debug_or_test) shared.CommandExposedError!u8 else u8
     return 0;
 }
 
-pub fn tryExecute(
+fn tryExecute(
     allocator: std.mem.Allocator,
     os_arg_iter: std.process.ArgIterator,
     io: shared.IO,
     basename: []const u8,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandExposedError!void {
+) Command.ExposedError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "tryExecute" });
     defer z.end();
 
     var arg_iter: shared.ArgIterator = .{ .args = os_arg_iter };
 
-    if (!std.mem.eql(u8, basename, "zig-coreutils")) {
-        inline for (COMMANDS) |command| {
-            if (std.mem.eql(u8, command.name, basename)) {
-                z.text(basename);
-                return command.execute(
-                    allocator,
-                    io,
-                    &arg_iter,
-                    cwd,
-                    exe_path,
-                ) catch |full_err|
-                    shared.narrowCommandError(command, io, basename, full_err);
-            }
-        }
-
-        io.stderr.print(
-            \\{0s}: command '{1s}' not found
-            \\the name of this executable/symlink is not a valid command
-            \\view available commands with 'zig-coreutils --list'
-            \\
-        , .{ exe_path, basename }) catch {};
-        return error.AlreadyHandled;
+    // attempt to match the basename to a command
+    if (command_lookup.get(basename)) |command| {
+        z.text(basename);
+        return command.execute(
+            allocator,
+            io,
+            &arg_iter,
+            cwd,
+            exe_path,
+        ) catch |full_err| command.narrowError(io, basename, full_err);
     }
 
+    // check the first argument for an option
     const opt_possible_command_arg = arg_iter.nextWithHelpOrVersion(true) catch |err| switch (err) {
         error.Version => {
             io.stdout.writeAll(shared.base_version_string) catch |inner_err|
@@ -128,77 +117,68 @@ pub fn tryExecute(
         },
     };
 
-    if (opt_possible_command_arg) |possible_command_arg| {
-        switch (possible_command_arg.arg_type) {
-            .longhand => |longhand| {
-                if (std.mem.eql(u8, longhand, "list")) {
-                    io.stdout.writeAll(command_list) catch |inner_err|
-                        return shared.unableToWriteTo("stdout", io, inner_err);
-                    return;
-                }
-            },
-            else => {},
-        }
+    const possible_command_arg = opt_possible_command_arg orelse {
+        io.stderr.print(
+            \\{0s}: command '{1s}' not found
+            \\the name of this executable/symlink is not a valid command and no command specified as first argument
+            \\view available commands with 'zig-coreutils --list'
+            \\
+        , .{ exe_path, basename }) catch {};
+        return error.AlreadyHandled;
+    };
 
-        const possible_command = possible_command_arg.raw;
-
-        log.debug("no command found matching basename '{s}', trying first argument '{s}'", .{
-            basename,
-            possible_command,
-        });
-
-        inline for (COMMANDS) |command| {
-            if (std.mem.eql(u8, command.name, possible_command)) {
-                z.text(possible_command);
-
-                const exe_path_with_command = try std.fmt.allocPrint(allocator, "{s} {s}", .{
-                    exe_path,
-                    command.name,
-                });
-                defer if (shared.free_on_close) allocator.free(exe_path_with_command);
-
-                return command.execute(
-                    allocator,
-                    io,
-                    &arg_iter,
-                    cwd,
-                    exe_path_with_command,
-                ) catch |full_err|
-                    shared.narrowCommandError(command, io, exe_path_with_command, full_err);
+    // check first argument for `--list` option
+    switch (possible_command_arg.arg_type) {
+        .longhand => |longhand| {
+            if (std.mem.eql(u8, longhand, "list")) {
+                io.stdout.writeAll(command_list) catch |inner_err|
+                    return shared.unableToWriteTo("stdout", io, inner_err);
+                return;
             }
-        }
+        },
+        else => {},
+    }
 
+    // attempt to match the first argument to a command
+    const possible_command = possible_command_arg.raw;
+    const command = command_lookup.get(possible_command) orelse {
         io.stderr.print(
             \\{0s}: command '{1s}' not found
             \\view available commands with '{0s} --list'
             \\
         , .{ exe_path, possible_command }) catch {};
         return error.AlreadyHandled;
-    } else {
-        io.stderr.print(
-            \\{0s}: no command or option specified
-            \\view '{0s} --help' for more information
-            \\
-        , .{exe_path}) catch {};
+    };
 
-        return error.AlreadyHandled;
-    }
+    z.text(possible_command);
 
-    comptime unreachable;
+    const exe_path_with_command = try std.fmt.allocPrint(allocator, "{s} {s}", .{
+        exe_path,
+        command.name,
+    });
+    defer if (shared.free_on_close) allocator.free(exe_path_with_command);
+
+    return command.execute(
+        allocator,
+        io,
+        &arg_iter,
+        cwd,
+        exe_path_with_command,
+    ) catch |full_err| command.narrowError(io, exe_path_with_command, full_err);
 }
 
-const COMMANDS = [_]type{
-    @import("commands/basename.zig"),
-    @import("commands/clear.zig"),
-    @import("commands/dirname.zig"),
-    @import("commands/false.zig"),
-    @import("commands/groups.zig"),
-    @import("commands/nproc.zig"),
-    @import("commands/touch.zig"),
-    @import("commands/true.zig"),
-    @import("commands/whoami.zig"),
-    @import("commands/yes.zig"),
-};
+const command_lookup: std.StaticStringMap(Command) = .initComptime(&.{
+    .{ "basename", @import("commands/basename.zig").command },
+    .{ "clear", @import("commands/clear.zig").command },
+    .{ "dirname", @import("commands/dirname.zig").command },
+    .{ "false", @import("commands/false.zig").command },
+    .{ "groups", @import("commands/groups.zig").command },
+    .{ "nproc", @import("commands/nproc.zig").command },
+    .{ "touch", @import("commands/touch.zig").command },
+    .{ "true", @import("commands/true.zig").command },
+    .{ "whoami", @import("commands/whoami.zig").command },
+    .{ "yes", @import("commands/yes.zig").command },
+});
 
 const short_help =
     \\Usage: {0s} command [arguments]...
@@ -225,13 +205,15 @@ const full_help = blk: {
         \\
     ;
 
-    for (COMMANDS, 0..) |command, i| {
+    const number_of_commands = command_lookup.keys().len;
+
+    for (command_lookup.keys(), 0..) |command, i| {
         const n = i % commands_per_line;
 
         if (n == 0) help = help ++ "  ";
-        help = help ++ command.name;
+        help = help ++ command;
 
-        if (i == COMMANDS.len - 1) {
+        if (i == number_of_commands - 1) {
             help = help ++ "\n";
             break;
         }
@@ -249,8 +231,8 @@ const full_help = blk: {
 const command_list = blk: {
     var list: []const u8 = "";
 
-    for (COMMANDS) |command| {
-        list = list ++ command.name ++ "\n";
+    for (command_lookup.keys()) |command| {
+        list = list ++ command ++ "\n";
     }
 
     break :blk list;
@@ -262,6 +244,7 @@ const options = @import("options");
 const shared = @import("shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("Command.zig");
 
 pub const tracy_impl = @import("tracy_impl");
 

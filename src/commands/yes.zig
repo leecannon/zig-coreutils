@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "yes";
+pub const command: Command = .{
+    .name = "yes",
 
-pub const short_help =
-    \\Usage: {0s} [STRING]...
-    \\   or: {0s} OPTION
+    .short_help =
+    \\Usage: {NAME} [STRING]...
+    \\   or: {NAME} OPTION
     \\
     \\Repeatedly output a line with all specified STRING(s), or 'y'.
     \\
@@ -13,16 +14,19 @@ pub const short_help =
     \\  --help     display the full help and exit
     \\  --version  output version information and exit
     \\
-;
+    ,
 
-pub fn execute(
+    .execute = execute,
+};
+
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+) Command.Error!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     _ = exe_path;
@@ -38,7 +42,7 @@ pub fn execute(
 }
 
 fn getString(allocator: std.mem.Allocator, args: *shared.ArgIterator) !shared.MaybeAllocatedString {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "get string" });
     defer z.end();
 
     var buffer = std.ArrayList(u8).init(allocator);
@@ -61,17 +65,18 @@ fn getString(allocator: std.mem.Allocator, args: *shared.ArgIterator) !shared.Ma
 }
 
 test "yes help" {
-    try shared.testHelp(@This(), true);
+    try command.testHelp(true);
 }
 
 test "yes version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 const log = std.log.scoped(.yes);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

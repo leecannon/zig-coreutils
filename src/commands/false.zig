@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "false";
+pub const command: Command = .{
+    .name = "false",
 
-pub const short_help =
-    \\Usage: {0s} [ignored command line arguments]
-    \\   or: {0s} OPTION
+    .short_help =
+    \\Usage: {NAME} [ignored command line arguments]
+    \\   or: {NAME} OPTION
     \\
     \\Exit with a status code indicating failure.
     \\
@@ -13,16 +14,19 @@ pub const short_help =
     \\  --help     display the full help and exit
     \\  --version  output version information and exit
     \\
-;
+    ,
 
-pub fn execute(
+    .execute = execute,
+};
+
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+) Command.Error!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     _ = io;
@@ -39,11 +43,7 @@ pub fn execute(
 test "false no args" {
     try std.testing.expectError(
         error.AlreadyHandled,
-        shared.testExecute(
-            @This(),
-            &.{},
-            .{},
-        ),
+        command.testExecute(&.{}, .{}),
     );
 }
 
@@ -53,8 +53,7 @@ test "false ignores args" {
 
     try std.testing.expectError(
         error.AlreadyHandled,
-        shared.testExecute(
-            @This(),
+        command.testExecute(
             &.{ "these", "arguments", "are", "ignored" },
             .{},
         ),
@@ -64,17 +63,18 @@ test "false ignores args" {
 }
 
 test "false help" {
-    try shared.testHelp(@This(), true);
+    try command.testHelp(true);
 }
 
 test "false version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 const log = std.log.scoped(.false);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

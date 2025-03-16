@@ -5,11 +5,12 @@
 // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
 // https://github.com/leecannon/zig-coreutils/issues/1
 
-pub const name = "nproc";
+pub const command: Command = .{
+    .name = "nproc",
 
-pub const short_help =
-    \\Usage: {0s} [ignored command line arguments]
-    \\   or: {0s} OPTION
+    .short_help =
+    \\Usage: {NAME} [ignored command line arguments]
+    \\   or: {NAME} OPTION
     \\
     \\Print the number of processing units available.
     \\
@@ -17,16 +18,19 @@ pub const short_help =
     \\  --help     display the full help and exit
     \\  --version  output version information and exit
     \\
-;
+    ,
 
-pub fn execute(
+    .execute = execute,
+};
+
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+) Command.Error!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     _ = exe_path;
@@ -36,7 +40,7 @@ pub fn execute(
     const path = "/sys/devices/system/cpu/online";
     var buffer: [8]u8 = undefined;
     const file_contents = try shared.readFileIntoBuffer(
-        @This(),
+        command,
         allocator,
         io,
         cwd,
@@ -47,8 +51,7 @@ pub fn execute(
     const last_cpu_index = getLastCpuIndex(
         std.mem.trim(u8, file_contents, &std.ascii.whitespace),
     ) catch
-        return shared.printError(
-            @This(),
+        return command.printError(
             io,
             "format of '" ++ path ++ "' is invalid: '{s}'",
         );
@@ -84,17 +87,18 @@ test getLastCpuIndex {
 }
 
 test "nproc help" {
-    try shared.testHelp(@This(), true);
+    try command.testHelp(true);
 }
 
 test "nproc version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 const log = std.log.scoped(.nproc);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

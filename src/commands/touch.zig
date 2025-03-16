@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-// TODO: Extended help examples https://github.com/leecannon/zig-coreutils/issues/3
 // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
 // https://github.com/leecannon/zig-coreutils/issues/1
 
-pub const name = "touch";
+pub const command: Command = .{
+    .name = "touch",
 
-pub const short_help =
-    \\Usage: {0s} [OPTION]... FILE...
+    .short_help =
+    \\Usage: {NAME} [OPTION]... FILE...
     \\
     \\Update the access and modification times of each FILE to the current time.
     \\
@@ -17,6 +17,7 @@ pub const short_help =
     \\A FILE argument string of '-' is handled specially and causes 'touch' to change 
     \\the times of the file associated with standard output.
     \\
+    \\Mandatory arguments to long options are mandatory for short options too.
     \\  -a                    change only the access time
     \\  -c, --no-create       do not create any files
     \\  -f                    (ignored)
@@ -29,16 +30,28 @@ pub const short_help =
     \\  --help                display the help and exit
     \\  --version             output version information and exit
     \\
-;
+    ,
 
-pub fn execute(
+    .extended_help =
+    \\Examples:
+    \\  touch FILE
+    \\  touch -c FILE
+    \\  touch -r REFFILE FILE
+    \\  touch -a FILE
+    \\
+    ,
+
+    .execute = execute,
+};
+
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+) Command.Error!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     const options = try parseArguments(allocator, io, args, exe_path);
@@ -82,8 +95,7 @@ fn performTouch(
                 // The file not existing is not an error if create is false.
                 if (!options.create and err == error.FileNotFound) continue :argument_loop;
 
-                return shared.printErrorAlloc(
-                    @This(),
+                return command.printErrorAlloc(
                     allocator,
                     io,
                     "failed to open '{s}': {s}",
@@ -97,8 +109,7 @@ fn performTouch(
             file.updateTimes(times.access_time, times.modification_time)
         else blk: {
             const stat = file.stat() catch |err|
-                return shared.printErrorAlloc(
-                    @This(),
+                return command.printErrorAlloc(
                     allocator,
                     io,
                     "failed to stat '{s}': {s}",
@@ -113,8 +124,7 @@ fn performTouch(
         };
 
         possible_update_times_error catch |err|
-            return shared.printErrorAlloc(
-                @This(),
+            return command.printErrorAlloc(
                 allocator,
                 io,
                 "failed to update times on '{s}': {s}",
@@ -139,8 +149,7 @@ fn getTimes(
         },
         .reference_file => |reference_file_path| {
             const reference_file = cwd.openFile(reference_file_path, .{}) catch |err|
-                return shared.printErrorAlloc(
-                    @This(),
+                return command.printErrorAlloc(
                     allocator,
                     io,
                     "unable to open '{s}': {s}",
@@ -149,8 +158,7 @@ fn getTimes(
             defer reference_file.close();
 
             const stat = reference_file.stat() catch |err|
-                return shared.printErrorAlloc(
-                    @This(),
+                return command.printErrorAlloc(
                     allocator,
                     io,
                     "unable to stat '{s}': {s}",
@@ -369,26 +377,22 @@ fn parseArguments(
     }
 
     return switch (state) {
-        .normal => shared.printInvalidUsage(
-            @This(),
+        .normal => command.printInvalidUsage(
             io,
             exe_path,
             "missing file operand",
         ),
-        .reference_file => shared.printInvalidUsage(
-            @This(),
+        .reference_file => command.printInvalidUsage(
             io,
             exe_path,
             "expected file path for reference file argument",
         ),
-        .time => shared.printInvalidUsage(
-            @This(),
+        .time => command.printInvalidUsage(
             io,
             exe_path,
             "expected WORD string for time argument",
         ),
-        .invalid_time_argument => |argument| shared.printInvalidUsageAlloc(
-            @This(),
+        .invalid_time_argument => |argument| command.printInvalidUsageAlloc(
             allocator,
             io,
             exe_path,
@@ -396,16 +400,14 @@ fn parseArguments(
             .{argument},
         ),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(
-                @This(),
+            .slice => |slice| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
                 "unrecognized option '{s}'",
                 .{slice},
             ),
-            .character => |character| shared.printInvalidUsageAlloc(
-                @This(),
+            .character => |character| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
@@ -445,8 +447,7 @@ test "touch - create file" {
         cwd.access("FILE", .{}),
     );
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{"FILE"},
         .{ .cwd = cwd },
     );
@@ -467,8 +468,7 @@ test "touch - don't create file" {
         cwd.access("FILE", .{}),
     );
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{ "-a", "EXISTS" },
         .{ .cwd = cwd },
     );
@@ -481,8 +481,7 @@ test "touch - don't create file" {
 }
 
 test "touch no args" {
-    try shared.testError(
-        @This(),
+    try command.testError(
         &.{},
         .{},
         "missing file operand",
@@ -490,11 +489,11 @@ test "touch no args" {
 }
 
 test "touch help" {
-    try shared.testHelp(@This(), false);
+    try command.testHelp(false);
 }
 
 test "touch version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 fn setupTestDirectory() !std.testing.TmpDir {
@@ -507,6 +506,7 @@ const log = std.log.scoped(.touch);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

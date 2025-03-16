@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-pub const name = "basename";
+pub const command: Command = .{
+    .name = "basename",
 
-pub const short_help =
-    \\Usage: {0s} NAME [SUFFIX]
-    \\   or: {0s} OPTION... NAME...
+    .short_help =
+    \\Usage: {NAME} NAME [SUFFIX]
+    \\   or: {NAME} OPTION... NAME...
     \\
     \\Print NAME with any leading directory components removed.
     \\If specified, also remove a trailing SUFFIX.
@@ -18,25 +19,28 @@ pub const short_help =
     \\  --help               display the full help and exit
     \\  --version            output version information and exit
     \\
-;
+    ,
 
-pub const extended_help =
+    .extended_help =
     \\Examples:
     \\  basename /usr/bin/sort          -> "sort"
     \\  basename include/stdio.h .h     -> "stdio"
     \\  basename -s .h include/stdio.h  -> "stdio"
     \\  basename -a any/str1 any/str2   -> "str1" followed by "str2"
     \\
-;
+    ,
 
-pub fn execute(
+    .execute = execute,
+};
+
+fn execute(
     allocator: std.mem.Allocator,
     io: shared.IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.CommandError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = name });
+) Command.Error!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
     _ = cwd;
@@ -113,8 +117,7 @@ fn singleArgument(
         const arg = args.nextRaw() orelse break :blk null;
 
         if (args.nextRaw()) |additional_arg| {
-            return shared.printInvalidUsageAlloc(
-                @This(),
+            return command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
@@ -295,29 +298,25 @@ fn parseArguments(
     }
 
     return switch (state) {
-        .normal => shared.printInvalidUsage(
-            @This(),
+        .normal => command.printInvalidUsage(
             io,
             exe_path,
             "missing operand",
         ),
-        .suffix => shared.printInvalidUsage(
-            @This(),
+        .suffix => command.printInvalidUsage(
             io,
             exe_path,
             "expected SUFFIX for suffix argument",
         ),
         .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| shared.printInvalidUsageAlloc(
-                @This(),
+            .slice => |slice| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
                 "unrecognized option '{s}'",
                 .{slice},
             ),
-            .character => |character| shared.printInvalidUsageAlloc(
-                @This(),
+            .character => |character| command.printInvalidUsageAlloc(
                 allocator,
                 io,
                 exe_path,
@@ -329,8 +328,7 @@ fn parseArguments(
 }
 
 test "basename no args" {
-    try shared.testError(
-        @This(),
+    try command.testError(
         &.{},
         .{},
         "missing operand",
@@ -341,8 +339,7 @@ test "basename single" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{"hello/world"},
         .{ .stdout = stdout.writer() },
     );
@@ -354,8 +351,7 @@ test "basename multiple" {
     var stdout = std.ArrayList(u8).init(std.testing.allocator);
     defer stdout.deinit();
 
-    try shared.testExecute(
-        @This(),
+    try command.testExecute(
         &.{
             "-a",
             "hello/world",
@@ -374,17 +370,18 @@ test "basename multiple" {
 }
 
 test "basename help" {
-    try shared.testHelp(@This(), true);
+    try command.testHelp(true);
 }
 
 test "basename version" {
-    try shared.testVersion(@This());
+    try command.testVersion();
 }
 
 const log = std.log.scoped(.basename);
 const shared = @import("../shared.zig");
 const std = @import("std");
 const tracy = @import("tracy");
+const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());
