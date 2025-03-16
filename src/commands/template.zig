@@ -16,7 +16,6 @@ pub const short_help =
 ;
 
 // No examples provided for `template`
-// a blank line is required at the beginning to ensure correct formatting
 pub const extended_help = "";
 
 pub fn execute(

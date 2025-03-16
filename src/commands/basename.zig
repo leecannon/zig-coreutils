@@ -20,8 +20,7 @@ pub const short_help =
     \\
 ;
 
-pub const extended_help = // a blank line is required at the beginning to ensure correct formatting
-    \\
+pub const extended_help =
     \\Examples:
     \\  basename /usr/bin/sort          -> "sort"
     \\  basename include/stdio.h .h     -> "stdio"

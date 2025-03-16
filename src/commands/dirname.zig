@@ -16,8 +16,7 @@ pub const short_help =
     \\
 ;
 
-pub const extended_help = // a blank line is required at the beginning to ensure correct formatting
-    \\
+pub const extended_help =
     \\Examples:
     \\  dirname /usr/bin/          -> "/usr"
     \\  dirname dir1/str dir2/str  -> "dir1" followed by "dir2"

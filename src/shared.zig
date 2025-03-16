@@ -22,7 +22,7 @@ pub fn printFullHelp(comptime command: type, io: IO, exe_path: []const u8) error
     log.debug(comptime "printing full help for " ++ command.name, .{});
     if (@hasDecl(command, "extended_help")) {
         io.stdout.print(
-            comptime command.short_help ++ command.extended_help,
+            comptime command.short_help ++ "\n" ++ command.extended_help,
             .{exe_path},
         ) catch |err|
             return unableToWriteTo("stdout", io, err);
@@ -673,7 +673,7 @@ pub fn testHelp(comptime command: type, comptime include_shorthand: bool) !void 
     const full_help = try std.fmt.allocPrint(
         std.testing.allocator,
         if (@hasDecl(command, "extended_help"))
-            comptime command.short_help ++ command.extended_help
+            comptime command.short_help ++ "\n" ++ command.extended_help
         else
             command.short_help,
         .{command.name},
