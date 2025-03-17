@@ -204,15 +204,15 @@ pub fn testExecute(
     const stdin = if (@hasField(SettingsType, "stdin"))
         settings.stdin
     else
-        shared.VoidReader.reader();
+        VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout"))
         settings.stdout
     else
-        shared.VoidWriter.writer();
+        VoidWriter.writer();
     const stderr = if (@hasField(SettingsType, "stderr"))
         settings.stderr
     else
-        shared.VoidWriter.writer();
+        VoidWriter.writer();
 
     const cwd_provided = @hasField(SettingsType, "cwd");
     var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
@@ -253,11 +253,11 @@ pub fn testError(
     const stdin = if (@hasField(SettingsType, "stdin"))
         settings.stdin
     else
-        shared.VoidReader.reader();
+        VoidReader.reader();
     const stdout = if (@hasField(SettingsType, "stdout"))
         settings.stdout
     else
-        shared.VoidWriter.writer();
+        VoidWriter.writer();
 
     const cwd_provided = @hasField(SettingsType, "cwd");
     var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
@@ -378,6 +378,29 @@ pub fn testVersion(command: Command) !void {
 
     try std.testing.expectEqualStrings(expected, out.items);
 }
+
+const VoidReader = struct {
+    pub const Reader = std.io.Reader(void, error{}, read);
+    pub fn reader() Reader {
+        return .{ .context = {} };
+    }
+
+    fn read(_: void, buffer: []u8) error{}!usize {
+        _ = buffer;
+        return 0;
+    }
+};
+
+const VoidWriter = struct {
+    pub const Writer = std.io.Writer(void, error{}, write);
+    pub fn writer() Writer {
+        return .{ .context = {} };
+    }
+
+    fn write(_: void, bytes: []const u8) error{}!usize {
+        return bytes.len;
+    }
+};
 
 const NameReplacementIterator = struct {
     slice: []const u8,

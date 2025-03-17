@@ -261,29 +261,6 @@ pub fn MaybeAllocated(comptime T: type, comptime dealloc: fn (self: T, allocator
     };
 }
 
-pub const VoidReader = struct {
-    pub const Reader = std.io.Reader(void, error{}, read);
-    pub fn reader() Reader {
-        return .{ .context = {} };
-    }
-
-    fn read(_: void, buffer: []u8) error{}!usize {
-        _ = buffer;
-        return 0;
-    }
-};
-
-pub const VoidWriter = struct {
-    pub const Writer = std.io.Writer(void, error{}, write);
-    pub fn writer() Writer {
-        return .{ .context = {} };
-    }
-
-    fn write(_: void, bytes: []const u8) error{}!usize {
-        return bytes.len;
-    }
-};
-
 const Command = @import("Command.zig");
 const IO = @import("IO.zig");
 
