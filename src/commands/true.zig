@@ -66,6 +66,10 @@ test "true version" {
     try command.testVersion();
 }
 
+test "true fuzz" {
+    try command.testFuzz(.{ .expect_stdout_output_on_success = false });
+}
+
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");

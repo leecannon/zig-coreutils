@@ -174,6 +174,10 @@ test "clear version" {
     try command.testVersion();
 }
 
+test "clear fuzz" {
+    try command.testFuzz(.{});
+}
+
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");

@@ -70,6 +70,10 @@ test "false version" {
     try command.testVersion();
 }
 
+test "false fuzz" {
+    try command.testFuzz(.{ .expect_stderr_output_on_failure = false });
+}
+
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");

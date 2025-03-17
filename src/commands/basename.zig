@@ -373,6 +373,10 @@ test "basename version" {
     try command.testVersion();
 }
 
+test "basename fuzz" {
+    try command.testFuzz(.{});
+}
+
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");

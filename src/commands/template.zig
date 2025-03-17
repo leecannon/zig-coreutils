@@ -134,6 +134,10 @@ test "template version" {
     try command.testVersion();
 }
 
+test "template fuzz" { // DELETE THIS IF THE COMMAND INTERACTS WITH THE SYSTEM
+    try command.testFuzz(.{});
+}
+
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");

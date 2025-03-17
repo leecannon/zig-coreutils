@@ -230,6 +230,10 @@ test "dirname version" {
     try command.testVersion();
 }
 
+test "dirname fuzz" {
+    try command.testFuzz(.{});
+}
+
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");

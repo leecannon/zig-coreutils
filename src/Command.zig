@@ -378,6 +378,73 @@ pub fn testVersion(command: Command) !void {
     try std.testing.expectEqualStrings(expected, out.items);
 }
 
+pub const TestFuzzOptions = struct {
+    /// If true the command is expected to output something to stdout on success.
+    expect_stdout_output_on_success: bool = true,
+
+    /// If true the command is expected to output something to stderr on failure.
+    expect_stderr_output_on_failure: bool = true,
+};
+
+pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
+    std.debug.assert(builtin.is_test);
+
+    const Context = struct {
+        inner_command: Command,
+        options: TestFuzzOptions,
+
+        fn testOne(context: @This(), input: []const u8) anyerror!void {
+            const arguments = blk: {
+                var arguments: std.ArrayList([]const u8) = .init(std.testing.allocator);
+                errdefer arguments.deinit();
+
+                var iter = std.mem.splitScalar(u8, input, ' ');
+
+                while (iter.next()) |arg| {
+                    try arguments.append(arg);
+                }
+
+                break :blk try arguments.toOwnedSlice();
+            };
+            defer std.testing.allocator.free(arguments);
+
+            var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+            defer stdout.deinit();
+
+            var stderr: std.ArrayList(u8) = .init(std.testing.allocator);
+            defer stderr.deinit();
+
+            context.inner_command.testExecute(
+                arguments,
+                .{ .stdout = stdout.writer(), .stderr = stderr.writer() },
+            ) catch |err| {
+                switch (err) {
+                    error.OutOfMemory => {
+                        // this error is output by main and some output may or not have been written to stderr
+                    },
+                    error.AlreadyHandled => if (context.options.expect_stderr_output_on_failure) {
+                        try std.testing.expect(stderr.items.len != 0);
+                    },
+                }
+                return;
+            };
+
+            try std.testing.expect(stderr.items.len == 0);
+            if (context.options.expect_stdout_output_on_success) {
+                try std.testing.expect(stdout.items.len != 0);
+            }
+        }
+    };
+    try std.testing.fuzz(
+        Context{
+            .inner_command = command,
+            .options = options,
+        },
+        Context.testOne,
+        .{},
+    );
+}
+
 const VoidReader = struct {
     pub const Reader = std.io.Reader(void, error{}, read);
     pub fn reader() Reader {
