@@ -29,7 +29,6 @@ execute: *const fn (
 
 pub const ExposedError = error{
     OutOfMemory,
-    UnableToParseArguments,
     AlreadyHandled,
 };
 

@@ -57,7 +57,6 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     ) catch |err| {
         switch (err) {
             error.OutOfMemory => stderr_writer.writeAll("out of memory\n") catch {},
-            error.UnableToParseArguments => stderr_writer.writeAll("unable to parse arguments\n") catch {},
             error.AlreadyHandled => return 1, // TODO: should this error be returned as well?
         }
 
