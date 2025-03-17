@@ -48,11 +48,11 @@ pub const ArgType = union(enum) {
 pub const Iterator = union(enum) {
     args: std.process.ArgIterator,
     slice: struct {
-        slice: []const [:0]const u8,
+        slice: []const []const u8,
         index: usize = 0,
     },
 
-    pub fn nextRaw(self: *Iterator) ?[:0]const u8 {
+    pub fn nextRaw(self: *Iterator) ?[]const u8 {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = "raw next arg" });
         defer z.end();
 
@@ -154,7 +154,7 @@ pub const Iterator = union(enum) {
         return arg;
     }
 
-    inline fn dispatchNext(self: *Iterator) ?[:0]const u8 {
+    inline fn dispatchNext(self: *Iterator) ?[]const u8 {
         switch (self.*) {
             .args => |*args| {
                 @branchHint(if (builtin.is_test) .cold else .likely);

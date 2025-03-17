@@ -195,7 +195,7 @@ pub fn printInvalidUsageAlloc(
 
 pub fn testExecute(
     command: Command,
-    arguments: []const [:0]const u8,
+    arguments: []const []const u8,
     settings: anytype,
 ) ExposedError!void {
     std.debug.assert(builtin.is_test);
@@ -238,7 +238,7 @@ pub fn testExecute(
 
 pub fn testError(
     command: Command,
-    arguments: []const [:0]const u8,
+    arguments: []const []const u8,
     settings: anytype,
     expected_error: []const u8,
 ) !void {
