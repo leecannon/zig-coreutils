@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 pub const command: Command = .{
-    .name = "template",
+    .name = "template", // CHANGE THIS
 
-    .short_help =
+    .short_help = // CHANGE THIS
     \\Usage: {NAME} [ignored command line arguments]
     \\   or: {NAME} OPTION
     \\
@@ -16,6 +16,8 @@ pub const command: Command = .{
     \\
     ,
 
+    // ADD `.extended_help` IF EXAMPLES SHOULD BE DISPLAYED
+
     .execute = execute,
 };
 
@@ -25,7 +27,7 @@ fn execute(
     args: *Arg.Iterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
-) shared.Error!void {
+) Command.Error!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
     defer z.end();
 
@@ -121,7 +123,7 @@ fn parseArguments(
 }
 
 test "template no args" {
-    try shared.testExecute(@This(), &.{}, .{});
+    try command.testExecute(&.{}, .{});
 }
 
 test "template help" {
@@ -137,7 +139,7 @@ const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
 
-const log = std.log.scoped(.template);
+const log = std.log.scoped(.template); // CHANGE THIS
 
 const std = @import("std");
 const tracy = @import("tracy");

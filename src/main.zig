@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+const commands = &.{
+    .{ "basename", @import("commands/basename.zig").command },
+    .{ "clear", @import("commands/clear.zig").command },
+    .{ "dirname", @import("commands/dirname.zig").command },
+    .{ "false", @import("commands/false.zig").command },
+    .{ "groups", @import("commands/groups.zig").command },
+    .{ "nproc", @import("commands/nproc.zig").command },
+    .{ "touch", @import("commands/touch.zig").command },
+    .{ "true", @import("commands/true.zig").command },
+    .{ "whoami", @import("commands/whoami.zig").command },
+    .{ "yes", @import("commands/yes.zig").command },
+};
+
 pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     // this causes the frame to start with our main instead of `std.start`
     tracy.frameMark(null);
@@ -162,18 +175,7 @@ fn tryExecute(
     ) catch |full_err| command.narrowError(io, exe_path_with_command, full_err);
 }
 
-const command_lookup: std.StaticStringMap(Command) = .initComptime(&.{
-    .{ "basename", @import("commands/basename.zig").command },
-    .{ "clear", @import("commands/clear.zig").command },
-    .{ "dirname", @import("commands/dirname.zig").command },
-    .{ "false", @import("commands/false.zig").command },
-    .{ "groups", @import("commands/groups.zig").command },
-    .{ "nproc", @import("commands/nproc.zig").command },
-    .{ "touch", @import("commands/touch.zig").command },
-    .{ "true", @import("commands/true.zig").command },
-    .{ "whoami", @import("commands/whoami.zig").command },
-    .{ "yes", @import("commands/yes.zig").command },
-});
+const command_lookup: std.StaticStringMap(Command) = .initComptime(commands);
 
 const short_help =
     \\Usage: {0s} command [arguments]...
@@ -200,13 +202,13 @@ const full_help = blk: {
         \\
     ;
 
-    const number_of_commands = command_lookup.keys().len;
+    const number_of_commands = commands.len;
 
-    for (command_lookup.keys(), 0..) |command, i| {
+    for (commands, 0..) |command, i| {
         const n = i % commands_per_line;
 
         if (n == 0) help = help ++ "  ";
-        help = help ++ command;
+        help = help ++ command.@"0";
 
         if (i == number_of_commands - 1) {
             help = help ++ "\n";
@@ -226,8 +228,8 @@ const full_help = blk: {
 const command_list = blk: {
     var list: []const u8 = "";
 
-    for (command_lookup.keys()) |command| {
-        list = list ++ command ++ "\n";
+    for (commands) |command| {
+        list = list ++ command.@"0" ++ "\n";
     }
 
     break :blk list;
@@ -248,5 +250,6 @@ const tracy = @import("tracy");
 pub const tracy_impl = @import("tracy_impl");
 
 comptime {
+    if (builtin.is_test) _ = @import("commands/template.zig"); // ensure the template compiles
     std.testing.refAllDeclsRecursive(@This());
 }
