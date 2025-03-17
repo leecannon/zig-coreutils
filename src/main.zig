@@ -84,7 +84,7 @@ fn tryExecute(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "tryExecute" });
     defer z.end();
 
-    var arg_iter: shared.ArgIterator = .{ .args = os_arg_iter };
+    var arg_iter: Arg.Iterator = .{ .args = os_arg_iter };
 
     // attempt to match the basename to a command
     if (command_lookup.get(basename)) |command| {
@@ -234,6 +234,7 @@ const command_list = blk: {
     break :blk list;
 };
 
+const Arg = @import("Arg.zig");
 const Command = @import("Command.zig");
 const IO = @import("IO.zig");
 const shared = @import("shared.zig");

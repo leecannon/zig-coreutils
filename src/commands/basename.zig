@@ -36,7 +36,7 @@ pub const command: Command = .{
 fn execute(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) Command.Error!void {
@@ -102,7 +102,7 @@ const BasenameOptions = struct {
 fn singleArgument(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     exe_path: []const u8,
     options: BasenameOptions,
 ) !void {
@@ -142,7 +142,7 @@ fn singleArgument(
 
 fn multipleArguments(
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     options: BasenameOptions,
 ) !void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "multiple arguments" });
@@ -178,13 +178,13 @@ fn getBasename(buf: []const u8, opt_suffix: ?[]const u8) []const u8 {
 fn parseArguments(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     exe_path: []const u8,
 ) !BasenameOptions {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
     defer z.end();
 
-    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
+    var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
 
     var basename_options: BasenameOptions = .{};
 
@@ -373,6 +373,7 @@ test "basename version" {
     try command.testVersion();
 }
 
+const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");

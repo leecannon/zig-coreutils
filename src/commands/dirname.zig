@@ -31,7 +31,7 @@ pub const command: Command = .{
 fn execute(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) Command.Error!void {
@@ -71,7 +71,7 @@ const DirnameOptions = struct {
 
 fn performDirname(
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     options: DirnameOptions,
 ) !void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
@@ -100,13 +100,13 @@ fn performDirname(
 fn parseArguments(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     exe_path: []const u8,
 ) !DirnameOptions {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
     defer z.end();
 
-    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(true);
+    var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
 
     var dir_options: DirnameOptions = .{};
 
@@ -230,6 +230,7 @@ test "dirname version" {
     try command.testVersion();
 }
 
+const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");

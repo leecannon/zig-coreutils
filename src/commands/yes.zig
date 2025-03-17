@@ -22,7 +22,7 @@ pub const command: Command = .{
 fn execute(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) Command.Error!void {
@@ -40,7 +40,7 @@ fn execute(
     }
 }
 
-fn getString(allocator: std.mem.Allocator, args: *shared.ArgIterator) !shared.MaybeAllocatedString {
+fn getString(allocator: std.mem.Allocator, args: *Arg.Iterator) !shared.MaybeAllocatedString {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "get string" });
     defer z.end();
 
@@ -71,6 +71,7 @@ test "yes version" {
     try command.testVersion();
 }
 
+const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");

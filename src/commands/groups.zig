@@ -33,7 +33,7 @@ pub const command: Command = .{
 fn execute(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) Command.Error!void {
@@ -108,7 +108,7 @@ fn currentUser(
 fn otherUser(
     allocator: std.mem.Allocator,
     io: IO,
-    arg: shared.Arg,
+    arg: Arg,
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
 ) Command.Error!void {
@@ -209,6 +209,7 @@ test "groups version" {
     try command.testVersion();
 }
 
+const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");

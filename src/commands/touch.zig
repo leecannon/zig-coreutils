@@ -47,7 +47,7 @@ pub const command: Command = .{
 fn execute(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) Command.Error!void {
@@ -63,7 +63,7 @@ fn execute(
 fn performTouch(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     options: TouchOptions,
     cwd: std.fs.Dir,
 ) !void {
@@ -228,13 +228,13 @@ const TouchOptions = struct {
 fn parseArguments(
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     exe_path: []const u8,
 ) !TouchOptions {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
     defer z.end();
 
-    var opt_arg: ?shared.Arg = try args.nextWithHelpOrVersion(false);
+    var opt_arg: ?Arg = try args.nextWithHelpOrVersion(false);
 
     var touch_options: TouchOptions = .{};
 
@@ -501,6 +501,7 @@ fn setupTestDirectory() !std.testing.TmpDir {
     _ = try tmp_dir.dir.createFile("EXISTS", .{});
     return tmp_dir;
 }
+const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");

@@ -22,7 +22,7 @@ extended_help: ?[]const u8 = null,
 execute: *const fn (
     allocator: std.mem.Allocator,
     io: IO,
-    args: *shared.ArgIterator,
+    args: *Arg.Iterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) Error!void,
@@ -219,7 +219,7 @@ pub fn testExecute(
     defer if (!cwd_provided) tmp_dir.cleanup();
     const cwd = if (cwd_provided) settings.cwd else tmp_dir.dir;
 
-    var arg_iter: shared.ArgIterator = .{ .slice = .{ .slice = arguments } };
+    var arg_iter: Arg.Iterator = .{ .slice = .{ .slice = arguments } };
 
     const io: IO = .{
         ._stderr = stderr.any(),
@@ -404,6 +404,7 @@ const NameReplacementIterator = struct {
     }
 };
 
+const Arg = @import("Arg.zig");
 const IO = @import("IO.zig");
 const shared = @import("shared.zig");
 
