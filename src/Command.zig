@@ -21,171 +21,11 @@ extended_help: ?[]const u8 = null,
 
 execute: *const fn (
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
 ) Error!void,
-
-pub fn printShortHelp(command: Command, io: shared.IO, exe_path: []const u8) error{AlreadyHandled}!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print short help" });
-    defer z.end();
-
-    log.debug("printing short help for {s}", .{command.name});
-
-    var iter: NameReplacementIterator = .{ .slice = command.short_help };
-
-    while (iter.next()) |result| {
-        io.stdout.writeAll(result.slice) catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-        if (result.output_name) {
-            io.stdout.writeAll(exe_path) catch |err|
-                return shared.unableToWriteTo("stdout", io, err);
-        }
-    }
-
-    if (command.short_help.len != 0 and command.short_help[command.short_help.len - 1] != '\n') {
-        io.stdout.writeByte('\n') catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-    }
-}
-
-pub fn printFullHelp(command: Command, io: shared.IO, exe_path: []const u8) error{AlreadyHandled}!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print full help" });
-    defer z.end();
-
-    log.debug("printing full help for {s}", .{command.name});
-
-    var iter: NameReplacementIterator = .{ .slice = command.short_help };
-
-    while (iter.next()) |result| {
-        io.stdout.writeAll(result.slice) catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-        if (result.output_name) {
-            io.stdout.writeAll(exe_path) catch |err|
-                return shared.unableToWriteTo("stdout", io, err);
-        }
-    }
-
-    if (command.short_help.len != 0 and command.short_help[command.short_help.len - 1] != '\n') {
-        io.stdout.writeByte('\n') catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-    }
-
-    if (command.extended_help) |extended_help| blk: {
-        if (extended_help.len == 0) break :blk;
-
-        io.stdout.writeByte('\n') catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-        io.stdout.writeAll(extended_help) catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-
-        if (extended_help[extended_help.len - 1] != '\n') {
-            io.stdout.writeByte('\n') catch |err|
-                return shared.unableToWriteTo("stdout", io, err);
-        }
-    }
-}
-
-pub fn printVersion(command: Command, io: shared.IO) error{AlreadyHandled}!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print version" });
-    defer z.end();
-
-    log.debug("printing version for {s}", .{command.name});
-
-    var iter: NameReplacementIterator = .{ .slice = shared.version_string };
-
-    while (iter.next()) |result| {
-        io.stdout.writeAll(result.slice) catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-        if (result.output_name) {
-            io.stdout.writeAll(command.name) catch |err|
-                return shared.unableToWriteTo("stdout", io, err);
-        }
-    }
-}
-
-pub fn printError(command: Command, io: shared.IO, error_message: []const u8) error{AlreadyHandled} {
-    @branchHint(.cold);
-
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error" });
-    defer z.end();
-    z.text(error_message);
-
-    log.debug("printing error for {s}", .{command.name});
-
-    output: {
-        io.stderr.writeAll(command.name) catch break :output;
-        io.stderr.writeAll(": ") catch break :output;
-        io.stderr.writeAll(error_message) catch break :output;
-        io.stderr.writeByte('\n') catch break :output;
-    }
-
-    return error.AlreadyHandled;
-}
-
-pub fn printErrorAlloc(
-    command: Command,
-    allocator: std.mem.Allocator,
-    io: shared.IO,
-    comptime msg: []const u8,
-    args: anytype,
-) error{ OutOfMemory, AlreadyHandled } {
-    @branchHint(.cold);
-
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error alloc" });
-    defer z.end();
-
-    const error_message = try std.fmt.allocPrint(allocator, msg, args);
-    defer if (shared.free_on_close) allocator.free(error_message);
-
-    return command.printError(io, error_message);
-}
-
-pub fn printInvalidUsage(
-    command: Command,
-    io: shared.IO,
-    exe_path: []const u8,
-    error_message: []const u8,
-) error{AlreadyHandled} {
-    @branchHint(.cold);
-
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage" });
-    defer z.end();
-    z.text(error_message);
-
-    log.debug("printing error for {s}", .{command.name});
-
-    output: {
-        io.stderr.writeAll(exe_path) catch break :output;
-        io.stderr.writeAll(": ") catch break :output;
-        io.stderr.writeAll(error_message) catch break :output;
-        io.stderr.writeAll("\nview '") catch break :output;
-        io.stderr.writeAll(exe_path) catch break :output;
-        io.stderr.writeAll(" --help' for more information\n") catch break :output;
-    }
-
-    return error.AlreadyHandled;
-}
-
-pub fn printInvalidUsageAlloc(
-    command: Command,
-    allocator: std.mem.Allocator,
-    io: shared.IO,
-    exe_path: []const u8,
-    comptime msg: []const u8,
-    args: anytype,
-) error{ OutOfMemory, AlreadyHandled } {
-    @branchHint(.cold);
-
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage alloc" });
-    defer z.end();
-
-    const error_message = try std.fmt.allocPrint(allocator, msg, args);
-    defer if (shared.free_on_close) allocator.free(error_message);
-
-    return printInvalidUsage(command, io, exe_path, error_message);
-}
 
 pub const ExposedError = error{
     OutOfMemory,
@@ -203,7 +43,7 @@ pub const Error = ExposedError || NonError;
 
 pub fn narrowError(
     command: Command,
-    io: shared.IO,
+    io: IO,
     exe_path: []const u8,
     err: Error,
 ) ExposedError!void {
@@ -215,15 +55,164 @@ pub fn narrowError(
     };
 }
 
+pub fn printShortHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print short help" });
+    defer z.end();
+
+    std.debug.assert(command.short_help.len != 0); // short help should not be empty
+    std.debug.assert(command.short_help[command.short_help.len - 1] == '\n'); // short help should end with a newline
+
+    log.debug("printing short help for {s}", .{command.name});
+
+    var iter: NameReplacementIterator = .{ .slice = command.short_help };
+
+    while (iter.next()) |result| {
+        try io.stdoutWriteAll(result.slice);
+        if (result.output_name) try io.stdoutWriteAll(exe_path);
+    }
+}
+
+pub fn printFullHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print full help" });
+    defer z.end();
+
+    std.debug.assert(command.short_help.len != 0); // short help should not be empty
+    std.debug.assert(command.short_help[command.short_help.len - 1] == '\n'); // short help should end with a newline
+
+    log.debug("printing full help for {s}", .{command.name});
+
+    var iter: NameReplacementIterator = .{ .slice = command.short_help };
+
+    while (iter.next()) |result| {
+        try io.stdoutWriteAll(result.slice);
+        if (result.output_name) try io.stdoutWriteAll(exe_path);
+    }
+
+    if (command.extended_help) |extended_help| {
+        std.debug.assert(extended_help.len != 0); // non-null extended help should not be empty
+        std.debug.assert(extended_help[extended_help.len - 1] == '\n'); // extended help should end with a newline
+
+        try io.stdoutWriteByte('\n');
+        try io.stdoutWriteAll(extended_help);
+    }
+}
+
+pub fn printVersion(command: Command, io: IO) error{AlreadyHandled}!void {
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print version" });
+    defer z.end();
+
+    log.debug("printing version for {s}", .{command.name});
+
+    var iter: NameReplacementIterator = .{ .slice = shared.version_string };
+
+    while (iter.next()) |result| {
+        try io.stdoutWriteAll(result.slice);
+        if (result.output_name) try io.stdoutWriteAll(command.name);
+    }
+}
+
+pub fn printError(command: Command, io: IO, error_message: []const u8) error{AlreadyHandled} {
+    @branchHint(.cold);
+
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error" });
+    defer z.end();
+    z.text(error_message);
+
+    log.debug("printing error for {s}", .{command.name});
+
+    output: {
+        io._stderr.writeAll(command.name) catch break :output;
+        io._stderr.writeAll(": ") catch break :output;
+        io._stderr.writeAll(error_message) catch break :output;
+        io._stderr.writeByte('\n') catch break :output;
+    }
+
+    return error.AlreadyHandled;
+}
+
+pub fn printErrorAlloc(
+    command: Command,
+    allocator: std.mem.Allocator,
+    io: IO,
+    comptime msg: []const u8,
+    args: anytype,
+) error{ OutOfMemory, AlreadyHandled } {
+    @branchHint(.cold);
+
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error alloc" });
+    defer z.end();
+
+    const error_message = try std.fmt.allocPrint(allocator, msg, args);
+    defer if (shared.free_on_close) allocator.free(error_message);
+
+    return command.printError(io, error_message);
+}
+
+pub fn printInvalidUsage(
+    command: Command,
+    io: IO,
+    exe_path: []const u8,
+    error_message: []const u8,
+) error{AlreadyHandled} {
+    @branchHint(.cold);
+
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage" });
+    defer z.end();
+    z.text(error_message);
+
+    log.debug("printing error for {s}", .{command.name});
+
+    output: {
+        io._stderr.writeAll(exe_path) catch break :output;
+        io._stderr.writeAll(": ") catch break :output;
+        io._stderr.writeAll(error_message) catch break :output;
+        io._stderr.writeAll("\nview '") catch break :output;
+        io._stderr.writeAll(exe_path) catch break :output;
+        io._stderr.writeAll(" --help' for more information\n") catch break :output;
+    }
+
+    return error.AlreadyHandled;
+}
+
+pub fn printInvalidUsageAlloc(
+    command: Command,
+    allocator: std.mem.Allocator,
+    io: IO,
+    exe_path: []const u8,
+    comptime msg: []const u8,
+    args: anytype,
+) error{ OutOfMemory, AlreadyHandled } {
+    @branchHint(.cold);
+
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage alloc" });
+    defer z.end();
+
+    const error_message = try std.fmt.allocPrint(allocator, msg, args);
+    defer if (shared.free_on_close) allocator.free(error_message);
+
+    return printInvalidUsage(command, io, exe_path, error_message);
+}
+
 pub fn testExecute(
     command: Command,
     arguments: []const [:0]const u8,
     settings: anytype,
 ) ExposedError!void {
+    std.debug.assert(builtin.is_test);
+
     const SettingsType = @TypeOf(settings);
-    const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else shared.VoidReader.reader();
-    const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else shared.VoidWriter.writer();
-    const stderr = if (@hasField(SettingsType, "stderr")) settings.stderr else shared.VoidWriter.writer();
+    const stdin = if (@hasField(SettingsType, "stdin"))
+        settings.stdin
+    else
+        shared.VoidReader.reader();
+    const stdout = if (@hasField(SettingsType, "stdout"))
+        settings.stdout
+    else
+        shared.VoidWriter.writer();
+    const stderr = if (@hasField(SettingsType, "stderr"))
+        settings.stderr
+    else
+        shared.VoidWriter.writer();
 
     const cwd_provided = @hasField(SettingsType, "cwd");
     var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
@@ -232,10 +221,10 @@ pub fn testExecute(
 
     var arg_iter: shared.ArgIterator = .{ .slice = .{ .slice = arguments } };
 
-    const io: shared.IO = .{
-        .stderr = stderr.any(),
-        .stdin = stdin.any(),
-        .stdout = stdout.any(),
+    const io: IO = .{
+        ._stderr = stderr.any(),
+        ._stdin = stdin.any(),
+        ._stdout = stdout.any(),
     };
 
     return command.execute(
@@ -253,10 +242,22 @@ pub fn testError(
     settings: anytype,
     expected_error: []const u8,
 ) !void {
+    std.debug.assert(builtin.is_test);
+
     const SettingsType = @TypeOf(settings);
-    if (@hasField(SettingsType, "stderr")) @compileError("there is already a stderr defined on this settings type");
-    const stdin = if (@hasField(SettingsType, "stdin")) settings.stdin else shared.VoidReader.reader();
-    const stdout = if (@hasField(SettingsType, "stdout")) settings.stdout else shared.VoidWriter.writer();
+
+    if (@hasField(SettingsType, "stderr")) {
+        @compileError("`testError` does not support `stderr` on the settings type");
+    }
+
+    const stdin = if (@hasField(SettingsType, "stdin"))
+        settings.stdin
+    else
+        shared.VoidReader.reader();
+    const stdout = if (@hasField(SettingsType, "stdout"))
+        settings.stdout
+    else
+        shared.VoidWriter.writer();
 
     const cwd_provided = @hasField(SettingsType, "cwd");
     var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
@@ -266,8 +267,7 @@ pub fn testError(
     var stderr = std.ArrayList(u8).init(std.testing.allocator);
     defer stderr.deinit();
 
-    try std.testing.expectError(error.AlreadyHandled, testExecute(
-        command,
+    try std.testing.expectError(error.AlreadyHandled, command.testExecute(
         arguments,
         .{
             .stderr = stderr.writer(),
@@ -284,6 +284,8 @@ pub fn testError(
 }
 
 pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
+    std.debug.assert(builtin.is_test);
+
     const full_expected_help = blk: {
         var sb: std.ArrayListUnmanaged(u8) = .empty;
         errdefer sb.deinit(std.testing.allocator);
@@ -296,20 +298,11 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
             }
         }
 
-        if (command.short_help.len != 0 and command.short_help[command.short_help.len - 1] != '\n') {
-            try sb.append(std.testing.allocator, '\n');
-        }
-
-        if (command.extended_help) |extended_help| extended_help: {
-            if (extended_help.len == 0) break :extended_help;
-
+        if (command.extended_help) |extended_help| {
             try sb.append(std.testing.allocator, '\n');
             try sb.appendSlice(std.testing.allocator, extended_help);
-
-            if (extended_help[extended_help.len - 1] != '\n') {
-                try sb.append(std.testing.allocator, '\n');
-            }
         }
+
         break :blk try sb.toOwnedSlice(std.testing.allocator);
     };
     defer std.testing.allocator.free(full_expected_help);
@@ -317,8 +310,7 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
-    try testExecute(
-        command,
+    try command.testExecute(
         &.{"--help"},
         .{ .stdout = out.writer() },
     );
@@ -338,10 +330,6 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
                 }
             }
 
-            if (command.short_help.len != 0 and command.short_help[command.short_help.len - 1] != '\n') {
-                try sb.append(std.testing.allocator, '\n');
-            }
-
             break :blk try sb.toOwnedSlice(std.testing.allocator);
         };
         defer std.testing.allocator.free(short_expected_help);
@@ -359,11 +347,12 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
 }
 
 pub fn testVersion(command: Command) !void {
+    std.debug.assert(builtin.is_test);
+
     var out = std.ArrayList(u8).init(std.testing.allocator);
     defer out.deinit();
 
-    try testExecute(
-        command,
+    try command.testExecute(
         &.{"--version"},
         .{
             .stdout = out.writer(),
@@ -415,8 +404,12 @@ const NameReplacementIterator = struct {
     }
 };
 
-const log = std.log.scoped(.command);
+const IO = @import("IO.zig");
 const shared = @import("shared.zig");
+
+const log = std.log.scoped(.command);
+
+const builtin = @import("builtin");
 const std = @import("std");
 const tracy = @import("tracy");
 

@@ -32,7 +32,7 @@ pub const command: Command = .{
 
 fn execute(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -55,7 +55,7 @@ fn execute(
 
 fn currentUser(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
 ) Command.Error!void {
@@ -107,7 +107,7 @@ fn currentUser(
 
 fn otherUser(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     arg: shared.Arg,
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
@@ -148,7 +148,7 @@ fn printGroups(
     allocator: std.mem.Allocator,
     user_name: []const u8,
     primary_group_id: std.posix.uid_t,
-    io: shared.IO,
+    io: IO,
     cwd: std.fs.Dir,
 ) !void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print groups" });
@@ -176,11 +176,9 @@ fn printGroups(
 
         if (group_id == primary_group_id) {
             if (!first) {
-                io.stdout.writeByte(' ') catch |err|
-                    return shared.unableToWriteTo("stdout", io, err);
+                try io.stdoutWriteByte(' ');
             }
-            io.stdout.writeAll(entry.group_name) catch |err|
-                return shared.unableToWriteTo("stdout", io, err);
+            try io.stdoutWriteAll(entry.group_name);
 
             first = false;
             continue;
@@ -191,19 +189,16 @@ fn printGroups(
             if (!std.mem.eql(u8, member, user_name)) continue;
 
             if (!first) {
-                io.stdout.writeByte(' ') catch |err|
-                    return shared.unableToWriteTo("stdout", io, err);
+                try io.stdoutWriteByte(' ');
             }
 
-            io.stdout.writeAll(entry.group_name) catch |err|
-                return shared.unableToWriteTo("stdout", io, err);
+            try io.stdoutWriteAll(entry.group_name);
             first = false;
             break;
         }
     }
 
-    io.stdout.writeByte('\n') catch |err|
-        return shared.unableToWriteTo("stdout", io, err);
+    try io.stdoutWriteByte('\n');
 }
 
 test "groups help" {
@@ -214,11 +209,14 @@ test "groups version" {
     try command.testVersion();
 }
 
-const log = std.log.scoped(.groups);
+const Command = @import("../Command.zig");
+const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+
+const log = std.log.scoped(.groups);
+
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

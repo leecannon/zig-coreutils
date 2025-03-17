@@ -6,25 +6,6 @@ pub const version_string = "{NAME} - " ++ base_version_string;
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 pub const free_on_close = is_debug_or_test or options.trace;
 
-pub fn unableToWriteTo(destination: []const u8, io: IO, err: anyerror) error{AlreadyHandled} {
-    @branchHint(.cold);
-
-    blk: {
-        io.stderr.writeAll("unable to write to ") catch break :blk;
-        io.stderr.writeAll(destination) catch break :blk;
-        io.stderr.writeAll(": ") catch break :blk;
-        io.stderr.writeAll(@errorName(err)) catch break :blk;
-        io.stderr.writeByte('\n') catch break :blk;
-    }
-    return error.AlreadyHandled;
-}
-
-pub const IO = struct {
-    stderr: std.io.AnyWriter,
-    stdin: std.io.AnyReader,
-    stdout: std.io.AnyWriter,
-};
-
 pub fn mapFile(
     command: Command,
     allocator: std.mem.Allocator,
@@ -453,19 +434,6 @@ pub fn MaybeAllocated(comptime T: type, comptime dealloc: fn (self: T, allocator
     };
 }
 
-const SliceArgIterator = struct {
-    slice: []const [:0]const u8,
-    index: usize = 0,
-
-    pub fn next(self: *SliceArgIterator) ?[:0]const u8 {
-        if (self.index < self.slice.len) {
-            defer self.index += 1;
-            return self.slice[self.index];
-        }
-        return null;
-    }
-};
-
 pub const VoidReader = struct {
     pub const Reader = std.io.Reader(void, error{}, read);
     pub fn reader() Reader {
@@ -489,12 +457,15 @@ pub const VoidWriter = struct {
     }
 };
 
-const builtin = @import("builtin");
+const Command = @import("Command.zig");
+const IO = @import("IO.zig");
+
 const log = std.log.scoped(.shared);
+
+const builtin = @import("builtin");
 const options = @import("options");
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

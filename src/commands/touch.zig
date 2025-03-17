@@ -46,7 +46,7 @@ pub const command: Command = .{
 
 fn execute(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -62,7 +62,7 @@ fn execute(
 
 fn performTouch(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     options: TouchOptions,
     cwd: std.fs.Dir,
@@ -135,7 +135,7 @@ fn performTouch(
 
 fn getTimes(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     time_to_use: TouchOptions.TimeToUse,
     cwd: std.fs.Dir,
 ) !FileTimes {
@@ -227,7 +227,7 @@ const TouchOptions = struct {
 
 fn parseArguments(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     exe_path: []const u8,
 ) !TouchOptions {
@@ -501,12 +501,14 @@ fn setupTestDirectory() !std.testing.TmpDir {
     _ = try tmp_dir.dir.createFile("EXISTS", .{});
     return tmp_dir;
 }
+const Command = @import("../Command.zig");
+const IO = @import("../IO.zig");
+const shared = @import("../shared.zig");
 
 const log = std.log.scoped(.touch);
-const shared = @import("../shared.zig");
+
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

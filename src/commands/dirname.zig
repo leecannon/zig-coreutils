@@ -30,7 +30,7 @@ pub const command: Command = .{
 
 fn execute(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -70,7 +70,7 @@ const DirnameOptions = struct {
 };
 
 fn performDirname(
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     options: DirnameOptions,
 ) !void {
@@ -92,16 +92,14 @@ fn performDirname(
             ".";
         log.debug("got dirname: '{s}'", .{dirname});
 
-        io.stdout.writeAll(dirname) catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-        io.stdout.writeByte(@intFromEnum(options.line_end)) catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
+        try io.stdoutWriteAll(dirname);
+        try io.stdoutWriteByte(@intFromEnum(options.line_end));
     }
 }
 
 fn parseArguments(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     exe_path: []const u8,
 ) !DirnameOptions {
@@ -232,11 +230,14 @@ test "dirname version" {
     try command.testVersion();
 }
 
-const log = std.log.scoped(.dirname);
+const Command = @import("../Command.zig");
+const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+
+const log = std.log.scoped(.dirname);
+
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

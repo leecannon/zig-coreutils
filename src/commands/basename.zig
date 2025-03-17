@@ -35,7 +35,7 @@ pub const command: Command = .{
 
 fn execute(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -101,7 +101,7 @@ const BasenameOptions = struct {
 
 fn singleArgument(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     exe_path: []const u8,
     options: BasenameOptions,
@@ -136,14 +136,12 @@ fn singleArgument(
     const basename = getBasename(options.first_arg, opt_suffix);
     log.debug("got basename: '{s}'", .{basename});
 
-    io.stdout.writeAll(basename) catch |err|
-        return shared.unableToWriteTo("stdout", io, err);
-    io.stdout.writeByte(@intFromEnum(options.line_end)) catch |err|
-        return shared.unableToWriteTo("stdout", io, err);
+    try io.stdoutWriteAll(basename);
+    try io.stdoutWriteByte(@intFromEnum(options.line_end));
 }
 
 fn multipleArguments(
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     options: BasenameOptions,
 ) !void {
@@ -162,10 +160,8 @@ fn multipleArguments(
         const basename = getBasename(arg, options.mode.multiple);
         log.debug("got basename: '{s}'", .{basename});
 
-        io.stdout.writeAll(basename) catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
-        io.stdout.writeByte(@intFromEnum(options.line_end)) catch |err|
-            return shared.unableToWriteTo("stdout", io, err);
+        try io.stdoutWriteAll(basename);
+        try io.stdoutWriteByte(@intFromEnum(options.line_end));
     }
 }
 
@@ -181,7 +177,7 @@ fn getBasename(buf: []const u8, opt_suffix: ?[]const u8) []const u8 {
 
 fn parseArguments(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     exe_path: []const u8,
 ) !BasenameOptions {
@@ -377,11 +373,14 @@ test "basename version" {
     try command.testVersion();
 }
 
-const log = std.log.scoped(.basename);
+const Command = @import("../Command.zig");
+const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+
+const log = std.log.scoped(.basename);
+
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

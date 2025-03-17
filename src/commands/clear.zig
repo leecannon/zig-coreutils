@@ -28,7 +28,7 @@ pub const command: Command = .{
 
 fn execute(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -41,13 +41,12 @@ fn execute(
     const options = try parseArguments(allocator, io, args, exe_path);
     log.debug("options={}", .{options});
 
-    io.stdout.writeAll(
+    try io.stdoutWriteAll(
         if (options.clear_scrollback)
             "\x1b[H\x1b[2J\x1b[3J"
         else
             "\x1b[H\x1b[2J",
-    ) catch |err|
-        return shared.unableToWriteTo("stdout", io, err);
+    );
 }
 
 const ClearOptions = struct {
@@ -67,7 +66,7 @@ const ClearOptions = struct {
 
 fn parseArguments(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     exe_path: []const u8,
 ) !ClearOptions {
@@ -175,11 +174,14 @@ test "clear version" {
     try command.testVersion();
 }
 
-const log = std.log.scoped(.clear);
+const Command = @import("../Command.zig");
+const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+
+const log = std.log.scoped(.clear);
+
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

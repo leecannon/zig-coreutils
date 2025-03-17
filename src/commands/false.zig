@@ -21,7 +21,7 @@ pub const command: Command = .{
 
 fn execute(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -70,11 +70,14 @@ test "false version" {
     try command.testVersion();
 }
 
-const log = std.log.scoped(.false);
+const Command = @import("../Command.zig");
+const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+
+const log = std.log.scoped(.false);
+
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

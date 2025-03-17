@@ -25,7 +25,7 @@ pub const command: Command = .{
 
 fn execute(
     allocator: std.mem.Allocator,
-    io: shared.IO,
+    io: IO,
     args: *shared.ArgIterator,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -56,8 +56,7 @@ fn execute(
             "format of '" ++ path ++ "' is invalid: '{s}'",
         );
 
-    io.stdout.print("{}\n", .{1 + last_cpu_index}) catch |err|
-        return shared.unableToWriteTo("stdout", io, err);
+    try io.stdoutPrint("{}\n", .{1 + last_cpu_index});
 }
 
 fn getLastCpuIndex(str: []const u8) error{InvalidFormat}!usize {
@@ -94,11 +93,14 @@ test "nproc version" {
     try command.testVersion();
 }
 
-const log = std.log.scoped(.nproc);
+const Command = @import("../Command.zig");
+const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+
+const log = std.log.scoped(.nproc);
+
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("../Command.zig");
 
 comptime {
     std.testing.refAllDeclsRecursive(@This());

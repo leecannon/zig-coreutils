@@ -41,10 +41,10 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
 
     const stderr_writer = std.io.getStdErr().writer();
-    const io: shared.IO = .{
-        .stderr = stderr_writer.any(),
-        .stdin = std_in_buffered.reader().any(),
-        .stdout = std_out_buffered.writer().any(),
+    const io: IO = .{
+        ._stderr = stderr_writer.any(),
+        ._stdin = std_in_buffered.reader().any(),
+        ._stdout = std_out_buffered.writer().any(),
     };
 
     tryExecute(
@@ -66,7 +66,7 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     };
 
     std_out_buffered.flush() catch |err| {
-        shared.unableToWriteTo("stdout", io, err) catch {};
+        io.unableToWriteTo("stdout", err) catch {};
         return 1;
     };
 
@@ -76,7 +76,7 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
 fn tryExecute(
     allocator: std.mem.Allocator,
     os_arg_iter: std.process.ArgIterator,
-    io: shared.IO,
+    io: IO,
     basename: []const u8,
     cwd: std.fs.Dir,
     exe_path: []const u8,
@@ -101,24 +101,21 @@ fn tryExecute(
     // check the first argument for an option
     const opt_possible_command_arg = arg_iter.nextWithHelpOrVersion(true) catch |err| switch (err) {
         error.Version => {
-            io.stdout.writeAll(shared.base_version_string) catch |inner_err|
-                return shared.unableToWriteTo("stdout", io, inner_err);
+            try io.stdoutWriteAll(shared.base_version_string);
             return;
         },
         error.ShortHelp => {
-            io.stdout.print(short_help, .{exe_path}) catch |inner_err|
-                return shared.unableToWriteTo("stdout", io, inner_err);
+            try io.stdoutPrint(short_help, .{exe_path});
             return;
         },
         error.FullHelp => {
-            io.stdout.print(full_help, .{exe_path}) catch |inner_err|
-                return shared.unableToWriteTo("stdout", io, inner_err);
+            try io.stdoutPrint(full_help, .{exe_path});
             return;
         },
     };
 
     const possible_command_arg = opt_possible_command_arg orelse {
-        io.stderr.print(
+        io._stderr.print(
             \\{0s}: command '{1s}' not found
             \\the name of this executable/symlink is not a valid command and no command specified as first argument
             \\view available commands with 'zig-coreutils --list'
@@ -131,8 +128,7 @@ fn tryExecute(
     switch (possible_command_arg.arg_type) {
         .longhand => |longhand| {
             if (std.mem.eql(u8, longhand, "list")) {
-                io.stdout.writeAll(command_list) catch |inner_err|
-                    return shared.unableToWriteTo("stdout", io, inner_err);
+                try io.stdoutWriteAll(command_list);
                 return;
             }
         },
@@ -142,7 +138,7 @@ fn tryExecute(
     // attempt to match the first argument to a command
     const possible_command = possible_command_arg.raw;
     const command = command_lookup.get(possible_command) orelse {
-        io.stderr.print(
+        io._stderr.print(
             \\{0s}: command '{1s}' not found
             \\view available commands with '{0s} --list'
             \\
@@ -238,13 +234,16 @@ const command_list = blk: {
     break :blk list;
 };
 
-const builtin = @import("builtin");
-const log = std.log.scoped(.main);
-const options = @import("options");
+const Command = @import("Command.zig");
+const IO = @import("IO.zig");
 const shared = @import("shared.zig");
+
+const log = std.log.scoped(.main);
+
+const builtin = @import("builtin");
+const options = @import("options");
 const std = @import("std");
 const tracy = @import("tracy");
-const Command = @import("Command.zig");
 
 pub const tracy_impl = @import("tracy_impl");
 
