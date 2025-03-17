@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
-// https://github.com/leecannon/zig-coreutils/issues/1
+// https://github.com/leecannon/zig-coreutils/issues/7
 
 pub const command: Command = .{
     .name = "groups",
