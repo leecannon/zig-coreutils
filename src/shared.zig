@@ -91,8 +91,7 @@ pub fn readFileIntoBuffer(
         );
     defer if (free_on_close) file.close();
 
-    const reader = file.reader();
-    const read = reader.readAll(buffer) catch |err|
+    const read = file.readAll(buffer) catch |err|
         return command.printErrorAlloc(
             allocator,
             io,
