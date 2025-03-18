@@ -128,7 +128,7 @@ fn tryExecute(
         io._stderr.print(
             \\{0s}: command '{1s}' not found
             \\the name of this executable/symlink is not a valid command and no command specified as first argument
-            \\view available commands with 'zig-coreutils --list'
+            \\view available commands with '{0s} --list'
             \\
         , .{ exe_path, basename }) catch {};
         return error.AlreadyHandled;
