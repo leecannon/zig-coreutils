@@ -15,34 +15,33 @@ const commands = &.{
 };
 
 pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
+    const static = struct {
+        var debug_allocator: if (shared.is_debug_or_test) std.heap.DebugAllocator(.{}) else void =
+            if (shared.is_debug_or_test) .init else {};
+
+        const gpa_allocator = if (shared.is_debug_or_test)
+            debug_allocator.allocator()
+        else
+            std.heap.smp_allocator;
+
+        var tracy_allocator: if (options.trace) tracy.Allocator else void =
+            if (options.trace) .{ .parent = gpa_allocator } else {};
+
+        const allocator =
+            if (options.trace)
+                tracy_allocator.allocator()
+            else
+                gpa_allocator;
+    };
+
     // this causes the frame to start with our main instead of `std.start`
     tracy.frameMark(null);
     const main_z: tracy.Zone = .begin(.{ .src = @src(), .name = "main" });
     defer main_z.end();
 
-    const static = struct {
-        var debug_allocator: if (shared.is_debug_or_test) std.heap.DebugAllocator(.{}) else void =
-            if (shared.is_debug_or_test) .init else {};
-        var tracy_allocator: if (options.trace) tracy.Allocator else void =
-            if (options.trace) undefined else {};
-    };
     defer {
         if (shared.is_debug_or_test) _ = static.debug_allocator.deinit();
     }
-
-    const allocator = blk: {
-        const gpa_allocator = if (shared.is_debug_or_test)
-            static.debug_allocator.allocator()
-        else
-            std.heap.smp_allocator;
-
-        if (options.trace) {
-            static.tracy_allocator = .{ .parent = gpa_allocator };
-            break :blk static.tracy_allocator.allocator();
-        } else {
-            break :blk gpa_allocator;
-        }
-    };
 
     var arg_iter = std.process.args();
 
@@ -60,7 +59,7 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     };
 
     tryExecute(
-        allocator,
+        static.allocator,
         arg_iter,
         io,
         basename,
