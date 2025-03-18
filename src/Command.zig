@@ -27,6 +27,8 @@ execute: *const fn (
     exe_path: []const u8,
 ) Error!void,
 
+pub const Error = ExposedError || NonError;
+
 pub const ExposedError = error{
     OutOfMemory,
     AlreadyHandled,
@@ -37,8 +39,6 @@ const NonError = error{
     FullHelp,
     Version,
 };
-
-pub const Error = ExposedError || NonError;
 
 pub fn narrowError(
     command: Command,
@@ -54,7 +54,7 @@ pub fn narrowError(
     };
 }
 
-pub fn printShortHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
+fn printShortHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print short help" });
     defer z.end();
 
@@ -71,7 +71,7 @@ pub fn printShortHelp(command: Command, io: IO, exe_path: []const u8) error{Alre
     }
 }
 
-pub fn printFullHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
+fn printFullHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print full help" });
     defer z.end();
 
@@ -96,7 +96,7 @@ pub fn printFullHelp(command: Command, io: IO, exe_path: []const u8) error{Alrea
     }
 }
 
-pub fn printVersion(command: Command, io: IO) error{AlreadyHandled}!void {
+fn printVersion(command: Command, io: IO) error{AlreadyHandled}!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print version" });
     defer z.end();
 
