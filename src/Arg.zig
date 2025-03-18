@@ -144,7 +144,7 @@ pub const Iterator = union(enum) {
             },
             .shorthand => |*shorthand| {
                 if (include_shorthand) {
-                    while (shorthand.next()) |char| if (char == 'h') return error.ShortHelp;
+                    if (shorthand.next()) |char| if (char == 'h') return error.ShortHelp;
                     shorthand.reset();
                 }
             },
