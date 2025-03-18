@@ -6,20 +6,17 @@ const Arg = @This();
 raw: []const u8,
 arg_type: ArgType,
 
-pub fn init(value: []const u8, arg_type: ArgType) Arg {
-    return .{ .raw = value, .arg_type = arg_type };
-}
-
 pub const ArgType = union(enum) {
     shorthand: Shorthand,
-    longhand: []const u8,
-    longhand_with_value: LonghandWithValue,
-    positional: void,
 
-    pub const LonghandWithValue = struct {
+    longhand: []const u8,
+
+    longhand_with_value: struct {
         longhand: []const u8,
         value: []const u8,
-    };
+    },
+
+    positional: void,
 
     pub const Shorthand = struct {
         value: []const u8,
@@ -93,34 +90,34 @@ pub const Iterator = union(enum) {
 
                     log.debug("longhand argument with value \"{s}\" = \"{s}\"", .{ longhand, value });
 
-                    return .init(
-                        current_arg,
-                        .{ .longhand_with_value = .{ .longhand = longhand, .value = value } },
-                    );
+                    return .{
+                        .raw = current_arg,
+                        .arg_type = .{ .longhand_with_value = .{ .longhand = longhand, .value = value } },
+                    };
                 }
 
                 log.debug("longhand argument \"{s}\"", .{entire_longhand});
-                return .init(
-                    current_arg,
-                    .{ .longhand = entire_longhand },
-                );
+                return .{
+                    .raw = current_arg,
+                    .arg_type = .{ .longhand = entire_longhand },
+                };
             }
 
             // this check allows '--' to fall through as a positional argument
             if (current_arg[1] != '-') {
                 log.debug("shorthand argument \"{s}\"", .{current_arg});
-                return .init(
-                    current_arg,
-                    .{ .shorthand = .{ .value = current_arg } },
-                );
+                return .{
+                    .raw = current_arg,
+                    .arg_type = .{ .shorthand = .{ .value = current_arg } },
+                };
             }
         }
 
         log.debug("positional \"{s}\"", .{current_arg});
-        return .init(
-            current_arg,
-            .positional,
-        );
+        return .{
+            .raw = current_arg,
+            .arg_type = .positional,
+        };
     }
 
     /// The only time `include_shorthand` should be false is if the command has it's own `-h` argument.
