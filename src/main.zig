@@ -51,9 +51,8 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
 
-    const stderr_writer = std.io.getStdErr().writer();
     const io: IO = .{
-        ._stderr = stderr_writer.any(),
+        ._stderr = std.io.getStdErr().writer().any(),
         ._stdin = std_in_buffered.reader().any(),
         ._stdout = std_out_buffered.writer().any(),
     };
@@ -67,7 +66,7 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
         exe_path,
     ) catch |err| {
         switch (err) {
-            error.OutOfMemory => stderr_writer.writeAll("out of memory\n") catch {},
+            error.OutOfMemory => io._stderr.writeAll("out of memory\n") catch {},
             error.AlreadyHandled => return 1, // TODO: should this error be returned as well?
         }
 
