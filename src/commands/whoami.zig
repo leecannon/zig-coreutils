@@ -55,8 +55,6 @@ fn execute(
             continue;
         }
 
-        log.debug("found matching user id: {}", .{user_id});
-
         try io.stdoutWriteAll(entry.user_name);
         try io.stdoutWriteByte('\n');
 

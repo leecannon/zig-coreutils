@@ -35,9 +35,21 @@ fn execute(
     const string = try getString(allocator, args);
     defer if (shared.free_on_close) string.deinit(allocator);
 
+    if (builtin.is_test) {
+        // to allow this command to be tested
+
+        for (0..10) |_| {
+            try io.stdoutWriteAll(string.value);
+        }
+
+        return;
+    }
+
     while (true) {
         try io.stdoutWriteAll(string.value);
     }
+
+    unreachable;
 }
 
 fn getString(allocator: std.mem.Allocator, args: *Arg.Iterator) !shared.MaybeAllocatedString {
@@ -71,13 +83,16 @@ test "yes version" {
     try command.testVersion();
 }
 
+test "yes fuzz" {
+    try command.testFuzz(.{});
+}
+
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
 
-const log = std.log.scoped(.yes);
-
+const builtin = @import("builtin");
 const std = @import("std");
 const tracy = @import("tracy");
 

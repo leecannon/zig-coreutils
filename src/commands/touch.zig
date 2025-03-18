@@ -70,10 +70,7 @@ fn performTouch(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform touch" });
     defer z.end();
 
-    log.debug("performTouch called", .{});
-
     const times = try getTimes(allocator, io, options.time_to_use, cwd);
-
     log.debug("times to be used for touch: {}", .{times});
 
     var opt_file_path: ?[]const u8 = options.first_file_path;

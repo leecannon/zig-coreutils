@@ -77,8 +77,6 @@ fn performDirname(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
     defer z.end();
 
-    log.debug("performDirname called", .{});
-
     var opt_arg: ?[]const u8 = options.first_arg;
 
     while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
@@ -90,7 +88,6 @@ fn performDirname(
             dir
         else
             ".";
-        log.debug("got dirname: '{s}'", .{dirname});
 
         try io.stdoutWriteAll(dirname);
         try io.stdoutWriteByte(@intFromEnum(options.line_end));

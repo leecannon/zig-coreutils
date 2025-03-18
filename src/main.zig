@@ -48,7 +48,6 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
 
     const exe_path = arg_iter.next() orelse unreachable;
     const basename = std.fs.path.basename(exe_path);
-    log.debug("got exe_path: \"{s}\" with basename: \"{s}\"", .{ exe_path, basename });
 
     var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
     var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
@@ -101,6 +100,7 @@ fn tryExecute(
     // attempt to match the basename to a command
     if (command_lookup.get(basename)) |command| {
         z.text(basename);
+        log.debug("executing command '{s}' due to basename", .{command.name});
         return command.execute(
             allocator,
             io,
@@ -165,6 +165,8 @@ fn tryExecute(
         command.name,
     });
     defer if (shared.free_on_close) allocator.free(exe_path_with_command);
+
+    log.debug("executing command '{s}' due to first argument", .{command.name});
 
     return command.execute(
         allocator,

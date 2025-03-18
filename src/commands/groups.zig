@@ -48,7 +48,7 @@ fn execute(
     defer passwd_file.close();
 
     return if (opt_arg) |arg|
-        otherUser(allocator, io, arg, passwd_file.file_contents, cwd)
+        namedUser(allocator, io, arg.raw, passwd_file.file_contents, cwd)
     else
         currentUser(allocator, io, passwd_file.file_contents, cwd);
 }
@@ -105,23 +105,23 @@ fn currentUser(
     );
 }
 
-fn otherUser(
+fn namedUser(
     allocator: std.mem.Allocator,
     io: IO,
-    arg: Arg,
+    user: []const u8,
     passwd_file_contents: []const u8,
     cwd: std.fs.Dir,
 ) Command.Error!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "other user" });
+    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "namedUser" });
     defer z.end();
-    z.text(arg.raw);
+    z.text(user);
 
-    log.debug("otherUser called, arg='{s}'", .{arg.raw});
+    log.debug("namedUser called, user='{s}'", .{user});
 
     var passwd_file_iter = shared.passwdFileIterator(passwd_file_contents);
 
     while (try passwd_file_iter.next(command, io)) |entry| {
-        if (!std.mem.eql(u8, entry.user_name, arg.raw)) {
+        if (!std.mem.eql(u8, entry.user_name, user)) {
             log.debug("found non-matching user: {s}", .{entry.user_name});
             continue;
         }
@@ -141,23 +141,23 @@ fn otherUser(
         return printGroups(allocator, entry.user_name, primary_group_id, io, cwd);
     }
 
-    return command.printErrorAlloc(allocator, io, "unknown user {s}", .{arg.raw});
+    return command.printErrorAlloc(allocator, io, "unknown user '{s}'", .{user});
 }
 
 fn printGroups(
     allocator: std.mem.Allocator,
-    user_name: []const u8,
+    user: []const u8,
     primary_group_id: std.posix.uid_t,
     io: IO,
     cwd: std.fs.Dir,
 ) !void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print groups" });
     defer z.end();
-    z.text(user_name);
+    z.text(user);
 
     log.debug(
-        "printGroups called, user_name='{s}', primary_group_id={}",
-        .{ user_name, primary_group_id },
+        "printGroups called, user='{s}', primary_group_id={}",
+        .{ user, primary_group_id },
     );
 
     const group_file = try shared.mapFile(command, allocator, io, cwd, "/etc/group");
@@ -186,7 +186,7 @@ fn printGroups(
 
         var member_iter = entry.iterateMembers();
         while (member_iter.next()) |member| {
-            if (!std.mem.eql(u8, member, user_name)) continue;
+            if (!std.mem.eql(u8, member, user)) continue;
 
             if (!first) {
                 try io.stdoutWriteByte(' ');

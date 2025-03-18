@@ -79,16 +79,16 @@ const BasenameOptions = struct {
         try writer.writeAll("BasenameOptions{ .line_end = .");
         try writer.writeAll(@tagName(options.line_end));
 
-        try writer.writeAll(", .mode = .");
+        try writer.writeAll(", .mode = ");
         switch (options.mode) {
-            .single => try writer.writeAll("single"),
+            .single => try writer.writeAll(".single"),
             .multiple => |opt_suffix| {
                 if (opt_suffix) |suffix| {
-                    try writer.writeAll("multiple, .suffix = \"");
+                    try writer.writeAll("{ .multiple = .{ .suffix = \"");
                     try writer.writeAll(suffix);
-                    try writer.writeAll("\"");
+                    try writer.writeAll("\" } }");
                 } else {
-                    try writer.writeAll("multiple");
+                    try writer.writeAll(".multiple");
                 }
             },
         }
@@ -109,6 +109,8 @@ fn singleArgument(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "single argument" });
     defer z.end();
     z.text(options.first_arg);
+
+    log.debug("singleArgument called", .{});
 
     const opt_suffix: ?[]const u8 = blk: {
         const suffix_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "get suffix" });
@@ -131,10 +133,7 @@ fn singleArgument(
         break :blk arg;
     };
 
-    log.debug("singleArgument called", .{});
-
     const basename = getBasename(options.first_arg, opt_suffix);
-    log.debug("got basename: '{s}'", .{basename});
 
     try io.stdoutWriteAll(basename);
     try io.stdoutWriteByte(@intFromEnum(options.line_end));
@@ -158,7 +157,6 @@ fn multipleArguments(
         argument_zone.text(arg);
 
         const basename = getBasename(arg, options.mode.multiple);
-        log.debug("got basename: '{s}'", .{basename});
 
         try io.stdoutWriteAll(basename);
         try io.stdoutWriteByte(@intFromEnum(options.line_end));

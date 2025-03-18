@@ -98,8 +98,6 @@ const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
 
-const log = std.log.scoped(.nproc);
-
 const std = @import("std");
 const tracy = @import("tracy");
 

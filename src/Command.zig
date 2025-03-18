@@ -61,8 +61,6 @@ fn printShortHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyH
     std.debug.assert(command.short_help.len != 0); // short help should not be empty
     std.debug.assert(command.short_help[command.short_help.len - 1] == '\n'); // short help should end with a newline
 
-    log.debug("printing short help for {s}", .{command.name});
-
     var iter: NameReplacementIterator = .{ .slice = command.short_help };
 
     while (iter.next()) |result| {
@@ -77,8 +75,6 @@ fn printFullHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHa
 
     std.debug.assert(command.short_help.len != 0); // short help should not be empty
     std.debug.assert(command.short_help[command.short_help.len - 1] == '\n'); // short help should end with a newline
-
-    log.debug("printing full help for {s}", .{command.name});
 
     var iter: NameReplacementIterator = .{ .slice = command.short_help };
 
@@ -100,8 +96,6 @@ fn printVersion(command: Command, io: IO) error{AlreadyHandled}!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print version" });
     defer z.end();
 
-    log.debug("printing version for {s}", .{command.name});
-
     var iter: NameReplacementIterator = .{ .slice = shared.version_string };
 
     while (iter.next()) |result| {
@@ -116,8 +110,6 @@ pub fn printError(command: Command, io: IO, error_message: []const u8) error{Alr
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error" });
     defer z.end();
     z.text(error_message);
-
-    log.debug("printing error for {s}", .{command.name});
 
     output: {
         io._stderr.writeAll(command.name) catch break :output;
@@ -148,7 +140,7 @@ pub fn printErrorAlloc(
 }
 
 pub fn printInvalidUsage(
-    command: Command,
+    _: Command,
     io: IO,
     exe_path: []const u8,
     error_message: []const u8,
@@ -158,8 +150,6 @@ pub fn printInvalidUsage(
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage" });
     defer z.end();
     z.text(error_message);
-
-    log.debug("printing error for {s}", .{command.name});
 
     output: {
         io._stderr.writeAll(exe_path) catch break :output;
@@ -189,7 +179,7 @@ pub fn printInvalidUsageAlloc(
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
     defer if (shared.free_on_close) allocator.free(error_message);
 
-    return printInvalidUsage(command, io, exe_path, error_message);
+    return command.printInvalidUsage(io, exe_path, error_message);
 }
 
 pub fn testExecute(
@@ -496,8 +486,6 @@ const NameReplacementIterator = struct {
 const Arg = @import("Arg.zig");
 const IO = @import("IO.zig");
 const shared = @import("shared.zig");
-
-const log = std.log.scoped(.command);
 
 const builtin = @import("builtin");
 const std = @import("std");
