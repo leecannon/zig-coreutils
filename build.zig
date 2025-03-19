@@ -53,6 +53,7 @@ pub fn build(b: *std.Build) !void {
     // test
     {
         const coreutils_test = b.addTest(.{
+            .name = "test_zig-coreutils",
             .root_module = coreutils_module,
             .target = target,
             .optimize = optimize,
@@ -67,7 +68,12 @@ pub fn build(b: *std.Build) !void {
         if (coverage) {
             coreutils_test.setExecCmd(&[_]?[]const u8{
                 "kcov",
-                b.fmt("--include-pattern={s}", .{try b.build_root.join(b.allocator, &.{"src"})}),
+                b.fmt("--include-path={s}", .{
+                    try b.build_root.join(b.allocator, &.{"src"}),
+                }),
+                b.fmt("--exclude-path={s}", .{
+                    try b.build_root.join(b.allocator, &.{ "src", "main.zig" }),
+                }),
                 b.pathJoin(&.{ b.install_prefix, "kcov" }),
                 null,
             });
@@ -82,10 +88,11 @@ pub fn build(b: *std.Build) !void {
     // check
     {
         const coreutils_exe_check = b.addExecutable(.{
-            .name = "check_coreutils",
+            .name = "check_zig-coreutils",
             .root_module = coreutils_module,
         });
         const coreutils_test_check = b.addTest(.{
+            .name = "check_test_zig-coreutils",
             .root_module = coreutils_module,
         });
 
