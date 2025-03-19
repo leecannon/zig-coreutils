@@ -32,6 +32,13 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
                 tracy_allocator.allocator()
             else
                 gpa_allocator;
+
+        var std_in_buffered: std.io.BufferedReader(4096, std.fs.File.Reader) = .{
+            .unbuffered_reader = undefined,
+        };
+        var std_out_buffered: std.io.BufferedWriter(4096, std.fs.File.Writer) = .{
+            .unbuffered_writer = undefined,
+        };
     };
 
     // this causes the frame to start with our main instead of `std.start`
@@ -48,13 +55,13 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     const exe_path = arg_iter.next() orelse unreachable;
     const basename = std.fs.path.basename(exe_path);
 
-    var std_in_buffered = std.io.bufferedReader(std.io.getStdIn().reader());
-    var std_out_buffered = std.io.bufferedWriter(std.io.getStdOut().writer());
+    static.std_in_buffered.unbuffered_reader = std.io.getStdIn().reader();
+    static.std_out_buffered.unbuffered_writer = std.io.getStdOut().writer();
 
     const io: IO = .{
         ._stderr = std.io.getStdErr().writer().any(),
-        ._stdin = std_in_buffered.reader().any(),
-        ._stdout = std_out_buffered.writer().any(),
+        ._stdin = static.std_in_buffered.reader().any(),
+        ._stdout = static.std_out_buffered.writer().any(),
     };
 
     tryExecute(
@@ -74,7 +81,7 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
         return 1;
     };
 
-    std_out_buffered.flush() catch |err| {
+    static.std_out_buffered.flush() catch |err| {
         io.unableToWriteTo("stdout", err) catch {};
         return 1;
     };
