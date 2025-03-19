@@ -254,6 +254,12 @@ const options = @import("options");
 const std = @import("std");
 const tracy = @import("tracy");
 
+pub const tracy_options: tracy.Options = .{
+    .callstack = .{
+        .zone = true,
+        .allocation = true,
+    },
+};
 pub const tracy_impl = @import("tracy_impl");
 
 comptime {

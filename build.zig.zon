@@ -16,8 +16,8 @@
 
     .dependencies = .{
         .tracy = .{
-            .url = "git+https://github.com/Games-by-Mason/tracy_zig.git?ref=main#b0121f2d608104cee09f3c633e675650e7fa3527",
-            .hash = "tracy-0.0.0-R7l8Be82AQDxSdyBnEhvJFgu2gpyFzu5vNd65hX7p5d4",
+            .url = "git+https://github.com/leecannon/tracy_zig.git?ref=callstacks#a5ff54978f1598337209fa0fa003652184e6bd8f",
+            .hash = "tracy-0.0.0-R7l8BUBBAQA57Gm4-2CwCHoMjgMVKLGfBYRYhiAkG7fU",
         },
     },
 
