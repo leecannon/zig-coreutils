@@ -29,8 +29,11 @@ jobs:
       - name: Lint
         run: zig fmt --check --ast-check .
 
+      - name: Check debug
+        run: zig build check -Doptimize=Debug
+
+      - name: Check release
+        run: zig build check -Doptimize=ReleaseFast
+
       - name: Test
         run: zig build test --summary all
-
-      - name: Check non-debug build
-        run: zig build install -Doptimize=ReleaseFast
