@@ -1,19 +1,22 @@
+const supported_oses: []const std.Target.Os.Tag = &.{
+    .linux,
+    .macos,
+    .windows,
+};
+
 pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{});
+    b.enable_wine = true;
+    b.enable_darling = false; // FIXME: for some reason this causes the yes fuzz test to block forever
+
     const optimize = b.standardOptimizeOption(.{});
 
-    const tracy_dep = b.dependency("tracy", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const coreutils_module = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
+
+    const coverage = b.option(
+        bool,
+        "coverage",
+        "Generate test coverage for the native test target with kcov",
+    ) orelse false;
 
     const options = b.addOptions();
     options.addOption(
@@ -22,20 +25,25 @@ pub fn build(b: *std.Build) !void {
         try getVersionString(b, coreutils_version, b.build_root.path.?),
     );
     options.addOption(bool, "trace", trace);
-    coreutils_module.addImport("options", options.createModule());
-    coreutils_module.addImport("tracy", tracy_dep.module("tracy"));
-
-    if (trace) {
-        coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_enabled"));
-    } else {
-        coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_disabled"));
-    }
+    const options_module = options.createModule();
 
     // exe
     {
+        const target = b.standardTargetOptions(.{});
+
+        if (std.mem.indexOfScalar(std.Target.Os.Tag, supported_oses, target.result.os.tag) == null) {
+            std.debug.panic("unsupported target OS {s}", .{@tagName(target.result.os.tag)});
+        }
+
         const coreutils_exe = b.addExecutable(.{
             .name = "zig-coreutils",
-            .root_module = coreutils_module,
+            .root_module = createRootModule(
+                b,
+                target,
+                optimize,
+                trace,
+                options_module,
+            ),
         });
         b.installArtifact(coreutils_exe);
 
@@ -50,21 +58,83 @@ pub fn build(b: *std.Build) !void {
         run_step.dependOn(&run_coreutils_exe.step);
     }
 
-    // test
+    // test and check
     {
-        const coreutils_test = b.addTest(.{
-            .name = "test_zig-coreutils",
-            .root_module = coreutils_module,
-            .target = target,
-            .optimize = optimize,
-        });
+        const check_step = b.step("check", "");
+        const test_step = b.step("test", "Run the tests for all targets");
 
-        const coverage = b.option(
-            bool,
-            "coverage",
-            "Generate test coverage with kcov",
-        ) orelse false;
+        for (supported_oses) |os_tag| {
+            const target = b.resolveTargetQuery(.{ .os_tag = os_tag });
+            const is_native_target = target.result.os.tag == builtin.os.tag;
 
+            try createTestAndCheckSteps(
+                b,
+                target,
+                optimize,
+                trace,
+                options_module,
+                is_native_target,
+                coverage,
+                test_step,
+                check_step,
+            );
+        }
+    }
+}
+
+fn createRootModule(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    trace: bool,
+    options_module: *std.Build.Module,
+) *std.Build.Module {
+    const tracy_dep = b.dependency("tracy", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const coreutils_module = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    coreutils_module.addImport("options", options_module);
+    coreutils_module.addImport("tracy", tracy_dep.module("tracy"));
+
+    if (trace) {
+        coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_enabled"));
+    } else {
+        coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_disabled"));
+    }
+
+    return coreutils_module;
+}
+
+fn createTestAndCheckSteps(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    trace: bool,
+    options_module: *std.Build.Module,
+    is_native_target: bool,
+    coverage: bool,
+    test_step: *std.Build.Step,
+    check_step: *std.Build.Step,
+) !void {
+    const coreutils_test = b.addTest(.{
+        .name = b.fmt("test_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
+        .root_module = createRootModule(
+            b,
+            target,
+            optimize,
+            trace,
+            options_module,
+        ),
+    });
+
+    if (is_native_target) {
         if (coverage) {
             coreutils_test.setExecCmd(&[_]?[]const u8{
                 "kcov",
@@ -78,25 +148,43 @@ pub fn build(b: *std.Build) !void {
                 null,
             });
         }
-
-        const run_coreutils_test = b.addRunArtifact(coreutils_test);
-
-        const test_step = b.step("test", "Run the tests");
-        test_step.dependOn(&run_coreutils_test.step);
     }
 
-    // check
+    const run_coreutils_test = b.addRunArtifact(coreutils_test);
+
+    // FIXME: why do we need to change both of these?
+    run_coreutils_test.skip_foreign_checks = true;
+    run_coreutils_test.failing_to_execute_foreign_is_an_error = false;
+
+    const target_test_step = b.step(
+        b.fmt("test_{s}", .{@tagName(target.result.os.tag)}),
+        b.fmt("Run the tests for {s}", .{@tagName(target.result.os.tag)}),
+    );
+    target_test_step.dependOn(&run_coreutils_test.step);
+    test_step.dependOn(target_test_step);
+
     {
         const coreutils_exe_check = b.addExecutable(.{
-            .name = "check_zig-coreutils",
-            .root_module = coreutils_module,
+            .name = b.fmt("check_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
+            .root_module = createRootModule(
+                b,
+                target,
+                optimize,
+                trace,
+                options_module,
+            ),
         });
         const coreutils_test_check = b.addTest(.{
-            .name = "check_test_zig-coreutils",
-            .root_module = coreutils_module,
+            .name = b.fmt("check_test_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
+            .root_module = createRootModule(
+                b,
+                target,
+                optimize,
+                trace,
+                options_module,
+            ),
         });
 
-        const check_step = b.step("check", "");
         check_step.dependOn(&coreutils_exe_check.step);
         check_step.dependOn(&coreutils_test_check.step);
     }
