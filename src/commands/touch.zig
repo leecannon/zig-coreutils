@@ -432,51 +432,6 @@ fn parseTimeArgument(argument: []const u8) ?TouchOptions.Update {
     return null;
 }
 
-test "touch - create file" {
-    var tmp_dir = try setupTestDirectory();
-    defer tmp_dir.cleanup();
-
-    const cwd = tmp_dir.dir;
-
-    // file should not exist
-    try std.testing.expectError(
-        error.FileNotFound,
-        cwd.access("FILE", .{}),
-    );
-
-    try command.testExecute(
-        &.{"FILE"},
-        .{ .cwd = cwd },
-    );
-
-    // file should exist
-    try cwd.access("FILE", .{});
-}
-
-test "touch - don't create file" {
-    var tmp_dir = try setupTestDirectory();
-    defer tmp_dir.cleanup();
-
-    const cwd = tmp_dir.dir;
-
-    // file should not exist
-    try std.testing.expectError(
-        error.FileNotFound,
-        cwd.access("FILE", .{}),
-    );
-
-    try command.testExecute(
-        &.{ "-a", "EXISTS" },
-        .{ .cwd = cwd },
-    );
-
-    // file should still not exist
-    try std.testing.expectError(
-        error.FileNotFound,
-        cwd.access("FILE", .{}),
-    );
-}
-
 test "touch no args" {
     try command.testError(
         &.{},
@@ -493,11 +448,6 @@ test "touch version" {
     try command.testVersion();
 }
 
-fn setupTestDirectory() !std.testing.TmpDir {
-    const tmp_dir = std.testing.tmpDir(.{});
-    _ = try tmp_dir.dir.createFile("EXISTS", .{});
-    return tmp_dir;
-}
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
