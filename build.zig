@@ -123,15 +123,17 @@ fn createTestAndCheckSteps(
     test_step: *std.Build.Step,
     check_step: *std.Build.Step,
 ) !void {
+    const module = createRootModule(
+        b,
+        target,
+        optimize,
+        trace,
+        options_module,
+    );
+
     const coreutils_test = b.addTest(.{
         .name = b.fmt("test_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
-        .root_module = createRootModule(
-            b,
-            target,
-            optimize,
-            trace,
-            options_module,
-        ),
+        .root_module = module,
     });
 
     if (is_native_target) {
@@ -161,6 +163,13 @@ fn createTestAndCheckSteps(
         b.fmt("Run the tests for {s}", .{@tagName(target.result.os.tag)}),
     );
     target_test_step.dependOn(&run_coreutils_test.step);
+
+    const build_exe = b.addExecutable(.{
+        .name = b.fmt("build_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
+        .root_module = module,
+    });
+    target_test_step.dependOn(&build_exe.step);
+
     test_step.dependOn(target_test_step);
 
     {
