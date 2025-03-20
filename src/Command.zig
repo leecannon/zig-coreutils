@@ -483,6 +483,29 @@ const NameReplacementIterator = struct {
     }
 };
 
+/// All enabled commands in the order they are listed in `commands/listing.zig` (alphabetical).
+pub const enabled_commands = blk: {
+    var commands: []const Command = &.{};
+
+    for (@import("commands/listing.zig").commands) |command| {
+        if (command.enabled) {
+            commands = commands ++ .{command.command};
+        }
+    }
+
+    break :blk commands;
+};
+
+pub const enabled_command_lookup: std.StaticStringMap(Command) = .initComptime(blk: {
+    var commands: []const struct { []const u8, Command } = &.{};
+
+    for (enabled_commands) |command| {
+        commands = commands ++ .{.{ command.name, command }};
+    }
+
+    break :blk commands;
+});
+
 const Arg = @import("Arg.zig");
 const IO = @import("IO.zig");
 const shared = @import("shared.zig");

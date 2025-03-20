@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+/// Is this command enabled for the current target?
+pub const enabled: bool = true; // USE BUILTIN TO DETERMINE IF THE COMMAND IS ENABLED FOR THE CURRENT TARGET
+
 pub const command: Command = .{
     .name = "template", // CHANGE THIS
 
@@ -18,125 +21,128 @@ pub const command: Command = .{
 
     // ADD `.extended_help` IF EXAMPLES SHOULD BE DISPLAYED
 
-    .execute = execute,
+    .execute = impl.execute,
 };
 
-fn execute(
-    allocator: std.mem.Allocator,
-    io: IO,
-    args: *Arg.Iterator,
-    cwd: std.fs.Dir,
-    exe_path: []const u8,
-) Command.Error!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-    defer z.end();
+// namespace required to prevent tests of disabled commands from being analyzed
+const impl = struct {
+    fn execute(
+        allocator: std.mem.Allocator,
+        io: IO,
+        args: *Arg.Iterator,
+        cwd: std.fs.Dir,
+        exe_path: []const u8,
+    ) Command.Error!void {
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
+        defer z.end();
 
-    _ = cwd;
+        _ = cwd;
 
-    const options = try parseArguments(allocator, io, args, exe_path);
-    log.debug("options={}", .{options});
-}
-
-const TemplateOptions = struct {
-    pub fn format(
-        options: TemplateOptions,
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = options;
-        try writer.writeAll("TemplateOptions{ }");
+        const options = try parseArguments(allocator, io, args, exe_path);
+        log.debug("options={}", .{options});
     }
-};
 
-fn parseArguments(
-    allocator: std.mem.Allocator,
-    io: IO,
-    args: *Arg.Iterator,
-    exe_path: []const u8,
-) !TemplateOptions {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
-    defer z.end();
-
-    var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
-
-    const options: TemplateOptions = .{};
-
-    const State = union(enum) {
-        normal,
-        invalid_argument: Argument,
-
-        const Argument = union(enum) {
-            slice: []const u8,
-            character: u8,
-        };
-    };
-
-    var state: State = .normal;
-
-    while (opt_arg) |*arg| : (opt_arg = args.next()) {
-        switch (arg.arg_type) {
-            .longhand => |longhand| {
-                @branchHint(.cold);
-                state = .{ .invalid_argument = .{ .slice = longhand } };
-                break;
-            },
-            .longhand_with_value => |longhand_with_value| {
-                @branchHint(.cold);
-                state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
-                break;
-            },
-            .shorthand => |*shorthand| {
-                while (shorthand.next()) |char| {
-                    @branchHint(.cold);
-                    state = .{ .invalid_argument = .{ .character = char } };
-                    break;
-                }
-            },
-            .positional => {
-                @branchHint(.cold);
-                state = .{ .invalid_argument = .{ .slice = arg.raw } };
-                break;
-            },
+    const TemplateOptions = struct {
+        pub fn format(
+            options: TemplateOptions,
+            comptime _: []const u8,
+            _: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void {
+            _ = options;
+            try writer.writeAll("TemplateOptions{ }");
         }
+    };
+
+    fn parseArguments(
+        allocator: std.mem.Allocator,
+        io: IO,
+        args: *Arg.Iterator,
+        exe_path: []const u8,
+    ) !TemplateOptions {
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
+        defer z.end();
+
+        var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
+
+        const options: TemplateOptions = .{};
+
+        const State = union(enum) {
+            normal,
+            invalid_argument: Argument,
+
+            const Argument = union(enum) {
+                slice: []const u8,
+                character: u8,
+            };
+        };
+
+        var state: State = .normal;
+
+        while (opt_arg) |*arg| : (opt_arg = args.next()) {
+            switch (arg.arg_type) {
+                .longhand => |longhand| {
+                    @branchHint(.cold);
+                    state = .{ .invalid_argument = .{ .slice = longhand } };
+                    break;
+                },
+                .longhand_with_value => |longhand_with_value| {
+                    @branchHint(.cold);
+                    state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
+                    break;
+                },
+                .shorthand => |*shorthand| {
+                    while (shorthand.next()) |char| {
+                        @branchHint(.cold);
+                        state = .{ .invalid_argument = .{ .character = char } };
+                        break;
+                    }
+                },
+                .positional => {
+                    @branchHint(.cold);
+                    state = .{ .invalid_argument = .{ .slice = arg.raw } };
+                    break;
+                },
+            }
+        }
+
+        return switch (state) {
+            .normal => options,
+            .invalid_argument => |invalid_arg| switch (invalid_arg) {
+                .slice => |slice| command.printInvalidUsageAlloc(
+                    allocator,
+                    io,
+                    exe_path,
+                    "unrecognized option '--{s}'",
+                    .{slice},
+                ),
+                .character => |character| command.printInvalidUsageAlloc(
+                    allocator,
+                    io,
+                    exe_path,
+                    "unrecognized option -- '{c}'",
+                    .{character},
+                ),
+            },
+        };
     }
 
-    return switch (state) {
-        .normal => options,
-        .invalid_argument => |invalid_arg| switch (invalid_arg) {
-            .slice => |slice| command.printInvalidUsageAlloc(
-                allocator,
-                io,
-                exe_path,
-                "unrecognized option '--{s}'",
-                .{slice},
-            ),
-            .character => |character| command.printInvalidUsageAlloc(
-                allocator,
-                io,
-                exe_path,
-                "unrecognized option -- '{c}'",
-                .{character},
-            ),
-        },
-    };
-}
+    test "template no args" {
+        try command.testExecute(&.{}, .{});
+    }
 
-test "template no args" {
-    try command.testExecute(&.{}, .{});
-}
+    test "template help" {
+        try command.testHelp(true);
+    }
 
-test "template help" {
-    try command.testHelp(true);
-}
+    test "template version" {
+        try command.testVersion();
+    }
 
-test "template version" {
-    try command.testVersion();
-}
-
-test "template fuzz" { // DELETE THIS IF THE COMMAND INTERACTS WITH THE SYSTEM
-    try command.testFuzz(.{});
-}
+    test "template fuzz" { // DELETE THIS IF THE COMMAND INTERACTS WITH THE SYSTEM
+        try command.testFuzz(.{});
+    }
+};
 
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");

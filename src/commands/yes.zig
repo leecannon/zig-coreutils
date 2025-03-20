@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+/// Is this command enabled for the current target?
+pub const enabled: bool = true;
+
 pub const command: Command = .{
     .name = "yes",
 
@@ -16,76 +19,79 @@ pub const command: Command = .{
     \\
     ,
 
-    .execute = execute,
+    .execute = impl.execute,
 };
 
-fn execute(
-    allocator: std.mem.Allocator,
-    io: IO,
-    args: *Arg.Iterator,
-    cwd: std.fs.Dir,
-    exe_path: []const u8,
-) Command.Error!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-    defer z.end();
+// namespace required to prevent tests of disabled commands from being analyzed
+const impl = struct {
+    fn execute(
+        allocator: std.mem.Allocator,
+        io: IO,
+        args: *Arg.Iterator,
+        cwd: std.fs.Dir,
+        exe_path: []const u8,
+    ) Command.Error!void {
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
+        defer z.end();
 
-    _ = exe_path;
-    _ = cwd;
+        _ = exe_path;
+        _ = cwd;
 
-    const string = try getString(allocator, args);
-    defer if (shared.free_on_close) string.deinit(allocator);
+        const string = try getString(allocator, args);
+        defer if (shared.free_on_close) string.deinit(allocator);
 
-    if (builtin.is_test) {
-        // to allow this command to be tested
+        if (builtin.is_test) {
+            // to allow this command to be tested
 
-        for (0..10) |_| {
+            for (0..10) |_| {
+                try io.stdoutWriteAll(string.value);
+            }
+
+            return;
+        }
+
+        while (true) {
             try io.stdoutWriteAll(string.value);
         }
 
-        return;
+        unreachable;
     }
 
-    while (true) {
-        try io.stdoutWriteAll(string.value);
+    fn getString(allocator: std.mem.Allocator, args: *Arg.Iterator) !shared.MaybeAllocatedString {
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "get string" });
+        defer z.end();
+
+        var buffer = std.ArrayList(u8).init(allocator);
+        defer if (shared.free_on_close) buffer.deinit();
+
+        if (try args.nextWithHelpOrVersion(true)) |arg| {
+            try buffer.appendSlice(arg.raw);
+        } else {
+            return .not_allocated("y\n");
+        }
+
+        while (args.nextRaw()) |arg| {
+            try buffer.append(' ');
+            try buffer.appendSlice(arg);
+        }
+
+        try buffer.append('\n');
+
+        return .allocated(try buffer.toOwnedSlice());
     }
 
-    unreachable;
-}
-
-fn getString(allocator: std.mem.Allocator, args: *Arg.Iterator) !shared.MaybeAllocatedString {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "get string" });
-    defer z.end();
-
-    var buffer = std.ArrayList(u8).init(allocator);
-    defer if (shared.free_on_close) buffer.deinit();
-
-    if (try args.nextWithHelpOrVersion(true)) |arg| {
-        try buffer.appendSlice(arg.raw);
-    } else {
-        return .not_allocated("y\n");
+    test "yes help" {
+        try command.testHelp(true);
     }
 
-    while (args.nextRaw()) |arg| {
-        try buffer.append(' ');
-        try buffer.appendSlice(arg);
+    test "yes version" {
+        try command.testVersion();
     }
 
-    try buffer.append('\n');
-
-    return .allocated(try buffer.toOwnedSlice());
-}
-
-test "yes help" {
-    try command.testHelp(true);
-}
-
-test "yes version" {
-    try command.testVersion();
-}
-
-test "yes fuzz" {
-    try command.testFuzz(.{});
-}
+    test "yes fuzz" {
+        try command.testFuzz(.{});
+    }
+};
 
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");

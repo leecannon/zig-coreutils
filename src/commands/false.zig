@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+/// Is this command enabled for the current target?
+pub const enabled: bool = true;
+
 pub const command: Command = .{
     .name = "false",
 
@@ -16,63 +19,66 @@ pub const command: Command = .{
     \\
     ,
 
-    .execute = execute,
+    .execute = impl.execute,
 };
 
-fn execute(
-    allocator: std.mem.Allocator,
-    io: IO,
-    args: *Arg.Iterator,
-    cwd: std.fs.Dir,
-    exe_path: []const u8,
-) Command.Error!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-    defer z.end();
+// namespace required to prevent tests of disabled commands from being analyzed
+const impl = struct {
+    fn execute(
+        allocator: std.mem.Allocator,
+        io: IO,
+        args: *Arg.Iterator,
+        cwd: std.fs.Dir,
+        exe_path: []const u8,
+    ) Command.Error!void {
+        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
+        defer z.end();
 
-    _ = io;
-    _ = exe_path;
-    _ = cwd;
-    _ = allocator;
+        _ = io;
+        _ = exe_path;
+        _ = cwd;
+        _ = allocator;
 
-    _ = try args.nextWithHelpOrVersion(true);
+        _ = try args.nextWithHelpOrVersion(true);
 
-    // FIXME: This is weird, is this acceptable to allow the other shared to not have to worry about u8 return value?
-    return error.AlreadyHandled;
-}
+        // FIXME: This is weird, is this acceptable to allow the other shared to not have to worry about u8 return value?
+        return error.AlreadyHandled;
+    }
 
-test "false no args" {
-    try std.testing.expectError(
-        error.AlreadyHandled,
-        command.testExecute(&.{}, .{}),
-    );
-}
+    test "false no args" {
+        try std.testing.expectError(
+            error.AlreadyHandled,
+            command.testExecute(&.{}, .{}),
+        );
+    }
 
-test "false ignores args" {
-    var stdout = std.ArrayList(u8).init(std.testing.allocator);
-    defer stdout.deinit();
+    test "false ignores args" {
+        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        defer stdout.deinit();
 
-    try std.testing.expectError(
-        error.AlreadyHandled,
-        command.testExecute(
-            &.{ "these", "arguments", "are", "ignored" },
-            .{},
-        ),
-    );
+        try std.testing.expectError(
+            error.AlreadyHandled,
+            command.testExecute(
+                &.{ "these", "arguments", "are", "ignored" },
+                .{},
+            ),
+        );
 
-    try std.testing.expectEqualStrings("", stdout.items);
-}
+        try std.testing.expectEqualStrings("", stdout.items);
+    }
 
-test "false help" {
-    try command.testHelp(true);
-}
+    test "false help" {
+        try command.testHelp(true);
+    }
 
-test "false version" {
-    try command.testVersion();
-}
+    test "false version" {
+        try command.testVersion();
+    }
 
-test "false fuzz" {
-    try command.testFuzz(.{ .expect_stderr_output_on_failure = false });
-}
+    test "false fuzz" {
+        try command.testFuzz(.{ .expect_stderr_output_on_failure = false });
+    }
+};
 
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
