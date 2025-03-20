@@ -81,7 +81,3 @@ const shared = @import("../shared.zig");
 
 const std = @import("std");
 const tracy = @import("tracy");
-
-comptime {
-    std.testing.refAllDeclsRecursive(@This());
-}

@@ -270,7 +270,3 @@ const builtin = @import("builtin");
 const options = @import("options");
 const std = @import("std");
 const tracy = @import("tracy");
-
-comptime {
-    std.testing.refAllDeclsRecursive(@This());
-}

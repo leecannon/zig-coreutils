@@ -240,7 +240,3 @@ const log = std.log.scoped(.dirname);
 
 const std = @import("std");
 const tracy = @import("tracy");
-
-comptime {
-    std.testing.refAllDeclsRecursive(@This());
-}

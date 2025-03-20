@@ -59,7 +59,3 @@ pub fn unableToWriteTo(io: IO, destination: []const u8, err: anyerror) error{Alr
 
 const std = @import("std");
 const tracy = @import("tracy");
-
-comptime {
-    std.testing.refAllDeclsRecursive(@This());
-}

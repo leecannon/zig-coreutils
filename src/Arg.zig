@@ -175,7 +175,3 @@ const log = std.log.scoped(.arg);
 const builtin = @import("builtin");
 const std = @import("std");
 const tracy = @import("tracy");
-
-comptime {
-    std.testing.refAllDeclsRecursive(@This());
-}

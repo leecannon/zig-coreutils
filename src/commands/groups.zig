@@ -218,7 +218,3 @@ const log = std.log.scoped(.groups);
 
 const std = @import("std");
 const tracy = @import("tracy");
-
-comptime {
-    std.testing.refAllDeclsRecursive(@This());
-}

@@ -269,6 +269,8 @@ pub const tracy_options: tracy.Options = .{
 pub const tracy_impl = @import("tracy_impl");
 
 comptime {
-    if (builtin.is_test) _ = @import("commands/template.zig"); // ensure the template compiles
-    std.testing.refAllDeclsRecursive(@This());
+    if (builtin.is_test) {
+        _ = commands; // ensure all commands are tested
+        _ = @import("commands/template.zig"); // ensure the template compiles
+    }
 }

@@ -507,7 +507,3 @@ const log = std.log.scoped(.touch);
 
 const std = @import("std");
 const tracy = @import("tracy");
-
-comptime {
-    std.testing.refAllDeclsRecursive(@This());
-}
