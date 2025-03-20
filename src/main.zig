@@ -50,11 +50,6 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
         if (shared.is_debug_or_test) _ = static.debug_allocator.deinit();
     }
 
-    var arg_iter = std.process.args();
-
-    const exe_path = arg_iter.next() orelse unreachable;
-    const basename = std.fs.path.basename(exe_path);
-
     static.std_in_buffered.unbuffered_reader = std.io.getStdIn().reader();
     static.std_out_buffered.unbuffered_writer = std.io.getStdOut().writer();
 
@@ -63,6 +58,17 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
         ._stdin = static.std_in_buffered.reader().any(),
         ._stdout = static.std_out_buffered.writer().any(),
     };
+
+    var arg_iter = std.process.argsWithAllocator(static.allocator) catch |err| {
+        switch (err) {
+            error.OutOfMemory => io._stderr.writeAll("out of memory\n") catch {},
+        }
+        return 1;
+    };
+    defer if (shared.free_on_close) arg_iter.deinit();
+
+    const exe_path = arg_iter.next() orelse unreachable;
+    const basename = std.fs.path.basename(exe_path);
 
     tryExecute(
         static.allocator,
