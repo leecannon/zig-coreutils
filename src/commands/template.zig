@@ -83,23 +83,25 @@ const impl = struct {
             switch (arg.arg_type) {
                 .longhand => |longhand| {
                     @branchHint(.cold);
+                    std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = longhand } };
                     break;
                 },
                 .longhand_with_value => |longhand_with_value| {
                     @branchHint(.cold);
+                    std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
                     break;
                 },
                 .shorthand => |*shorthand| {
-                    while (shorthand.next()) |char| {
-                        @branchHint(.cold);
-                        state = .{ .invalid_argument = .{ .character = char } };
-                        break;
-                    }
+                    @branchHint(.cold);
+                    std.debug.assert(state == .normal);
+                    state = .{ .invalid_argument = .{ .slice = shorthand.value } };
+                    break;
                 },
                 .positional => {
                     @branchHint(.cold);
+                    std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = arg.raw } };
                     break;
                 },
@@ -113,14 +115,14 @@ const impl = struct {
                     allocator,
                     io,
                     exe_path,
-                    "unrecognized option '--{s}'",
+                    "unrecognized option: '{s}'",
                     .{slice},
                 ),
                 .character => |character| command.printInvalidUsageAlloc(
                     allocator,
                     io,
                     exe_path,
-                    "unrecognized option -- '{c}'",
+                    "unrecognized short option: '{c}'",
                     .{character},
                 ),
             },

@@ -98,15 +98,19 @@ const impl = struct {
             switch (arg.arg_type) {
                 .longhand => |longhand| {
                     @branchHint(.cold);
+                    std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = longhand } };
                     break;
                 },
                 .longhand_with_value => |longhand_with_value| {
                     @branchHint(.cold);
+                    std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
                     break;
                 },
                 .shorthand => |*shorthand| {
+                    std.debug.assert(state == .normal);
+
                     while (shorthand.next()) |char| {
                         if (char == 'x') {
                             clear_options.clear_scrollback = false;
@@ -120,6 +124,7 @@ const impl = struct {
                 },
                 .positional => {
                     @branchHint(.cold);
+                    std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = arg.raw } };
                     break;
                 },
@@ -133,14 +138,14 @@ const impl = struct {
                     allocator,
                     io,
                     exe_path,
-                    "unrecognized option '--{s}'",
+                    "unrecognized option: '{s}'",
                     .{slice},
                 ),
                 .character => |character| command.printInvalidUsageAlloc(
                     allocator,
                     io,
                     exe_path,
-                    "unrecognized option -- '{c}'",
+                    "unrecognized short option: '{c}'",
                     .{character},
                 ),
             },

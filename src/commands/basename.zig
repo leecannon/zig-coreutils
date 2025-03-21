@@ -319,7 +319,7 @@ const impl = struct {
                     allocator,
                     io,
                     exe_path,
-                    "unrecognized option -- '{c}'",
+                    "unrecognized short option: '{c}'",
                     .{character},
                 ),
             },

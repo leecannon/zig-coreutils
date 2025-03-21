@@ -127,6 +127,8 @@ const impl = struct {
         while (opt_arg) |*arg| : (opt_arg = args.next()) {
             switch (arg.arg_type) {
                 .longhand => |longhand| {
+                    std.debug.assert(state == .normal);
+
                     if (std.mem.eql(u8, longhand, "zero")) {
                         dir_options.line_end = .zero;
                         log.debug("got zero longhand", .{});
@@ -138,10 +140,13 @@ const impl = struct {
                 },
                 .longhand_with_value => |longhand_with_value| {
                     @branchHint(.cold);
+                    std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
                     break;
                 },
                 .shorthand => |*shorthand| {
+                    std.debug.assert(state == .normal);
+
                     while (shorthand.next()) |char| {
                         if (char == 'z') {
                             dir_options.line_end = .zero;
@@ -154,6 +159,8 @@ const impl = struct {
                     }
                 },
                 .positional => {
+                    std.debug.assert(state == .normal);
+
                     dir_options.first_arg = arg.raw;
                     return dir_options;
                 },
@@ -178,7 +185,7 @@ const impl = struct {
                     allocator,
                     io,
                     exe_path,
-                    "unrecognized option -- '{c}'",
+                    "unrecognized short option: '{c}'",
                     .{character},
                 ),
             },

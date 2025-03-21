@@ -241,6 +241,7 @@ const impl = struct {
             normal,
             reference_file,
             time,
+
             invalid_time_argument: []const u8,
             invalid_argument: Argument,
 
@@ -279,12 +280,12 @@ const impl = struct {
                     }
                 },
                 .shorthand => |*shorthand| {
-                    while (shorthand.next()) |char| {
-                        if (state != .normal) {
-                            @branchHint(.cold);
-                            break;
-                        }
+                    if (state != .normal) {
+                        @branchHint(.cold);
+                        break;
+                    }
 
+                    while (shorthand.next()) |char| {
                         switch (char) {
                             'a' => {
                                 touch_options.update = .access_only;
@@ -410,7 +411,7 @@ const impl = struct {
                     allocator,
                     io,
                     exe_path,
-                    "unrecognized option -- '{c}'",
+                    "unrecognized short option: '{c}'",
                     .{character},
                 ),
             },
