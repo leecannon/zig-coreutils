@@ -20,6 +20,7 @@ Any tools not in GNU coreutils are acceptable as well.
  * nprocs
  * touch
  * true
+ * uname
  * whoami
  * yes
 
@@ -119,7 +120,6 @@ Any tools not in GNU coreutils are acceptable as well.
  * truncate
  * tsort
  * tty
- * uname
  * unexpand
  * uniq
  * unlink
