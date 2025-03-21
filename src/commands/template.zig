@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+// STEPS TO CREATE A NEW COMMAND:
+//  - Copy this file and rename it to the name of the command
+//  - Search the new file for "CHANGE THIS" and update the code
+//  - Add the new command to `src/subcommands/listing.zig`
+//  - Implement the functionality
+//  - Add tests
+//  - PROFIT
+
 /// Is this command enabled for the current target?
-pub const enabled: bool = true; // USE `shared.target_os` TO DETERMINE IF THE COMMAND IS ENABLED FOR THE CURRENT TARGET
+pub const enabled: bool = true; // CHANGE THIS - USE `shared.target_os` TO DETERMINE IF THE COMMAND IS ENABLED FOR THE CURRENT TARGET
 
 pub const command: Command = .{
     .name = "template", // CHANGE THIS
@@ -19,7 +27,9 @@ pub const command: Command = .{
     \\
     ,
 
-    // ADD `.extended_help` IF EXAMPLES SHOULD BE DISPLAYED
+    .extended_help = // CHANGE THIS - ADD EXAMPLES OR DELETE THIS IF NO EXAMPLES ARE NEEDED
+    \\
+    ,
 
     .execute = impl.execute,
 };
@@ -42,7 +52,7 @@ const impl = struct {
         log.debug("options={}", .{options});
     }
 
-    const TemplateOptions = struct {
+    const TemplateOptions = struct { // CHANGE THIS - IF NO OPTIONS ARE NEEDED DELETE THIS
         pub fn format(
             options: TemplateOptions,
             comptime _: []const u8,
@@ -129,19 +139,19 @@ const impl = struct {
         };
     }
 
-    test "template no args" {
+    test "template no args" { // CHANGE THIS
         try command.testExecute(&.{}, .{});
     }
 
-    test "template help" {
+    test "template help" { // CHANGE THIS
         try command.testHelp(true);
     }
 
-    test "template version" {
+    test "template version" { // CHANGE THIS
         try command.testVersion();
     }
 
-    test "template fuzz" { // DELETE THIS IF THE COMMAND INTERACTS WITH THE SYSTEM
+    test "template fuzz" { // CHANGE THIS - DELETE THIS IF THE COMMAND INTERACTS WITH THE SYSTEM
         try command.testFuzz(.{});
     }
 };

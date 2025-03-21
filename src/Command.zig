@@ -83,12 +83,16 @@ fn printFullHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHa
         if (result.output_name) try io.stdoutWriteAll(exe_path);
     }
 
-    if (command.extended_help) |extended_help| {
-        std.debug.assert(extended_help.len != 0); // non-null extended help should not be empty
-        std.debug.assert(extended_help[extended_help.len - 1] == '\n'); // extended help should end with a newline
+    if (!std.mem.eql(u8, command.name, "template")) {
+        if (command.extended_help) |extended_help| {
+            std.debug.assert(extended_help.len != 0); // non-null extended help should not be empty
+            std.debug.assert(extended_help[extended_help.len - 1] == '\n'); // extended help should end with a newline
 
-        try io.stdoutWriteByte('\n');
-        try io.stdoutWriteAll(extended_help);
+            try io.stdoutWriteByte('\n');
+            try io.stdoutWriteAll(extended_help);
+        }
+    } else {
+        std.debug.assert(command.extended_help.?.len == 0); // template has an extended help but it is empty
     }
 }
 
@@ -287,9 +291,11 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
             }
         }
 
-        if (command.extended_help) |extended_help| {
-            try sb.append(std.testing.allocator, '\n');
-            try sb.appendSlice(std.testing.allocator, extended_help);
+        if (!std.mem.eql(u8, command.name, "template")) { // template has an extended help but it is empty
+            if (command.extended_help) |extended_help| {
+                try sb.append(std.testing.allocator, '\n');
+                try sb.appendSlice(std.testing.allocator, extended_help);
+            }
         }
 
         break :blk try sb.toOwnedSlice(std.testing.allocator);
