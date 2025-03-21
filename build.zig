@@ -5,9 +5,6 @@ const supported_oses: []const std.Target.Os.Tag = &.{
 };
 
 pub fn build(b: *std.Build) !void {
-    b.enable_wine = true;
-    b.enable_darling = false; // FIXME: for some reason this causes the yes fuzz test to block forever
-
     const optimize = b.standardOptimizeOption(.{});
 
     const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
@@ -58,6 +55,17 @@ pub fn build(b: *std.Build) !void {
         run_step.dependOn(&run_coreutils_exe.step);
     }
 
+    const run_non_native_tests = b.option(
+        bool,
+        "run_non_native_tests",
+        "run non-native tests",
+    ) orelse false;
+
+    if (run_non_native_tests) {
+        b.enable_wine = true;
+        b.enable_darling = false; // FIXME: for some reason this never finishes
+    }
+
     // test and check
     {
         const check_step = b.step("check", "");
@@ -77,6 +85,7 @@ pub fn build(b: *std.Build) !void {
                 coverage,
                 test_step,
                 check_step,
+                run_non_native_tests,
             );
         }
     }
@@ -122,6 +131,7 @@ fn createTestAndCheckSteps(
     coverage: bool,
     test_step: *std.Build.Step,
     check_step: *std.Build.Step,
+    run_non_native_tests: bool,
 ) !void {
     const module = createRootModule(
         b,
@@ -152,17 +162,24 @@ fn createTestAndCheckSteps(
         }
     }
 
-    const run_coreutils_test = b.addRunArtifact(coreutils_test);
-
-    // FIXME: why do we need to change both of these?
-    run_coreutils_test.skip_foreign_checks = true;
-    run_coreutils_test.failing_to_execute_foreign_is_an_error = false;
-
     const target_test_step = b.step(
         b.fmt("test_{s}", .{@tagName(target.result.os.tag)}),
         b.fmt("Run the tests for {s}", .{@tagName(target.result.os.tag)}),
     );
-    target_test_step.dependOn(&run_coreutils_test.step);
+
+    if (is_native_target or run_non_native_tests) {
+        const run_coreutils_test = b.addRunArtifact(coreutils_test);
+
+        if (!is_native_target) {
+            // FIXME: why do we need to change both of these?
+            run_coreutils_test.skip_foreign_checks = true;
+            run_coreutils_test.failing_to_execute_foreign_is_an_error = false;
+        }
+
+        target_test_step.dependOn(&run_coreutils_test.step);
+    } else {
+        target_test_step.dependOn(&coreutils_test.step);
+    }
 
     const build_exe = b.addExecutable(.{
         .name = b.fmt("build_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
