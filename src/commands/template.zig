@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 /// Is this command enabled for the current target?
-pub const enabled: bool = true; // USE BUILTIN TO DETERMINE IF THE COMMAND IS ENABLED FOR THE CURRENT TARGET
+pub const enabled: bool = true; // USE `shared.target_os` TO DETERMINE IF THE COMMAND IS ENABLED FOR THE CURRENT TARGET
 
 pub const command: Command = .{
     .name = "template", // CHANGE THIS

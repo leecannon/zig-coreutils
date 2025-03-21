@@ -40,7 +40,7 @@ const impl = struct {
         const string = try getString(allocator, args);
         defer if (shared.free_on_close) string.deinit(allocator);
 
-        if (builtin.is_test) {
+        if (@import("builtin").is_test) {
             // to allow this command to be tested
 
             for (0..10) |_| {
@@ -98,6 +98,5 @@ const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
 
-const builtin = @import("builtin");
 const std = @import("std");
 const tracy = @import("tracy");

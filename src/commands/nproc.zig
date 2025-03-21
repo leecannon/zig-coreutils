@@ -3,10 +3,7 @@
 // SPDX-FileCopyrightText: 2024 Leon Henrik Plickat
 
 /// Is this command enabled for the current target?
-pub const enabled: bool = blk: {
-    const builtin = @import("builtin");
-    break :blk builtin.os.tag == .linux; // TODO: support other OSes
-};
+pub const enabled: bool = shared.target_os == .linux; // TODO: support other OSes
 
 pub const command: Command = .{
     .name = "nproc",

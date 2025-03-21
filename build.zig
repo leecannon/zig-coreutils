@@ -1,9 +1,3 @@
-const supported_oses: []const std.Target.Os.Tag = &.{
-    .linux,
-    .macos,
-    .windows,
-};
-
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
@@ -28,9 +22,9 @@ pub fn build(b: *std.Build) !void {
     {
         const target = b.standardTargetOptions(.{});
 
-        if (std.mem.indexOfScalar(std.Target.Os.Tag, supported_oses, target.result.os.tag) == null) {
+        const coreutils_target = CoreutilsTarget.fromOsTag(target.result.os.tag) orelse {
             std.debug.panic("unsupported target OS {s}", .{@tagName(target.result.os.tag)});
-        }
+        };
 
         const coreutils_exe = b.addExecutable(.{
             .name = "zig-coreutils",
@@ -39,6 +33,7 @@ pub fn build(b: *std.Build) !void {
                 target,
                 optimize,
                 trace,
+                coreutils_target,
                 options_module,
             ),
         });
@@ -71,17 +66,17 @@ pub fn build(b: *std.Build) !void {
         const check_step = b.step("check", "");
         const test_step = b.step("test", "Run the tests for all targets");
 
-        for (supported_oses) |os_tag| {
-            const target = b.resolveTargetQuery(.{ .os_tag = os_tag });
-            const is_native_target = target.result.os.tag == builtin.os.tag;
+        for (std.meta.tags(CoreutilsTarget)) |coreutils_target| {
+            const target = b.resolveTargetQuery(.{ .os_tag = coreutils_target.osTag() });
 
             try createTestAndCheckSteps(
                 b,
                 target,
                 optimize,
                 trace,
+                coreutils_target,
                 options_module,
-                is_native_target,
+                target.result.os.tag == builtin.os.tag,
                 coverage,
                 test_step,
                 check_step,
@@ -96,6 +91,7 @@ fn createRootModule(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     trace: bool,
+    coreutils_target: CoreutilsTarget,
     options_module: *std.Build.Module,
 ) *std.Build.Module {
     const tracy_dep = b.dependency("tracy", .{
@@ -118,6 +114,10 @@ fn createRootModule(
         coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_disabled"));
     }
 
+    const target_options = b.addOptions();
+    target_options.addOption(CoreutilsTarget, "target_os", coreutils_target);
+    coreutils_module.addImport("target_os", target_options.createModule());
+
     return coreutils_module;
 }
 
@@ -126,6 +126,7 @@ fn createTestAndCheckSteps(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     trace: bool,
+    coreutils_target: CoreutilsTarget,
     options_module: *std.Build.Module,
     is_native_target: bool,
     coverage: bool,
@@ -138,6 +139,7 @@ fn createTestAndCheckSteps(
         target,
         optimize,
         trace,
+        coreutils_target,
         options_module,
     );
 
@@ -197,6 +199,7 @@ fn createTestAndCheckSteps(
                 target,
                 optimize,
                 trace,
+                coreutils_target,
                 options_module,
             ),
         });
@@ -207,6 +210,7 @@ fn createTestAndCheckSteps(
                 target,
                 optimize,
                 trace,
+                coreutils_target,
                 options_module,
             ),
         });
@@ -215,6 +219,40 @@ fn createTestAndCheckSteps(
         check_step.dependOn(&coreutils_test_check.step);
     }
 }
+
+// Having our own enum rather than using std.Target.Os.Tag simplifies the system abstraction.
+const CoreutilsTarget = enum {
+    linux,
+    macos,
+    windows,
+
+    fn osTag(self: CoreutilsTarget) std.Target.Os.Tag {
+        return switch (self) {
+            .linux => .linux,
+            .macos => .macos,
+            .windows => .windows,
+        };
+    }
+
+    pub fn fromOsTag(tag: std.Target.Os.Tag) ?CoreutilsTarget {
+        return switch (tag) {
+            .linux => .linux,
+            .macos => .macos,
+            .windows => .windows,
+            else => null,
+        };
+    }
+
+    const os_tags = blk: {
+        const tags = std.meta.tags(CoreutilsTarget);
+
+        var zig_os_tags: [tags.len]std.Target.Os.Tag = undefined;
+        for (tags, 0..) |tag, i| {
+            zig_os_tags[i] = tag.osTag();
+        }
+        break :blk zig_os_tags;
+    };
+};
 
 /// Gets the version string.
 fn getVersionString(b: *std.Build, base_semantic_version: std.SemanticVersion, root_path: []const u8) ![]const u8 {

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
+pub const target_os = @import("target_os").target_os;
+
 pub const base_version_string = "zig-coreutils " ++ options.version ++ "\nMIT License Copyright (c) 2025 Lee Cannon\n";
 pub const version_string = "{NAME} - " ++ base_version_string;
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
