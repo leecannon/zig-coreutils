@@ -57,7 +57,7 @@ const impl = struct {
         defer z.end();
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("options={}", .{options});
+        log.debug("{}", .{options});
 
         return performTouch(allocator, io, args, options, cwd);
     }
@@ -205,22 +205,26 @@ const impl = struct {
             _ = options;
             _ = fmt;
 
-            try writer.writeAll("TouchOptions{ .update = .");
+            try writer.writeAll("TouchOptions {");
+
+            try writer.writeAll(comptime "\n" ++ shared.option_log_indentation ++ ".update = .");
             try writer.writeAll(@tagName(value.update));
 
-            try writer.writeAll(", .create = ");
+            try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".create = ");
             const create = if (value.create) "true" else "false";
             try writer.writeAll(create);
 
-            try writer.writeAll(", .dereference = ");
-            const dereference = if (value.dereference) "true" else "false";
-            try writer.writeAll(dereference);
+            try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".dereference = ");
+            try writer.writeAll(if (value.dereference) "true" else "false");
 
-            try writer.writeAll(", .time_to_use = ");
+            try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".time_to_use = ");
+
             switch (value.time_to_use) {
-                .current_time => try writer.writeAll(".current_time }"),
-                inline else => |val| try writer.print(".{{ .{s} = \"{s}\" }} }}", .{ @tagName(value.time_to_use), val }),
+                .current_time => try writer.writeAll(".current_time"),
+                inline else => |val| try writer.print(".{{ .{s} = \"{s}\" }}", .{ @tagName(value.time_to_use), val }),
             }
+
+            try writer.writeAll(",\n}");
         }
     };
 

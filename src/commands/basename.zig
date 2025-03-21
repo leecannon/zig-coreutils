@@ -51,58 +51,13 @@ const impl = struct {
         _ = cwd;
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("options={}", .{options});
+        log.debug("{}", .{options});
 
         return switch (options.mode) {
             .single => singleArgument(allocator, io, args, exe_path, options),
             .multiple => multipleArguments(io, args, options),
         };
     }
-
-    const BasenameOptions = struct {
-        line_end: LineEnd = .newline,
-        mode: Mode = .single,
-        first_arg: []const u8 = undefined,
-
-        const LineEnd = enum(u8) {
-            newline = '\n',
-            zero = 0,
-        };
-
-        const Mode = union(enum) {
-            single,
-            /// Value is optional suffix
-            multiple: ?[]const u8,
-        };
-
-        pub fn format(
-            options: BasenameOptions,
-            comptime _: []const u8,
-            _: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
-            try writer.writeAll("BasenameOptions{ .line_end = .");
-            try writer.writeAll(@tagName(options.line_end));
-
-            try writer.writeAll(", .mode = ");
-            switch (options.mode) {
-                .single => try writer.writeAll(".single"),
-                .multiple => |opt_suffix| {
-                    if (opt_suffix) |suffix| {
-                        try writer.writeAll("{ .multiple = .{ .suffix = \"");
-                        try writer.writeAll(suffix);
-                        try writer.writeAll("\" } }");
-                    } else {
-                        try writer.writeAll(".multiple");
-                    }
-                },
-            }
-
-            try writer.writeAll(", .first_arg = \"");
-            try writer.writeAll(options.first_arg);
-            try writer.writeAll("\" }");
-        }
-    };
 
     fn singleArgument(
         allocator: std.mem.Allocator,
@@ -177,6 +132,53 @@ const impl = struct {
 
         return basename[0..end_index];
     }
+
+    const BasenameOptions = struct {
+        line_end: LineEnd = .newline,
+        mode: Mode = .single,
+        first_arg: []const u8 = undefined,
+
+        const LineEnd = enum(u8) {
+            newline = '\n',
+            zero = 0,
+        };
+
+        const Mode = union(enum) {
+            single,
+            /// Value is optional suffix
+            multiple: ?[]const u8,
+        };
+
+        pub fn format(
+            options: BasenameOptions,
+            comptime _: []const u8,
+            _: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void {
+            try writer.writeAll("BasenameOptions {");
+
+            try writer.writeAll(comptime "\n" ++ shared.option_log_indentation ++ ".line_end = .");
+            try writer.writeAll(@tagName(options.line_end));
+
+            try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".mode = ");
+            switch (options.mode) {
+                .single => try writer.writeAll(".single"),
+                .multiple => |opt_suffix| {
+                    if (opt_suffix) |suffix| {
+                        try writer.writeAll("{ .multiple = .{ .suffix = \"");
+                        try writer.writeAll(suffix);
+                        try writer.writeAll("\" } }");
+                    } else {
+                        try writer.writeAll(".multiple");
+                    }
+                },
+            }
+
+            try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".first_arg = \"");
+            try writer.writeAll(options.first_arg);
+            try writer.writeAll("\",\n}");
+        }
+    };
 
     fn parseArguments(
         allocator: std.mem.Allocator,

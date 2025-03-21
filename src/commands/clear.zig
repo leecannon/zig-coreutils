@@ -44,7 +44,7 @@ const impl = struct {
         _ = cwd;
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("options={}", .{options});
+        log.debug("{}", .{options});
 
         try io.stdoutWriteAll(
             if (options.clear_scrollback)
@@ -63,9 +63,10 @@ const impl = struct {
             _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void {
-            try writer.writeAll("ClearOptions{ .clear_scrollback = ");
+            try writer.writeAll("ClearOptions {");
+            try writer.writeAll(comptime "\n" ++ shared.option_log_indentation ++ ".clear_scrollback = .");
             try writer.writeAll(if (options.clear_scrollback) "true" else "false");
-            try writer.writeAll(" }");
+            try writer.writeAll(",\n}");
         }
     };
 

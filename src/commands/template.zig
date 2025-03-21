@@ -49,7 +49,7 @@ const impl = struct {
         _ = cwd;
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("options={}", .{options});
+        log.debug("{}", .{options});
     }
 
     const TemplateOptions = struct { // CHANGE THIS - IF NO OPTIONS ARE NEEDED DELETE THIS
@@ -60,7 +60,7 @@ const impl = struct {
             writer: anytype,
         ) !void {
             _ = options;
-            try writer.writeAll("TemplateOptions{ }");
+            try writer.writeAll("TemplateOptions {}");
         }
     };
 

@@ -8,6 +8,8 @@ pub const version_string = "{NAME} - " ++ base_version_string;
 pub const is_debug_or_test = builtin.is_test or builtin.mode == .Debug;
 pub const free_on_close = is_debug_or_test or options.trace;
 
+pub const option_log_indentation = "  ";
+
 pub fn mapFile(
     command: Command,
     allocator: std.mem.Allocator,

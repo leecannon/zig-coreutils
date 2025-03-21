@@ -46,7 +46,7 @@ const impl = struct {
         _ = cwd;
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("options={}", .{options});
+        log.debug("{}", .{options});
 
         return performDirname(io, args, options);
     }
@@ -66,11 +66,14 @@ const impl = struct {
             _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void {
-            try writer.writeAll("DirnameOptions{ .line_end = .");
+            try writer.writeAll("DirnameOptions {");
+
+            try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".line_end = .");
             try writer.writeAll(@tagName(options.line_end));
-            try writer.writeAll(", .first_arg = \"");
+
+            try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".first_arg = \"");
             try writer.writeAll(options.first_arg);
-            try writer.writeAll("\" }");
+            try writer.writeAll("\",\n}");
         }
     };
 
