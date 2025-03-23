@@ -62,7 +62,6 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
         arg_iter,
         io,
         basename,
-        std.fs.cwd(),
         exe_path,
     ) catch |err| {
         switch (err) {
@@ -87,13 +86,14 @@ fn tryExecute(
     os_arg_iter: std.process.ArgIterator,
     io: IO,
     basename: []const u8,
-    cwd: std.fs.Dir,
     exe_path: []const u8,
 ) Command.ExposedError!void {
     const z: tracy.Zone = .begin(.{ .src = @src(), .name = "tryExecute" });
     defer z.end();
 
     var arg_iter: Arg.Iterator = .{ .args = os_arg_iter };
+
+    const system: System = .{};
 
     // attempt to match the basename to a command
     if (Command.enabled_command_lookup.get(basename)) |command| {
@@ -103,7 +103,7 @@ fn tryExecute(
             allocator,
             io,
             &arg_iter,
-            cwd,
+            system,
             exe_path,
         ) catch |full_err| command.narrowError(io, basename, full_err);
     }
@@ -170,7 +170,7 @@ fn tryExecute(
         allocator,
         io,
         &arg_iter,
-        cwd,
+        system,
         exe_path_with_command,
     ) catch |full_err| command.narrowError(io, exe_path_with_command, full_err);
 }
@@ -237,6 +237,7 @@ const Arg = @import("Arg.zig");
 const Command = @import("Command.zig");
 const IO = @import("IO.zig");
 const shared = @import("shared.zig");
+const System = @import("system/System.zig");
 
 const log = std.log.scoped(.main);
 

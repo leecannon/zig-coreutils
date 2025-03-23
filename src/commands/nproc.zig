@@ -29,7 +29,7 @@ const impl = struct {
         allocator: std.mem.Allocator,
         io: IO,
         args: *Arg.Iterator,
-        cwd: std.fs.Dir,
+        system: System,
         exe_path: []const u8,
     ) Command.Error!void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
@@ -40,15 +40,29 @@ const impl = struct {
         _ = try args.nextWithHelpOrVersion(true);
 
         const path = "/sys/devices/system/cpu/online";
+
         var buffer: [8]u8 = undefined;
-        const file_contents = try shared.readFileIntoBuffer(
-            command,
-            allocator,
-            io,
-            cwd,
-            path,
-            &buffer,
-        );
+
+        const file_contents = blk: {
+            const file = system.cwd().openFile(path, .{}) catch |err|
+                return command.printErrorAlloc(
+                    allocator,
+                    io,
+                    "unable to open '{s}': {s}",
+                    .{ path, @errorName(err) },
+                );
+            defer if (shared.free_on_close) file.close();
+
+            const read = file.readAll(&buffer) catch |err|
+                return command.printErrorAlloc(
+                    allocator,
+                    io,
+                    "unable to read file '{s}': {s}",
+                    .{ path, @errorName(err) },
+                );
+
+            break :blk buffer[0..read];
+        };
 
         const last_cpu_index = getLastCpuIndex(
             std.mem.trim(u8, file_contents, &std.ascii.whitespace),
@@ -95,14 +109,35 @@ const impl = struct {
         try command.testVersion();
     }
 
-    // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
-    // https://github.com/leecannon/zig-coreutils/issues/7
+    test "nproc" {
+        const file_system: *System.TestBackend.Description.FileSystemDescription = try .create(std.testing.allocator);
+        defer file_system.destroy();
+
+        const sys_dir = try file_system.root.addDirectory("sys");
+        const devices_dir = try sys_dir.addDirectory("devices");
+        const system_dir = try devices_dir.addDirectory("system");
+        const cpu_dir = try system_dir.addDirectory("cpu");
+        _ = try cpu_dir.addFile("online", "0-15");
+
+        var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+        defer stdout.deinit();
+
+        try command.testExecute(&.{}, .{
+            .stdout = stdout.writer().any(),
+            .system_description = .{
+                .file_system = file_system,
+            },
+        });
+
+        try std.testing.expectEqualStrings("16\n", stdout.items);
+    }
 };
 
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+const System = @import("../system/System.zig");
 
 const std = @import("std");
 const tracy = @import("tracy");
