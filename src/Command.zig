@@ -186,38 +186,32 @@ pub fn printInvalidUsageAlloc(
     return command.printInvalidUsage(io, exe_path, error_message);
 }
 
+pub const TestExecuteSettings = struct {
+    stdin: ?std.io.AnyReader = null,
+    stdout: ?std.io.AnyWriter = null,
+    stderr: ?std.io.AnyWriter = null,
+    cwd: ?std.fs.Dir = null,
+};
+
 pub fn testExecute(
     command: Command,
     arguments: []const []const u8,
-    settings: anytype,
+    settings: TestExecuteSettings,
 ) ExposedError!void {
     std.debug.assert(builtin.is_test);
 
-    const SettingsType = @TypeOf(settings);
-    const stdin = if (@hasField(SettingsType, "stdin"))
-        settings.stdin
-    else
-        VoidReader.reader();
-    const stdout = if (@hasField(SettingsType, "stdout"))
-        settings.stdout
-    else
-        VoidWriter.writer();
-    const stderr = if (@hasField(SettingsType, "stderr"))
-        settings.stderr
-    else
-        VoidWriter.writer();
+    const cwd_provided = settings.cwd != null;
 
-    const cwd_provided = @hasField(SettingsType, "cwd");
-    var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
+    var tmp_dir: std.testing.TmpDir = if (!cwd_provided) std.testing.tmpDir(.{}) else undefined;
     defer if (!cwd_provided) tmp_dir.cleanup();
-    const cwd = if (cwd_provided) settings.cwd else tmp_dir.dir;
+    const cwd = if (settings.cwd) |c| c else tmp_dir.dir;
 
     var arg_iter: Arg.Iterator = .{ .slice = .{ .slice = arguments } };
 
     const io: IO = .{
-        ._stderr = stderr.any(),
-        ._stdin = stdin.any(),
-        ._stdout = stdout.any(),
+        ._stderr = if (settings.stderr) |s| s else VoidWriter.writer().any(),
+        ._stdin = if (settings.stdin) |s| s else VoidReader.reader().any(),
+        ._stdout = if (settings.stdout) |s| s else VoidWriter.writer().any(),
     };
 
     return command.execute(
@@ -232,42 +226,24 @@ pub fn testExecute(
 pub fn testError(
     command: Command,
     arguments: []const []const u8,
-    settings: anytype,
+    settings: TestExecuteSettings,
     expected_error: []const u8,
 ) !void {
     std.debug.assert(builtin.is_test);
 
-    const SettingsType = @TypeOf(settings);
-
-    if (@hasField(SettingsType, "stderr")) {
-        @compileError("`testError` does not support `stderr` on the settings type");
+    if (settings.stderr != null) {
+        @panic("`stderr` cannot be provided with `testError`");
     }
-
-    const stdin = if (@hasField(SettingsType, "stdin"))
-        settings.stdin
-    else
-        VoidReader.reader();
-    const stdout = if (@hasField(SettingsType, "stdout"))
-        settings.stdout
-    else
-        VoidWriter.writer();
-
-    const cwd_provided = @hasField(SettingsType, "cwd");
-    var tmp_dir = if (!cwd_provided) std.testing.tmpDir(.{}) else {};
-    defer if (!cwd_provided) tmp_dir.cleanup();
-    const cwd = if (cwd_provided) settings.cwd else tmp_dir.dir;
 
     var stderr = std.ArrayList(u8).init(std.testing.allocator);
     defer stderr.deinit();
 
+    var settings_copy = settings;
+    settings_copy.stderr = stderr.writer().any();
+
     try std.testing.expectError(error.AlreadyHandled, command.testExecute(
         arguments,
-        .{
-            .stderr = stderr.writer(),
-            .stdin = stdin,
-            .stdout = stdout,
-            .cwd = cwd,
-        },
+        settings_copy,
     ));
 
     std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_error) != null) catch |err| {
@@ -307,7 +283,7 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
 
     try command.testExecute(
         &.{"--help"},
-        .{ .stdout = out.writer() },
+        .{ .stdout = out.writer().any() },
     );
 
     try std.testing.expectEqualStrings(full_expected_help, out.items);
@@ -334,7 +310,7 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
         try testExecute(
             command,
             &.{"-h"},
-            .{ .stdout = out.writer() },
+            .{ .stdout = out.writer().any() },
         );
 
         try std.testing.expectEqualStrings(short_expected_help, out.items);
@@ -350,7 +326,7 @@ pub fn testVersion(command: Command) !void {
     try command.testExecute(
         &.{"--version"},
         .{
-            .stdout = out.writer(),
+            .stdout = out.writer().any(),
         },
     );
 
@@ -412,7 +388,7 @@ pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
 
             context.inner_command.testExecute(
                 arguments,
-                .{ .stdout = stdout.writer(), .stderr = stderr.writer() },
+                .{ .stdout = stdout.writer().any(), .stderr = stderr.writer().any() },
             ) catch |err| {
                 switch (err) {
                     error.OutOfMemory => {

@@ -57,7 +57,7 @@ const impl = struct {
             &.{
                 "these", "arguments", "are", "ignored",
             },
-            .{ .stdout = stdout.writer() },
+            .{ .stdout = stdout.writer().any() },
         );
 
         try std.testing.expectEqualStrings("", stdout.items);

@@ -207,7 +207,7 @@ const impl = struct {
             &.{
                 "hello/world",
             },
-            .{ .stdout = stdout.writer() },
+            .{ .stdout = stdout.writer().any() },
         );
 
         try std.testing.expectEqualStrings("hello\n", stdout.items);
@@ -223,7 +223,7 @@ const impl = struct {
                 "this/is/a/test",
                 "a/b/c/d",
             },
-            .{ .stdout = stdout.writer() },
+            .{ .stdout = stdout.writer().any() },
         );
 
         try std.testing.expectEqualStrings(

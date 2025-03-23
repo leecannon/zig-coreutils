@@ -342,7 +342,7 @@ const impl = struct {
 
         try command.testExecute(
             &.{"hello/world"},
-            .{ .stdout = stdout.writer() },
+            .{ .stdout = stdout.writer().any() },
         );
 
         try std.testing.expectEqualStrings("world\n", stdout.items);
@@ -359,7 +359,7 @@ const impl = struct {
                 "this/is/a/test",
                 "a/b/c/d",
             },
-            .{ .stdout = stdout.writer() },
+            .{ .stdout = stdout.writer().any() },
         );
 
         try std.testing.expectEqualStrings(

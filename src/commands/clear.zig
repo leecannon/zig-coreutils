@@ -159,7 +159,7 @@ const impl = struct {
 
         try command.testExecute(
             &.{},
-            .{ .stdout = stdout.writer() },
+            .{ .stdout = stdout.writer().any() },
         );
 
         try std.testing.expectEqualStrings("\x1b[H\x1b[2J\x1b[3J", stdout.items);
@@ -171,7 +171,7 @@ const impl = struct {
 
         try command.testExecute(
             &.{"-x"},
-            .{ .stdout = stdout.writer() },
+            .{ .stdout = stdout.writer().any() },
         );
 
         try std.testing.expectEqualStrings("\x1b[H\x1b[2J", stdout.items);
