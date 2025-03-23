@@ -41,7 +41,7 @@ const impl = struct {
 
         _ = try args.nextWithHelpOrVersion(true);
 
-        // FIXME: This is weird, is this acceptable to allow the other shared to not have to worry about u8 return value?
+        // this results in a non-zero exit code being returned from main
         return error.AlreadyHandled;
     }
 

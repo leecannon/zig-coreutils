@@ -66,7 +66,7 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
     ) catch |err| {
         switch (err) {
             error.OutOfMemory => io._stderr.writeAll("out of memory\n") catch {},
-            error.AlreadyHandled => return 1, // TODO: should this error be returned as well?
+            error.AlreadyHandled => return 1,
         }
 
         if (shared.is_debug_or_test) return err;
