@@ -23,7 +23,7 @@ execute: *const fn (
     allocator: std.mem.Allocator,
     io: IO,
     args: *Arg.Iterator,
-    cwd: std.fs.Dir,
+    system: System,
     exe_path: []const u8,
 ) Error!void,
 
@@ -190,7 +190,7 @@ pub const TestExecuteSettings = struct {
     stdin: ?std.io.AnyReader = null,
     stdout: ?std.io.AnyWriter = null,
     stderr: ?std.io.AnyWriter = null,
-    cwd: ?std.fs.Dir = null,
+    system_description: System.TestBackend.Description = .{},
 };
 
 pub fn testExecute(
@@ -200,11 +200,15 @@ pub fn testExecute(
 ) ExposedError!void {
     std.debug.assert(builtin.is_test);
 
-    const cwd_provided = settings.cwd != null;
-
-    var tmp_dir: std.testing.TmpDir = if (!cwd_provided) std.testing.tmpDir(.{}) else undefined;
-    defer if (!cwd_provided) tmp_dir.cleanup();
-    const cwd = if (settings.cwd) |c| c else tmp_dir.dir;
+    const system: System = .{
+        ._backend = System.TestBackend.create(
+            std.testing.allocator,
+            settings.system_description,
+        ) catch |err| {
+            std.debug.panic("unable to create system backend: {s}", .{@errorName(err)});
+        },
+    };
+    defer system._backend.destroy();
 
     var arg_iter: Arg.Iterator = .{ .slice = .{ .slice = arguments } };
 
@@ -218,7 +222,7 @@ pub fn testExecute(
         std.testing.allocator,
         io,
         &arg_iter,
-        cwd,
+        system,
         command.name,
     ) catch |full_err| command.narrowError(io, command.name, full_err);
 }
@@ -356,6 +360,8 @@ pub const TestFuzzOptions = struct {
 
     /// If true the command is expected to output something to stderr on failure.
     expect_stderr_output_on_failure: bool = true,
+
+    system_description: System.TestBackend.Description = .{},
 };
 
 pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
@@ -388,7 +394,11 @@ pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
 
             context.inner_command.testExecute(
                 arguments,
-                .{ .stdout = stdout.writer().any(), .stderr = stderr.writer().any() },
+                .{
+                    .stdout = stdout.writer().any(),
+                    .stderr = stderr.writer().any(),
+                    .system_description = context.options.system_description,
+                },
             ) catch |err| {
                 switch (err) {
                     error.OutOfMemory => {
@@ -491,6 +501,7 @@ pub const enabled_command_lookup: std.StaticStringMap(Command) = .initComptime(b
 const Arg = @import("Arg.zig");
 const IO = @import("IO.zig");
 const shared = @import("shared.zig");
+const System = @import("system/System.zig");
 
 const builtin = @import("builtin");
 const std = @import("std");

@@ -36,7 +36,7 @@ const impl = struct {
         allocator: std.mem.Allocator,
         io: IO,
         args: *Arg.Iterator,
-        cwd: std.fs.Dir,
+        system: System,
         exe_path: []const u8,
     ) Command.Error!void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
@@ -46,25 +46,50 @@ const impl = struct {
 
         const opt_arg = try args.nextWithHelpOrVersion(true);
 
-        const passwd_file = try shared.mapFile(command, allocator, io, cwd, "/etc/passwd");
-        defer passwd_file.close();
+        const mapped_passwd_file = blk: {
+            const passwd_file = system.cwd().openFile("/etc/passwd", .{}) catch |err|
+                return command.printErrorAlloc(
+                    allocator,
+                    io,
+                    "unable to open '/etc/passwd': {s}",
+                    .{@errorName(err)},
+                );
+            errdefer if (shared.free_on_close) passwd_file.close();
+
+            const stat = passwd_file.stat() catch |err|
+                return command.printErrorAlloc(
+                    allocator,
+                    io,
+                    "unable to stat '/etc/passwd': {s}",
+                    .{@errorName(err)},
+                );
+
+            break :blk passwd_file.mapReadonly(stat.size) catch |err|
+                return command.printErrorAlloc(
+                    allocator,
+                    io,
+                    "unable to map '/etc/passwd': {s}",
+                    .{@errorName(err)},
+                );
+        };
+        defer if (shared.free_on_close) mapped_passwd_file.close();
 
         return if (opt_arg) |arg|
-            namedUser(allocator, io, arg.raw, passwd_file.file_contents, cwd)
+            namedUser(allocator, io, arg.raw, mapped_passwd_file.file_contents, system)
         else
-            currentUser(allocator, io, passwd_file.file_contents, cwd);
+            currentUser(allocator, io, mapped_passwd_file.file_contents, system);
     }
 
     fn currentUser(
         allocator: std.mem.Allocator,
         io: IO,
         passwd_file_contents: []const u8,
-        cwd: std.fs.Dir,
+        system: System,
     ) Command.Error!void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = "current user" });
         defer z.end();
 
-        const euid = std.os.linux.geteuid();
+        const euid = system.getEffectiveUserId();
 
         log.debug("currentUser called, euid: {}", .{euid});
 
@@ -98,7 +123,7 @@ const impl = struct {
                     "format of '/etc/passwd' is invalid",
                 );
 
-            return printGroups(allocator, entry.user_name, primary_group_id, io, cwd);
+            return printGroups(allocator, entry.user_name, primary_group_id, io, system);
         }
 
         return command.printError(
@@ -112,7 +137,7 @@ const impl = struct {
         io: IO,
         user: []const u8,
         passwd_file_contents: []const u8,
-        cwd: std.fs.Dir,
+        system: System,
     ) Command.Error!void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = "namedUser" });
         defer z.end();
@@ -140,7 +165,7 @@ const impl = struct {
                     "format of '/etc/passwd' is invalid",
                 );
 
-            return printGroups(allocator, entry.user_name, primary_group_id, io, cwd);
+            return printGroups(allocator, entry.user_name, primary_group_id, io, system);
         }
 
         return command.printErrorAlloc(allocator, io, "unknown user '{s}'", .{user});
@@ -151,7 +176,7 @@ const impl = struct {
         user: []const u8,
         primary_group_id: std.posix.uid_t,
         io: IO,
-        cwd: std.fs.Dir,
+        system: System,
     ) !void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print groups" });
         defer z.end();
@@ -162,10 +187,35 @@ const impl = struct {
             .{ user, primary_group_id },
         );
 
-        const group_file = try shared.mapFile(command, allocator, io, cwd, "/etc/group");
-        defer group_file.close();
+        const mapped_group_file = blk: {
+            const group_file = system.cwd().openFile("/etc/group", .{}) catch |err|
+                return command.printErrorAlloc(
+                    allocator,
+                    io,
+                    "unable to open '/etc/group': {s}",
+                    .{@errorName(err)},
+                );
+            errdefer if (shared.free_on_close) group_file.close();
 
-        var group_file_iter = shared.groupFileIterator(group_file.file_contents);
+            const stat = group_file.stat() catch |err|
+                return command.printErrorAlloc(
+                    allocator,
+                    io,
+                    "unable to stat '/etc/group': {s}",
+                    .{@errorName(err)},
+                );
+
+            break :blk group_file.mapReadonly(stat.size) catch |err|
+                return command.printErrorAlloc(
+                    allocator,
+                    io,
+                    "unable to map '/etc/group': {s}",
+                    .{@errorName(err)},
+                );
+        };
+        defer if (shared.free_on_close) mapped_group_file.close();
+
+        var group_file_iter = shared.groupFileIterator(mapped_group_file.file_contents);
 
         var first = true;
 
@@ -211,14 +261,55 @@ const impl = struct {
         try command.testVersion();
     }
 
-    // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
-    // https://github.com/leecannon/zig-coreutils/issues/7
+    test "groups" {
+        const passwd_contents =
+            \\root:x:0:0::/root:/usr/bin/bash
+            \\daemon:x:1:1::/:/usr/sbin/nologin
+            \\bin:x:2:2::/:/usr/sbin/nologin
+            \\sys:x:3:3::/:/usr/sbin/nologin
+            \\user:x:1001:1001:A User:/home/user:/usr/bin/zsh
+            \\
+        ;
+
+        const group_contents =
+            \\root:x:0:
+            \\daemon:x:1:
+            \\bin:x:2:
+            \\sys:x:3:user
+            \\user:x:1001:
+            \\wheel:x:10:user
+            \\
+        ;
+
+        const file_system: *System.TestBackend.Description.FileSystemDescription = try .create(std.testing.allocator);
+        defer file_system.destroy();
+
+        const etc_dir = try file_system.root.addDirectory("etc");
+        _ = try etc_dir.addFile("passwd", passwd_contents);
+        _ = try etc_dir.addFile("group", group_contents);
+
+        var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+        defer stdout.deinit();
+
+        try command.testExecute(&.{}, .{
+            .stdout = stdout.writer().any(),
+            .system_description = .{
+                .file_system = file_system,
+                .user_group = .{
+                    .effective_user_id = 1001,
+                },
+            },
+        });
+
+        try std.testing.expectEqualStrings("sys user wheel\n", stdout.items);
+    }
 };
 
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+const System = @import("../system/System.zig");
 
 const log = std.log.scoped(.groups);
 

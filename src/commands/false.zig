@@ -28,7 +28,7 @@ const impl = struct {
         allocator: std.mem.Allocator,
         io: IO,
         args: *Arg.Iterator,
-        cwd: std.fs.Dir,
+        system: System,
         exe_path: []const u8,
     ) Command.Error!void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
@@ -36,7 +36,7 @@ const impl = struct {
 
         _ = io;
         _ = exe_path;
-        _ = cwd;
+        _ = system;
         _ = allocator;
 
         _ = try args.nextWithHelpOrVersion(true);
@@ -84,6 +84,7 @@ const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+const System = @import("../system/System.zig");
 
 const std = @import("std");
 const tracy = @import("tracy");

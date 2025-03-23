@@ -40,13 +40,13 @@ const impl = struct {
         allocator: std.mem.Allocator,
         io: IO,
         args: *Arg.Iterator,
-        cwd: std.fs.Dir,
+        system: System,
         exe_path: []const u8,
     ) Command.Error!void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
         defer z.end();
 
-        _ = cwd;
+        _ = system;
 
         const options = try parseArguments(allocator, io, args, exe_path);
         log.debug("{}", .{options});
@@ -397,6 +397,7 @@ const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+const System = @import("../system/System.zig");
 
 const log = std.log.scoped(.uname);
 

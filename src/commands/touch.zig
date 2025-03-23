@@ -14,14 +14,10 @@ pub const command: Command = .{
     \\
     \\A FILE argument that does not exist is created empty, unless -c or -h is supplied.
     \\
-    \\A FILE argument string of '-' is handled specially and causes 'touch' to change 
-    \\the times of the file associated with standard output.
-    \\
     \\Mandatory arguments to long options are mandatory for short options too.
     \\  -a                    change only the access time
     \\  -c, --no-create       do not create any files
     \\  -f                    (ignored)
-    \\  -h, --no-dereference  affect symbolic link instead of any referenced file
     \\  -m                    change only the modification time
     \\  -r, --reference=FILE  use this file's times instead of the current time
     \\  --time=WORD           change the specified time:
@@ -31,6 +27,8 @@ pub const command: Command = .{
     \\  --version             output version information and exit
     \\
     ,
+
+    // TODO: support `-h, --no-dereference  affect symbolic link instead of any referenced file`
 
     .extended_help =
     \\Examples:
@@ -50,7 +48,7 @@ const impl = struct {
         allocator: std.mem.Allocator,
         io: IO,
         args: *Arg.Iterator,
-        cwd: std.fs.Dir,
+        system: System,
         exe_path: []const u8,
     ) Command.Error!void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
@@ -59,7 +57,7 @@ const impl = struct {
         const options = try parseArguments(allocator, io, args, exe_path);
         log.debug("{}", .{options});
 
-        return performTouch(allocator, io, args, options, cwd);
+        return performTouch(allocator, io, args, options, system);
     }
 
     fn performTouch(
@@ -67,10 +65,12 @@ const impl = struct {
         io: IO,
         args: *Arg.Iterator,
         options: TouchOptions,
-        cwd: std.fs.Dir,
+        system: System,
     ) !void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform touch" });
         defer z.end();
+
+        const cwd = system.cwd();
 
         const times = try getTimes(allocator, io, options.time_to_use, cwd);
         log.debug("times to be used for touch: {}", .{times});
@@ -82,11 +82,9 @@ const impl = struct {
             defer file_zone.end();
             file_zone.text(file_path);
 
-            const file: std.fs.File = blk: {
-                if (std.mem.eql(u8, file_path, "-")) break :blk std.io.getStdOut();
-
+            const file: System.File = blk: {
                 const file_or_error = switch (options.create) {
-                    true => cwd.createFile(file_path, .{}),
+                    true => cwd.createFile(file_path, .{ .truncate = false }),
                     false => cwd.openFile(file_path, .{}),
                 };
 
@@ -136,7 +134,7 @@ const impl = struct {
         allocator: std.mem.Allocator,
         io: IO,
         time_to_use: TouchOptions.TimeToUse,
-        cwd: std.fs.Dir,
+        cwd: System.Dir,
     ) !FileTimes {
         switch (time_to_use) {
             .current_time => {
@@ -180,7 +178,6 @@ const impl = struct {
     const TouchOptions = struct {
         update: Update = .both,
         create: bool = true,
-        dereference: bool = true,
         time_to_use: TimeToUse = .current_time,
 
         first_file_path: []const u8 = undefined,
@@ -214,9 +211,6 @@ const impl = struct {
             const create = if (value.create) "true" else "false";
             try writer.writeAll(create);
 
-            try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".dereference = ");
-            try writer.writeAll(if (value.dereference) "true" else "false");
-
             try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".time_to_use = ");
 
             switch (value.time_to_use) {
@@ -237,6 +231,7 @@ const impl = struct {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
         defer z.end();
 
+        // `-h` not supported to allow for future no dereference shorthand
         var opt_arg: ?Arg = try args.nextWithHelpOrVersion(false);
 
         var touch_options: TouchOptions = .{};
@@ -268,9 +263,6 @@ const impl = struct {
                     if (std.mem.eql(u8, longhand, "no-create")) {
                         touch_options.create = false;
                         log.debug("got do not create file longhand", .{});
-                    } else if (std.mem.eql(u8, longhand, "no-dereference")) {
-                        touch_options.dereference = false;
-                        log.debug("got do not dereference longhand", .{});
                     } else if (std.mem.eql(u8, longhand, "reference-file")) {
                         state = .reference_file;
                         log.debug("got reference file longhand", .{});
@@ -300,10 +292,6 @@ const impl = struct {
                                 log.debug("got do not create file shorthand", .{});
                             },
                             'f' => {}, // ignored
-                            'h' => {
-                                touch_options.dereference = false;
-                                log.debug("got do not dereference shorthand", .{});
-                            },
                             'm' => {
                                 touch_options.update = .modification_only;
                                 log.debug("got modification time shorthand", .{});
@@ -455,14 +443,26 @@ const impl = struct {
         try command.testVersion();
     }
 
-    // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
-    // https://github.com/leecannon/zig-coreutils/issues/7
+    test "touch simple" {
+        const file_system: *System.TestBackend.Description.FileSystemDescription = try .create(std.testing.allocator);
+        defer file_system.destroy();
+
+        try command.testExecute(
+            &.{"hello"},
+            .{
+                .system_description = .{ .file_system = file_system },
+            },
+        );
+
+        // TODO: we need access to the `TestBackend.FileSystem` to check the file
+    }
 };
 
 const Arg = @import("../Arg.zig");
 const Command = @import("../Command.zig");
 const IO = @import("../IO.zig");
 const shared = @import("../shared.zig");
+const System = @import("../system/System.zig");
 
 const log = std.log.scoped(.touch);
 
