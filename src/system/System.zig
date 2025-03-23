@@ -47,7 +47,7 @@ pub inline fn getEffectiveUserId(system: System) UserId {
         .linux => std.os.linux.getuid(),
         .macos => {
             const c = struct {
-                pub extern "c" fn geteuid(void) std.c.uid_t;
+                pub extern "c" fn geteuid() std.c.uid_t;
             };
             return c.geteuid();
         },

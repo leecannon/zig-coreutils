@@ -2,7 +2,10 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
 /// Is this command enabled for the current target?
-pub const enabled: bool = shared.target_os == .linux; // TODO: support other OSes
+pub const enabled: bool = switch (shared.target_os) {
+    .linux, .macos => true,
+    .windows => false,
+};
 
 pub const command: Command = .{
     .name = "groups",
