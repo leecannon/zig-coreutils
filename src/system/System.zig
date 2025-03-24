@@ -64,6 +64,33 @@ pub const UserId = blk: {
     };
 };
 
+pub const Uname = if (is_test) struct {
+    sysname: [64:0]u8,
+    nodename: [64:0]u8,
+    release: [64:0]u8,
+    version: [64:0]u8,
+    machine: [64:0]u8,
+    domainname: [64:0]u8,
+} else switch (target_os) {
+    .linux, .macos => std.posix.utsname,
+    .windows => @compileError("uname not supported on windows"),
+};
+
+pub inline fn uname(system: System) Uname {
+    if (is_test) {
+        if (system._backend.uname) |uname_backend| {
+            return uname_backend.uname();
+        }
+
+        @panic("`uname` called with no uname backend configured");
+    }
+
+    return switch (target_os) {
+        .linux, .macos => std.posix.uname(),
+        .windows => @panic("uname not supported on windows"),
+    };
+}
+
 pub const Dir = struct {
     _data: Data,
 

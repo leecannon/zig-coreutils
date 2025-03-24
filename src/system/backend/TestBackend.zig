@@ -8,6 +8,7 @@ allocator: std.mem.Allocator,
 time: Time,
 file_system: ?FileSystem,
 user_group: ?UserGroup,
+uname: ?Uname,
 
 pub fn create(allocator: std.mem.Allocator, description: Description) !*TestBackend {
     const self = try allocator.create(TestBackend);
@@ -18,6 +19,7 @@ pub fn create(allocator: std.mem.Allocator, description: Description) !*TestBack
         .time = .{ .source = description.time },
         .file_system = null,
         .user_group = null,
+        .uname = null,
     };
 
     if (description.user_group) |ug_description| {
@@ -28,6 +30,11 @@ pub fn create(allocator: std.mem.Allocator, description: Description) !*TestBack
     if (description.file_system) |fs_description| {
         self.file_system = @as(FileSystem, undefined);
         try self.file_system.?.init(self, fs_description);
+    }
+
+    if (description.uname) |uname_description| {
+        self.uname = @as(Uname, undefined);
+        self.uname.?.init(uname_description);
     }
 
     return self;
@@ -43,6 +50,7 @@ pub const Description = @import("Description.zig");
 pub const FileSystem = @import("FileSystem.zig");
 const Time = @import("Time.zig");
 const UserGroup = @import("UserGroup.zig");
+const Uname = @import("Uname.zig");
 const System = @import("../System.zig");
 
 const log = std.log.scoped(.system_test_backend);

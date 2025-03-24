@@ -3,8 +3,7 @@
 
 /// Is this command enabled for the current target?
 pub const enabled: bool = switch (shared.target_os) {
-    .linux => true,
-    .macos => true,
+    .linux, .macos => true,
     .windows => false,
 };
 
@@ -46,17 +45,16 @@ const impl = struct {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
         defer z.end();
 
-        _ = system;
-
         const options = try parseArguments(allocator, io, args, exe_path);
         log.debug("{}", .{options});
 
-        return performUname(allocator, io, options);
+        return performUname(allocator, io, system, options);
     }
 
     fn performUname(
         allocator: std.mem.Allocator,
         io: IO,
+        system: System,
         options: UnameOptions,
     ) !void {
         const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform uname" });
@@ -64,36 +62,36 @@ const impl = struct {
 
         _ = allocator;
 
-        const utsname = std.posix.uname();
+        const uname = system.uname();
 
         var any_printed = false;
 
         if (options.kernel_name) {
-            try io.stdoutWriteAll(&utsname.sysname);
+            try io.stdoutWriteAll(std.mem.sliceTo(&uname.sysname, 0));
             any_printed = true;
         }
 
         if (options.node_name) {
             if (any_printed) try io.stdoutWriteByte(' ');
-            try io.stdoutWriteAll(&utsname.nodename);
+            try io.stdoutWriteAll(std.mem.sliceTo(&uname.nodename, 0));
             any_printed = true;
         }
 
         if (options.kernel_release) {
             if (any_printed) try io.stdoutWriteByte(' ');
-            try io.stdoutWriteAll(&utsname.release);
+            try io.stdoutWriteAll(std.mem.sliceTo(&uname.release, 0));
             any_printed = true;
         }
 
         if (options.kernel_version) {
             if (any_printed) try io.stdoutWriteByte(' ');
-            try io.stdoutWriteAll(&utsname.version);
+            try io.stdoutWriteAll(std.mem.sliceTo(&uname.version, 0));
             any_printed = true;
         }
 
         if (options.machine) {
             if (any_printed) try io.stdoutWriteByte(' ');
-            try io.stdoutWriteAll(&utsname.machine);
+            try io.stdoutWriteAll(std.mem.sliceTo(&uname.machine, 0));
             any_printed = true;
         }
 
@@ -117,13 +115,13 @@ const impl = struct {
 
         if (options.os) {
             if (any_printed) try io.stdoutWriteByte(' ');
-            try io.stdoutWriteAll(&utsname.sysname);
+            try io.stdoutWriteAll(std.mem.sliceTo(&uname.sysname, 0));
             any_printed = true;
         }
 
         if (target_has_domainname and options.domainname) {
             if (any_printed) try io.stdoutWriteByte(' ');
-            try io.stdoutWriteAll(&utsname.domainname);
+            try io.stdoutWriteAll(std.mem.sliceTo(&uname.domainname, 0));
             any_printed = true;
         }
 
@@ -389,8 +387,29 @@ const impl = struct {
         try command.testVersion();
     }
 
-    // TODO: How do we test this without introducing the amount of complexity that https://github.com/leecannon/zsw does?
-    // https://github.com/leecannon/zig-coreutils/issues/7
+    test "uname" {
+        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        defer stdout.deinit();
+
+        try command.testExecute(&.{"-a"}, .{
+            .stdout = stdout.writer().any(),
+            .system_description = .{
+                .uname = .{
+                    .sysname = "Linux",
+                    .nodename = "node",
+                    .release = "5.15.0-100-generic",
+                    .version = "Some version",
+                    .machine = "x86_64",
+                    .domainname = null,
+                },
+            },
+        });
+
+        try std.testing.expectEqualStrings(
+            "Linux node 5.15.0-100-generic Some version x86_64 Linux (none)\n",
+            stdout.items,
+        );
+    }
 };
 
 const Arg = @import("../Arg.zig");
