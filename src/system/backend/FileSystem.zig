@@ -198,7 +198,7 @@ fn cwdOrEntry(self: *FileSystem, ptr: *anyopaque) ?*Entry {
 fn resolveEntry(self: *FileSystem, path: Path, expected_parent: ?**Entry) !?*Entry {
     var entry: *Entry = path.search_root;
 
-    var path_iter = std.mem.tokenizeAny(u8, path.path, std.fs.path.sep_str);
+    var path_iter = std.mem.tokenizeScalar(u8, path.path, std.fs.path.sep);
     while (path_iter.next()) |path_section| {
         if (path_section.len == 0) continue;
 
