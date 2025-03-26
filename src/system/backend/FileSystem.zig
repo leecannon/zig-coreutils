@@ -80,24 +80,228 @@ fn initAddDirAndRecurse(
 }
 
 pub fn deinit(self: *FileSystem) void {
-    {
-        var iter = self.views.keyIterator();
-        while (iter.next()) |view| {
-            view.*.destroy();
-        }
-        self.views.deinit(self.backend.allocator);
+    var view_iter = self.views.keyIterator();
+    while (view_iter.next()) |view| view.*.destroy();
+    self.views.deinit(self.backend.allocator);
+
+    var entries_iter = self.entries.keyIterator();
+    while (entries_iter.next()) |entry| entry.*.destroy();
+    self.entries.deinit(self.backend.allocator);
+}
+
+pub const CWD: *anyopaque = @ptrFromInt(std.mem.alignBackward(
+    usize,
+    std.math.maxInt(usize),
+    @alignOf(View),
+));
+
+pub const OpenFileError = error{
+    BadPath,
+    FileNotFound,
+    /// The path resolves to a directory.
+    IsDirectory,
+    /// The systems resources were exhausted.
+    SystemResources,
+} || ResolveEntryError;
+
+/// Opens a file relative to the directory without creating it.
+pub fn openFile(
+    self: *FileSystem,
+    ptr: *anyopaque,
+    sub_path: []const u8,
+    options: System.File.OpenOptions,
+) OpenFileError!*anyopaque {
+    if (target_os == .windows) {
+        // TODO: implement windows
+        @panic("Windows support is unimplemented");
     }
 
-    {
-        var iter = self.entries.keyIterator();
-        while (iter.next()) |entry| {
-            entry.*.destroy();
+    if (options.mode != .read_only) {
+        // TODO: Implement *not* read_only
+        std.debug.panic("file mode '{s}' is unimplemented", .{@tagName(options.mode)});
+    }
+
+    const dir_entry = self.cwdOrEntry(ptr) orelse unreachable; // no such directory
+    std.debug.assert(dir_entry.subdata == .dir);
+
+    const path = try self.toPath(dir_entry, sub_path);
+
+    const entry = (try self.resolveEntry(path, null)) orelse {
+        @branchHint(.cold);
+        return error.FileNotFound;
+    };
+    if (entry.subdata != .file) {
+        @branchHint(.cold);
+        return error.IsDirectory;
+    }
+
+    const view = self.addView(entry) catch {
+        @branchHint(.cold);
+        return error.SystemResources;
+    };
+
+    return view;
+}
+
+/// Opens a file relative to the directory, creates it if it does not exist.
+pub fn createFile(
+    self: *FileSystem,
+    ptr: *anyopaque,
+    user_path: []const u8,
+    flags: System.File.CreateOptions,
+) OpenFileError!*anyopaque {
+    if (target_os == .windows) {
+        // TODO: implement windows
+        @panic("Windows support is unimplemented");
+    }
+
+    // TODO: implement support for flags.mode
+    // TODO: implement support for flags.read
+
+    const dir_entry = self.cwdOrEntry(ptr) orelse unreachable; // no such directory
+    std.debug.assert(dir_entry.subdata == .dir);
+
+    const path = try self.toPath(dir_entry, user_path);
+
+    const entry = blk: {
+        var expected_parent: *Entry = undefined;
+
+        const entry = (try self.resolveEntry(path, &expected_parent)) orelse {
+            // file doesn't exist
+
+            const basename = std.fs.path.basename(path.path);
+            const current_time = self.backend.time.nanoTimestamp();
+
+            const file = self.addFileEntry(
+                basename,
+                "",
+                current_time,
+            ) catch {
+                @branchHint(.cold);
+                return error.SystemResources;
+            };
+            errdefer {
+                _ = self.entries.remove(file);
+                file.destroy();
+            }
+
+            expected_parent.addEntry(
+                file,
+                current_time,
+            ) catch |err| switch (err) {
+                error.OutOfMemory => return error.SystemResources,
+                error.DuplicateEntry => unreachable, // the entry was not found so this is impossible
+            };
+
+            break :blk file;
+        };
+
+        // file already exists
+
+        if (entry.subdata != .file) {
+            @branchHint(.cold);
+            return error.IsDirectory;
         }
-        self.entries.deinit(self.backend.allocator);
+
+        if (flags.truncate) {
+            // TODO: check mode
+            // TODO: should this free the contents?
+            entry.subdata.file.contents.items.len = 0;
+        }
+
+        break :blk entry;
+    };
+
+    return self.addView(entry) catch {
+        @branchHint(.cold);
+        return error.SystemResources;
+    };
+}
+
+/// Reads up to `buffer.len` bytes from the file into `buffer`.
+///
+/// Returns the number of bytes read.
+///
+/// If the number read is smaller than `buffer.len`, it means the file reached the end.
+pub fn readAllFile(self: *FileSystem, ptr: *anyopaque, buffer: []u8) usize {
+    const view = self.toView(ptr) orelse unreachable; // no such file
+
+    const entry = view.entry;
+
+    switch (entry.subdata) {
+        .dir => unreachable,
+        .file => |file| {
+            const slice = file.contents.items;
+
+            const size = @min(buffer.len, slice.len - view.position);
+
+            @memcpy(buffer[0..size], slice[view.position..][0..size]);
+
+            view.position += size;
+
+            entry.atime = self.backend.time.nanoTimestamp();
+
+            return size;
+        },
     }
 }
 
-/// Create a file entry and add it to the `entries` hash map
+pub fn statFile(self: *FileSystem, ptr: *anyopaque) System.File.Stat {
+    const view = self.toView(ptr) orelse unreachable; // no such file
+
+    switch (view.entry.subdata) {
+        .dir => unreachable,
+        .file => |f| {
+            return .{
+                .size = f.contents.items.len,
+                .atime = view.entry.atime,
+                .mtime = view.entry.mtime,
+            };
+        },
+    }
+}
+
+/// Provide the file contents as a read-only "memory map".
+pub fn mapFileReadonly(self: *FileSystem, ptr: *anyopaque, size: usize) System.FileMap {
+    const view = self.toView(ptr) orelse unreachable; // no such file
+
+    switch (view.entry.subdata) {
+        .dir => unreachable,
+        .file => |f| {
+            view.entry.incrementReference();
+            return .{
+                ._data = .{
+                    .file_system = self,
+                    .ptr = view.entry,
+                },
+                .file_contents = f.contents.items[0..size],
+            };
+        },
+    }
+}
+
+pub fn closeFileMap(self: *FileSystem, ptr: *anyopaque) void {
+    const entry: *Entry = self.toEntry(ptr) orelse unreachable; // no such file
+    std.debug.assert(entry.subdata == .file);
+    _ = entry.decrementReference();
+}
+
+pub fn closeFile(self: *FileSystem, ptr: *anyopaque) void {
+    const view = self.toView(ptr) orelse unreachable; // no such file
+    std.debug.assert(view.entry.subdata == .file);
+    _ = view.entry.decrementReference();
+    _ = self.views.remove(view);
+    view.destroy();
+}
+
+/// Update the access and modification times of the file or directory.
+pub fn updateTimes(self: *FileSystem, ptr: *anyopaque, access_time: i128, modification_time: i128) !void {
+    const view = self.toView(ptr) orelse unreachable; // no such file or directory
+    view.entry.atime = access_time;
+    view.entry.mtime = modification_time;
+}
+
+/// Create a file entry and add it to the `entries` hash map.
 fn addFileEntry(self: *FileSystem, name: []const u8, contents: []const u8, current_time: i128) !*Entry {
     const entry = try Entry.createFile(self, name, contents, current_time);
     errdefer entry.destroy();
@@ -107,7 +311,7 @@ fn addFileEntry(self: *FileSystem, name: []const u8, contents: []const u8, curre
     return entry;
 }
 
-/// Create a dir entry and add it to the `entries` hash map
+/// Create a dir entry and add it to the `entries` hash map.
 fn addDirEntry(self: *FileSystem, name: []const u8, current_time: i128) !*Entry {
     const entry = try Entry.createDir(self, name, current_time);
     errdefer entry.destroy();
@@ -117,7 +321,7 @@ fn addDirEntry(self: *FileSystem, name: []const u8, current_time: i128) !*Entry 
     return entry;
 }
 
-/// Add a view to the given entry
+/// Add a view to the given entry.
 fn addView(self: *FileSystem, entry: *Entry) !*View {
     entry.incrementReference();
     errdefer _ = entry.decrementReference();
@@ -135,21 +339,14 @@ fn addView(self: *FileSystem, entry: *Entry) !*View {
     return view;
 }
 
-/// Remove a view from the given entry
-fn removeView(self: *FileSystem, view: *View) void {
-    _ = view.entry.decrementReference();
-    _ = self.views.remove(view);
-    view.destroy();
-}
-
-/// Set the current working directory
+/// Set the current working directory.
 fn setCwd(self: *FileSystem, entry: *Entry, dereference_old_cwd: bool) !void {
     entry.incrementReference();
     if (dereference_old_cwd) _ = self.cwd_entry.decrementReference();
     self.cwd_entry = entry;
 }
 
-/// Check if the given pointer is the current working directory
+/// Check if the given pointer is the current working directory.
 inline fn isCwd(ptr: *anyopaque) bool {
     return CWD == ptr;
 }
@@ -158,6 +355,7 @@ inline fn isCwd(ptr: *anyopaque) bool {
 inline fn toEntry(self: *FileSystem, ptr: *anyopaque) ?*Entry {
     const entry: *Entry = @ptrCast(@alignCast(ptr));
     if (self.entries.contains(entry)) {
+        @branchHint(.likely);
         return entry;
     }
     return null;
@@ -167,15 +365,23 @@ inline fn toEntry(self: *FileSystem, ptr: *anyopaque) ?*Entry {
 inline fn toView(self: *FileSystem, ptr: *anyopaque) ?*View {
     const view: *View = @ptrCast(@alignCast(ptr));
     if (self.views.contains(view)) {
+        @branchHint(.likely);
         return view;
     }
     return null;
 }
 
+/// Construct a `Path` from the given string and the possible parent.
+///
+/// The `search_root` will be the root directory if the path is absolute, otherwise it will be the given parent.
+///
 /// The possible parent must be a directory entry.
-fn toPath(self: *FileSystem, possible_parent: *Entry, str: []const u8) !Path {
+fn toPath(self: *FileSystem, possible_parent: *Entry, str: []const u8) error{BadPath}!Path {
     std.debug.assert(possible_parent.subdata == .dir);
-    if (str.len == 0) return error.BadPathName;
+    if (str.len == 0) {
+        @branchHint(.cold);
+        return error.BadPath;
+    }
     return .{
         .path = str,
         .search_root = if (std.fs.path.isAbsolute(str)) self.root else possible_parent,
@@ -185,230 +391,88 @@ fn toPath(self: *FileSystem, possible_parent: *Entry, str: []const u8) !Path {
 /// Return the entry associated with the given view, if there is one.
 fn cwdOrEntry(self: *FileSystem, ptr: *anyopaque) ?*Entry {
     if (isCwd(ptr)) return self.cwd_entry;
-    if (self.toView(ptr)) |v| return v.entry;
+    if (self.toView(ptr)) |v| {
+        @branchHint(.likely);
+        return v.entry;
+    }
     return null;
 }
 
-/// Searches from the path's search root for the entry specified by the given path, returns null
-/// only if only the last section of the path is not found.
+const ResolveEntryError = error{
+    /// A non-existent directory was encountered while traversing the path.
+    DirectoryNotFound,
+    /// A file was encountered while traversing the path.
+    NotDirectory,
+};
+
+/// Searches from the path's search root for the entry specified by the given path, returns null only if only the last
+/// section of the path is not found.
 ///
-/// If the `expected_parent` parameter is non-null and the function returns null (as specified in
-/// the first paragraph) then the parent that was expected to hold the target entry is written to the
-/// `expected_parent` pointer.
-fn resolveEntry(self: *FileSystem, path: Path, expected_parent: ?**Entry) !?*Entry {
+/// If the `expected_parent` parameter is non-null and the function returns null (as specified in the first paragraph)
+/// then the parent that was expected to hold the target entry is written to the `expected_parent` pointer.
+fn resolveEntry(self: *FileSystem, path: Path, expected_parent: ?**Entry) ResolveEntryError!?*Entry {
     var entry: *Entry = path.search_root;
+    std.debug.assert(entry.subdata == .dir);
 
     var path_iter = std.mem.tokenizeScalar(u8, path.path, std.fs.path.sep);
     while (path_iter.next()) |path_section| {
-        if (path_section.len == 0) continue;
-
-        if (std.mem.eql(u8, path_section, ".")) {
+        if (path_section.len == 0) {
+            @branchHint(.unlikely);
+            // empty path sections are ignored
             continue;
         }
 
-        if (std.mem.eql(u8, path_section, "..")) {
-            if (entry.parent) |entry_parent| {
-                entry = entry_parent;
-            } else if (entry != self.root) {
-                // TODO: This should instead return an error, but what error? FileNotFound?
-                @panic("attempted to traverse to parent of search entry with no parent");
-            }
-
-            continue;
-        }
-
-        if (entry.subdata.dir.entries.get(path_section)) |child| {
-            switch (child.subdata) {
-                .dir => entry = child,
-                .file => {
-                    if (path_iter.next() != null) {
-                        // file encountered in middle of path
-                        return error.NotDir;
+        // handle '.' and '..'
+        if (path_section[0] == '.') {
+            switch (path_section.len) {
+                // '.' leaves the entry unchanged
+                1 => continue,
+                // '..' traverses to the parent directory
+                2 => if (path_section[1] == '.') {
+                    if (entry.parent) |entry_parent| {
+                        @branchHint(.likely);
+                        entry = entry_parent;
+                        continue;
                     }
-                    entry = child;
+
+                    if (entry == self.root) {
+                        @branchHint(.likely);
+                        // "/.." resolves to the root directory
+                        continue;
+                    }
+
+                    @panic("non-root directory has no parent");
                 },
+                else => {},
             }
-        } else {
-            if (path_iter.next() != null) return error.FileNotFound;
+        }
+
+        const child = entry.subdata.dir.entries.get(path_section) orelse {
+            if (path_iter.next() != null) {
+                // missing directory encountered in middle of path
+                @branchHint(.cold);
+                return error.DirectoryNotFound;
+            }
             if (expected_parent) |parent| {
                 parent.* = entry;
             }
             return null;
+        };
+
+        switch (child.subdata) {
+            .dir => entry = child,
+            .file => {
+                if (path_iter.next() != null) {
+                    @branchHint(.cold);
+                    // file encountered in middle of path
+                    return error.NotDirectory;
+                }
+                return child;
+            },
         }
     }
 
     return entry;
-}
-
-pub const CWD: *anyopaque = @ptrFromInt(std.mem.alignBackward(
-    usize,
-    std.math.maxInt(usize),
-    @alignOf(View),
-));
-
-/// Opens a file relative to the directory without creating it.
-pub fn openFileFromDir(
-    self: *FileSystem,
-    ptr: *anyopaque,
-    sub_path: []const u8,
-    options: System.File.OpenOptions,
-) !*anyopaque {
-    if (target_os == .windows) {
-        // TODO: implement windows
-        @panic("Windows support is unimplemented");
-    }
-
-    if (options.mode != .read_only) {
-        // TODO: Implement *not* read_only
-        std.debug.panic("file mode '{s}' is unimplemented", .{@tagName(options.mode)});
-    }
-
-    const dir_entry = self.cwdOrEntry(ptr) orelse unreachable; // no such directory
-
-    const path = try self.toPath(dir_entry, sub_path);
-
-    const entry = (try self.resolveEntry(path, null)) orelse return error.FileNotFound;
-
-    const view = self.addView(entry) catch return error.SystemResources;
-
-    return view;
-}
-
-pub fn createFileFromDir(
-    self: *FileSystem,
-    ptr: *anyopaque,
-    user_path: []const u8,
-    flags: System.File.CreateOptions,
-) !*anyopaque {
-    if (target_os == .windows) {
-        // TODO: Implement windows
-        @panic("Windows support is unimplemented");
-    }
-
-    // TODO: Implement support for flags.mode
-    // TODO: Implement support for flags.read
-
-    const dir_entry = self.cwdOrEntry(ptr) orelse unreachable; // no such directory
-
-    const path = try self.toPath(dir_entry, user_path);
-
-    const entry = blk: {
-        var expected_parent: *Entry = undefined;
-        if (try self.resolveEntry(path, &expected_parent)) |entry| {
-            // File already exists
-
-            if (flags.truncate and entry.subdata == .file) {
-                // TODO: Check mode
-                entry.subdata.file.contents.items.len = 0;
-            }
-
-            break :blk entry;
-        }
-
-        // File doesn't exist
-
-        const basename = std.fs.path.basename(path.path);
-        const current_time = self.backend.time.nanoTimestamp();
-
-        const file = self.addFileEntry(
-            basename,
-            "",
-            current_time,
-        ) catch return error.SystemResources;
-        errdefer {
-            _ = self.entries.remove(file);
-            file.destroy();
-        }
-
-        expected_parent.addEntry(file, current_time) catch |err| switch (err) {
-            error.OutOfMemory => return error.SystemResources,
-            error.DuplicateEntry => unreachable, // the entry was not found so this is impossible
-        };
-
-        break :blk file;
-    };
-
-    const view = self.addView(entry) catch return error.SystemResources;
-
-    return view;
-}
-
-/// Reads up to `buffer.len` bytes from the file into `buffer`.
-///
-/// Returns the number of bytes read.
-///
-/// If the number read is smaller than `buffer.len`, it means the file reached the end.
-pub fn readAllFromFile(self: *FileSystem, ptr: *anyopaque, buffer: []u8) !usize {
-    const view = self.toView(ptr) orelse unreachable; // no such file
-
-    const entry = view.entry;
-
-    switch (entry.subdata) {
-        .dir => return error.IsDir,
-        .file => |file| {
-            const slice = file.contents.items;
-
-            const size = @min(buffer.len, slice.len - view.position);
-
-            @memcpy(buffer[0..size], slice[view.position..][0..size]);
-
-            view.position += size;
-
-            entry.atime = self.backend.time.nanoTimestamp();
-
-            return size;
-        },
-    }
-}
-
-/// Returns basic information about the file.
-pub fn statFile(self: *FileSystem, ptr: *anyopaque) !System.File.Stat {
-    const view = self.toView(ptr) orelse unreachable; // no such file
-
-    switch (view.entry.subdata) {
-        .dir => return error.IsDir,
-        .file => |f| {
-            return .{
-                .size = f.contents.items.len,
-                .atime = view.entry.atime,
-                .mtime = view.entry.mtime,
-            };
-        },
-    }
-}
-
-pub fn mapFileReadonly(self: *FileSystem, ptr: *anyopaque, size: usize) !System.FileMap {
-    const view = self.toView(ptr) orelse unreachable; // no such file
-
-    switch (view.entry.subdata) {
-        .dir => return error.IsDir,
-        .file => |f| {
-            view.entry.incrementReference();
-            return .{
-                ._data = .{
-                    .file_system = self,
-                    .ptr = view.entry,
-                },
-                .file_contents = f.contents.items[0..size],
-            };
-        },
-    }
-}
-
-pub fn closeFileMap(self: *FileSystem, ptr: *anyopaque) void {
-    const entry: *Entry = self.toEntry(ptr) orelse unreachable; // no such file
-    _ = entry.decrementReference();
-}
-
-pub fn closeFile(self: *FileSystem, ptr: *anyopaque) void {
-    const view = self.toView(ptr) orelse unreachable; // no such file
-    self.removeView(view);
-}
-
-pub fn updateTimes(self: *FileSystem, ptr: *anyopaque, access_time: i128, modification_time: i128) !void {
-    const view = self.toView(ptr) orelse unreachable; // no such file
-    view.entry.atime = access_time;
-    view.entry.mtime = modification_time;
 }
 
 const Entry = struct {
@@ -550,7 +614,7 @@ const Entry = struct {
         return false;
     }
 
-    fn incrementReference(self: *Entry) void {
+    inline fn incrementReference(self: *Entry) void {
         self.ref_count += 1;
     }
 
@@ -576,20 +640,20 @@ const Entry = struct {
     }
 };
 
-const Path = struct {
-    path: []const u8,
-    search_root: *Entry,
-};
-
 const View = struct {
     entry: *Entry,
     position: usize = 0,
 
     file_system: *FileSystem,
 
-    pub fn destroy(self: *View) void {
+    fn destroy(self: *View) void {
         self.file_system.backend.allocator.destroy(self);
     }
+};
+
+const Path = struct {
+    path: []const u8,
+    search_root: *Entry,
 };
 
 pub const FileSystemDescription = struct {

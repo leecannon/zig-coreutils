@@ -99,7 +99,7 @@ pub const Dir = struct {
         if (is_test) {
             return .{ ._data = .{
                 .file_system = self._data.file_system,
-                .ptr = try self._data.file_system.openFileFromDir(
+                .ptr = try self._data.file_system.openFile(
                     self._data.ptr,
                     sub_path,
                     options,
@@ -115,7 +115,7 @@ pub const Dir = struct {
         if (is_test) {
             return .{ ._data = .{
                 .file_system = self._data.file_system,
-                .ptr = try self._data.file_system.createFileFromDir(
+                .ptr = try self._data.file_system.createFile(
                     self._data.ptr,
                     sub_path,
                     options,
@@ -152,7 +152,7 @@ pub const File = struct {
     /// If the number read is smaller than `buffer.len`, it means the file reached the end.
     pub inline fn readAll(self: File, buffer: []u8) !usize {
         if (is_test) {
-            return try self._data.file_system.readAllFromFile(self._data.ptr, buffer);
+            return self._data.file_system.readAllFile(self._data.ptr, buffer);
         }
 
         return self._data.readAll(buffer);
@@ -190,7 +190,7 @@ pub const File = struct {
         }
 
         if (is_test) {
-            return try self._data.file_system.mapFileReadonly(self._data.ptr, size);
+            return self._data.file_system.mapFileReadonly(self._data.ptr, size);
         }
 
         const file_contents = switch (target_os) {
