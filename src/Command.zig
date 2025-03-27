@@ -191,6 +191,21 @@ pub const TestExecuteSettings = struct {
     stdout: ?std.io.AnyWriter = null,
     stderr: ?std.io.AnyWriter = null,
     system_description: System.TestBackend.Description = .{},
+
+    test_backend_behaviour: TestBackendBehaviour = .free,
+
+    pub const TestBackendBehaviour = union(enum) {
+        /// The test backend will be freed when the test completes.
+        free,
+
+        /// The `System` backed by `TestBackend` will be provided to the caller and will not be freed when the test
+        /// completes.
+        ///
+        /// This will happen even if the test fails.
+        ///
+        /// The caller is responsible for freeing the backend.
+        provide: *System,
+    };
 };
 
 pub fn testExecute(
@@ -208,7 +223,10 @@ pub fn testExecute(
             std.debug.panic("unable to create system backend: {s}", .{@errorName(err)});
         },
     };
-    defer system._backend.destroy();
+    defer switch (settings.test_backend_behaviour) {
+        .free => system._backend.destroy(),
+        .provide => |provide| provide.* = system,
+    };
 
     var arg_iter: Arg.Iterator = .{ .slice = .{ .slice = arguments } };
 
