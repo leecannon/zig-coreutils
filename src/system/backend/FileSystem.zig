@@ -27,7 +27,7 @@ pub fn init(self: *FileSystem, backend: *TestBackend, description: *const FileSy
 
     _ = try self.initAddDirAndRecurse(
         description,
-        description.root,
+        &description.root,
         description.cwd,
         &opt_root,
         &opt_cwd_entry,
@@ -660,37 +660,27 @@ pub const FileSystemDescription = struct {
     allocator: std.mem.Allocator,
 
     /// This is only used to keep hold of all the created entries for them to be freed.
-    entries: std.ArrayListUnmanaged(*EntryDescription) = .{},
-
-    /// Do not assign directly.
-    root: *EntryDescription,
+    entries: std.ArrayListUnmanaged(*EntryDescription),
 
     /// Do not assign directly.
     cwd: *EntryDescription,
+
+    root: EntryDescription,
 
     pub fn create(allocator: std.mem.Allocator) !*FileSystemDescription {
         const self = try allocator.create(FileSystemDescription);
         errdefer allocator.destroy(self);
 
-        const root_name = try allocator.dupe(u8, "root");
-        errdefer allocator.free(root_name);
-
-        const root_dir = try allocator.create(EntryDescription);
-        errdefer allocator.destroy(root_dir);
-
-        root_dir.* = .{
-            .file_system_description = self,
-            .name = root_name,
-            .subdata = .{ .dir = .{ .entries = .empty } },
-        };
-
         self.* = .{
             .allocator = allocator,
-            .root = root_dir,
-            .cwd = root_dir,
+            .entries = .empty,
+            .root = .{
+                .file_system_description = self,
+                .name = "root",
+                .subdata = .{ .dir = .{ .entries = .empty } },
+            },
+            .cwd = &self.root,
         };
-
-        try self.entries.append(allocator, root_dir);
 
         return self;
     }
@@ -698,6 +688,7 @@ pub const FileSystemDescription = struct {
     pub fn destroy(self: *FileSystemDescription) void {
         for (self.entries.items) |entry| entry.deinit();
         self.entries.deinit(self.allocator);
+        self.root.subdata.dir.entries.deinit(self.allocator);
         self.allocator.destroy(self);
     }
 
@@ -810,7 +801,6 @@ pub const FileSystemDescription = struct {
             }
 
             allocator.free(self.name);
-
             allocator.destroy(self);
         }
     };

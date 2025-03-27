@@ -444,13 +444,15 @@ const impl = struct {
     }
 
     test "touch simple" {
-        const file_system: *System.TestBackend.Description.FileSystemDescription = try .create(std.testing.allocator);
-        defer file_system.destroy();
+        const fs_description = try System.TestBackend.Description.FileSystemDescription.create(
+            std.testing.allocator,
+        );
+        defer fs_description.destroy();
 
         try command.testExecute(
             &.{"hello"},
             .{
-                .system_description = .{ .file_system = file_system },
+                .system_description = .{ .file_system = fs_description },
             },
         );
 

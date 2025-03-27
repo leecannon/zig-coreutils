@@ -284,10 +284,12 @@ const impl = struct {
             \\
         ;
 
-        const file_system: *System.TestBackend.Description.FileSystemDescription = try .create(std.testing.allocator);
-        defer file_system.destroy();
+        const fs_description = try System.TestBackend.Description.FileSystemDescription.create(
+            std.testing.allocator,
+        );
+        defer fs_description.destroy();
 
-        const etc_dir = try file_system.root.addDirectory("etc");
+        const etc_dir = try fs_description.root.addDirectory("etc");
         _ = try etc_dir.addFile("passwd", passwd_contents);
         _ = try etc_dir.addFile("group", group_contents);
 
@@ -297,7 +299,7 @@ const impl = struct {
         try command.testExecute(&.{}, .{
             .stdout = stdout.writer().any(),
             .system_description = .{
-                .file_system = file_system,
+                .file_system = fs_description,
                 .user_group = .{
                     .effective_user_id = 1001,
                 },

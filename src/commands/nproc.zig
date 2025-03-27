@@ -110,10 +110,12 @@ const impl = struct {
     }
 
     test "nproc" {
-        const file_system: *System.TestBackend.Description.FileSystemDescription = try .create(std.testing.allocator);
-        defer file_system.destroy();
+        const fs_description = try System.TestBackend.Description.FileSystemDescription.create(
+            std.testing.allocator,
+        );
+        defer fs_description.destroy();
 
-        const sys_dir = try file_system.root.addDirectory("sys");
+        const sys_dir = try fs_description.root.addDirectory("sys");
         const devices_dir = try sys_dir.addDirectory("devices");
         const system_dir = try devices_dir.addDirectory("system");
         const cpu_dir = try system_dir.addDirectory("cpu");
@@ -125,7 +127,7 @@ const impl = struct {
         try command.testExecute(&.{}, .{
             .stdout = stdout.writer().any(),
             .system_description = .{
-                .file_system = file_system,
+                .file_system = fs_description,
             },
         });
 
