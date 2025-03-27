@@ -449,14 +449,21 @@ const impl = struct {
         );
         defer fs_description.destroy();
 
+        var system: System = undefined;
+        defer system._backend.destroy();
+
         try command.testExecute(
-            &.{"hello"},
+            &.{"created"},
             .{
                 .system_description = .{ .file_system = fs_description },
+                .test_backend_behaviour = .{ .provide = &system },
             },
         );
 
-        // TODO: we need access to the `TestBackend.FileSystem` to check the file
+        const created_file = try system.cwd().openFile("created", .{});
+        defer created_file.close();
+
+        try shared.customExpectEqual((try created_file.stat()).size, 0);
     }
 };
 

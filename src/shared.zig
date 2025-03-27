@@ -169,6 +169,12 @@ pub fn MaybeAllocated(comptime T: type, comptime dealloc: fn (self: T, allocator
     };
 }
 
+/// A version of `std.testing.expectEqual` that flips the order of `expected` and `actual` to allow
+/// expected to not use `anytype`.
+pub inline fn customExpectEqual(actual: anytype, expected: @TypeOf(actual)) !void {
+    try std.testing.expectEqual(expected, actual);
+}
+
 const Command = @import("Command.zig");
 const IO = @import("IO.zig");
 
