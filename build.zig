@@ -1,6 +1,12 @@
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
+    const test_filters = b.option(
+        []const []const u8,
+        "test-filter",
+        "Filter tests to run",
+    ) orelse &.{};
+
     const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
 
     const coverage = b.option(
@@ -81,6 +87,7 @@ pub fn build(b: *std.Build) !void {
                 test_step,
                 check_step,
                 run_non_native_tests,
+                test_filters,
             );
         }
     }
@@ -133,6 +140,7 @@ fn createTestAndCheckSteps(
     test_step: *std.Build.Step,
     check_step: *std.Build.Step,
     run_non_native_tests: bool,
+    test_filters: []const []const u8,
 ) !void {
     const module = createRootModule(
         b,
@@ -146,6 +154,7 @@ fn createTestAndCheckSteps(
     const coreutils_test = b.addTest(.{
         .name = b.fmt("test_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
         .root_module = module,
+        .filters = test_filters,
     });
 
     if (is_native_target) {
