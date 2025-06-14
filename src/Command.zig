@@ -380,6 +380,8 @@ pub const TestFuzzOptions = struct {
     expect_stderr_output_on_failure: bool = true,
 
     system_description: System.TestBackend.Description = .{},
+
+    corpus: []const []const u8 = &.{},
 };
 
 pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
@@ -441,7 +443,9 @@ pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
             .options = options,
         },
         Context.testOne,
-        .{},
+        .{
+            .corpus = options.corpus,
+        },
     );
 }
 
