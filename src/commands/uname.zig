@@ -395,20 +395,22 @@ const impl = struct {
             .stdout = stdout.writer().any(),
             .system_description = .{
                 .uname = .{
-                    .sysname = "Linux",
-                    .nodename = "node",
-                    .release = "5.15.0-100-generic",
-                    .version = "Some version",
-                    .machine = "x86_64",
-                    .domainname = null,
+                    .sysname = "sysname",
+                    .nodename = "nodename",
+                    .release = "release",
+                    .version = "version",
+                    .machine = "machine",
+                    .domainname = "domainname",
                 },
             },
         });
 
-        try std.testing.expectEqualStrings(
-            "Linux node 5.15.0-100-generic Some version x86_64 Linux (none)\n",
-            stdout.items,
-        );
+        const expected = if (target_has_domainname)
+            "sysname nodename release version machine sysname domainname\n"
+        else
+            "sysname nodename release version machine sysname\n";
+
+        try std.testing.expectEqualStrings(expected, stdout.items);
     }
 };
 
