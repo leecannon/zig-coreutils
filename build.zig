@@ -63,7 +63,7 @@ pub fn build(b: *std.Build) !void {
     ) orelse false;
 
     if (run_non_native_tests) {
-        b.enable_wine = true;
+        b.enable_wine = false; // FIXME: this has recently broken for some reason
         b.enable_darling = false; // FIXME: for some reason this never finishes
     }
 
