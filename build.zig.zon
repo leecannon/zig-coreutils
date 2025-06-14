@@ -4,9 +4,9 @@
 .{
     .name = .coreutils,
 
-    .version = "0.2.0",
+    .version = "0.3.0",
 
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.14.1",
 
     .paths = .{
         "build.zig",

@@ -337,7 +337,7 @@ const coreutils_version = std.SemanticVersion.parse(build_zig_zon.version) catch
 
 const build_zig_zon: BuildZigZon = @import("build.zig.zon");
 
-// requirement to have a type will be removed by https://github.com/ziglang/zig/pull/22907
+// TODO: zon import does not require a type on 0.15-dev https://github.com/ziglang/zig/pull/22907
 const BuildZigZon = struct {
     name: @TypeOf(.enum_literal),
     version: []const u8,
