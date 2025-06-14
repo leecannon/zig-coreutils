@@ -22,9 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@v1
-        with:
-          version: 0.14.0
+      - uses: mlugg/setup-zig@v2
 
       - name: Lint
         run: zig fmt --check --ast-check .
