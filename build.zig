@@ -334,27 +334,7 @@ comptime {
 }
 
 const coreutils_version = std.SemanticVersion.parse(build_zig_zon.version) catch unreachable;
-
-const build_zig_zon: BuildZigZon = @import("build.zig.zon");
-
-// TODO: zon import does not require a type on 0.15-dev https://github.com/ziglang/zig/pull/22907
-const BuildZigZon = struct {
-    name: @TypeOf(.enum_literal),
-    version: []const u8,
-    minimum_zig_version: []const u8,
-    dependencies: Deps,
-    paths: []const []const u8,
-    fingerprint: u64,
-
-    pub const Deps = struct {
-        tracy: UrlDep,
-
-        const UrlDep = struct {
-            url: []const u8,
-            hash: []const u8,
-        };
-    };
-};
+const build_zig_zon = @import("build.zig.zon");
 
 const std = @import("std");
 const builtin = @import("builtin");
