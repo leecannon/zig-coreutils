@@ -499,7 +499,7 @@ const Entry = struct {
         dir: Dir,
 
         const File = struct {
-            contents: std.ArrayListAlignedUnmanaged(u8, std.heap.page_size_min),
+            contents: std.ArrayListAlignedUnmanaged(u8, page_size_alignment),
         };
 
         const Dir = struct {
@@ -516,7 +516,7 @@ const Entry = struct {
         const dupe_name = try file_system.backend.allocator.dupe(u8, name);
         errdefer file_system.backend.allocator.free(dupe_name);
 
-        var new_contents: std.ArrayListAlignedUnmanaged(u8, std.heap.page_size_min) = try .initCapacity(
+        var new_contents: std.ArrayListAlignedUnmanaged(u8, page_size_alignment) = try .initCapacity(
             file_system.backend.allocator,
             contents.len,
         );
@@ -805,6 +805,8 @@ pub const FileSystemDescription = struct {
         }
     };
 };
+
+const page_size_alignment: std.mem.Alignment = .fromByteUnits(std.heap.page_size_min);
 
 const target_os = @import("target_os").target_os;
 const TestBackend = @import("TestBackend.zig");
