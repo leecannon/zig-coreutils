@@ -443,6 +443,29 @@ const impl = struct {
         try command.testVersion();
     }
 
+    test "touch fuzz" {
+        const fs_description = try System.TestBackend.Description.FileSystemDescription.create(
+            std.testing.allocator,
+        );
+        defer fs_description.destroy();
+
+        // build a simple fs tree
+        const dir1 = try fs_description.root.addDirectory("dir1");
+        _ = try dir1.addFile("file1", "touch fuzz");
+        _ = try dir1.addDirectory("dir2");
+        fs_description.setCwd(dir1);
+
+        try command.testFuzz(.{
+            .system_description = .{ .file_system = fs_description },
+            .expect_stdout_output_on_success = false,
+            .corpus = &.{
+                "touch file",
+                "touch dir1/file1",
+                "touch -c file1",
+            },
+        });
+    }
+
     test "touch simple" {
         const fs_description = try System.TestBackend.Description.FileSystemDescription.create(
             std.testing.allocator,
