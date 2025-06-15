@@ -27,7 +27,7 @@ pub const command: Command = .{
     \\
     ,
 
-    .extended_help = // CHANGE THIS - ADD EXAMPLES OR DELETE THIS IF NO EXAMPLES ARE NEEDED
+    .extended_help = // CHANGE THIS - ADD EXAMPLES OR DELETE THIS IF NO EXAMPLES ARE NEEDED - NEEDS A NEWLINE AT THE END
     \\
     ,
 
@@ -151,7 +151,7 @@ const impl = struct {
         try command.testVersion();
     }
 
-    test "template fuzz" { // CHANGE THIS - DELETE THIS IF THE COMMAND INTERACTS WITH THE SYSTEM
+    test "template fuzz" { // CHANGE THIS
         try command.testFuzz(.{});
     }
 };
