@@ -95,19 +95,19 @@ const impl = struct {
 
         var state: State = .normal;
 
-        while (opt_arg) |*arg| : (opt_arg = args.next()) {
+        outer: while (opt_arg) |*arg| : (opt_arg = args.next()) {
             switch (arg.arg_type) {
                 .longhand => |longhand| {
                     @branchHint(.cold);
                     std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = longhand } };
-                    break;
+                    break :outer;
                 },
                 .longhand_with_value => |longhand_with_value| {
                     @branchHint(.cold);
                     std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
-                    break;
+                    break :outer;
                 },
                 .shorthand => |*shorthand| {
                     std.debug.assert(state == .normal);
@@ -119,7 +119,7 @@ const impl = struct {
                         } else {
                             @branchHint(.cold);
                             state = .{ .invalid_argument = .{ .character = char } };
-                            break;
+                            break :outer;
                         }
                     }
                 },
@@ -127,7 +127,7 @@ const impl = struct {
                     @branchHint(.cold);
                     std.debug.assert(state == .normal);
                     state = .{ .invalid_argument = .{ .slice = arg.raw } };
-                    break;
+                    break :outer;
                 },
             }
         }

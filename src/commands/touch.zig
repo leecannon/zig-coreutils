@@ -252,12 +252,12 @@ const impl = struct {
 
         var state: State = .normal;
 
-        while (opt_arg) |*arg| : (opt_arg = args.next()) {
+        outer: while (opt_arg) |*arg| : (opt_arg = args.next()) {
             switch (arg.arg_type) {
                 .longhand => |longhand| {
                     if (state != .normal) {
                         @branchHint(.cold);
-                        break;
+                        break :outer;
                     }
 
                     if (std.mem.eql(u8, longhand, "no-create")) {
@@ -272,13 +272,13 @@ const impl = struct {
                     } else {
                         @branchHint(.cold);
                         state = .{ .invalid_argument = .{ .slice = longhand } };
-                        break;
+                        break :outer;
                     }
                 },
                 .shorthand => |*shorthand| {
                     if (state != .normal) {
                         @branchHint(.cold);
-                        break;
+                        break :outer;
                     }
 
                     while (shorthand.next()) |char| {
@@ -307,7 +307,7 @@ const impl = struct {
                             else => {
                                 @branchHint(.cold);
                                 state = .{ .invalid_argument = .{ .character = char } };
-                                break;
+                                break :outer;
                             },
                         }
                     }
@@ -315,7 +315,7 @@ const impl = struct {
                 .longhand_with_value => |longhand_with_value| {
                     if (state != .normal) {
                         @branchHint(.cold);
-                        break;
+                        break :outer;
                     }
 
                     if (std.mem.eql(u8, longhand_with_value.longhand, "reference")) {
@@ -329,12 +329,12 @@ const impl = struct {
                         touch_options.update = parseTimeArgument(longhand_with_value.value) orelse {
                             @branchHint(.cold);
                             state = .{ .invalid_time_argument = longhand_with_value.value };
-                            break;
+                            break :outer;
                         };
                     } else {
                         @branchHint(.cold);
                         state = .{ .invalid_argument = .{ .slice = longhand_with_value.longhand } };
-                        break;
+                        break :outer;
                     }
                 },
                 .positional => {
@@ -351,14 +351,14 @@ const impl = struct {
                             touch_options.update = parseTimeArgument(arg.raw) orelse {
                                 @branchHint(.cold);
                                 state = .{ .invalid_time_argument = arg.raw };
-                                break;
+                                break :outer;
                             };
                             state = .normal;
                             continue;
                         },
                         else => {
                             @branchHint(.cold);
-                            break;
+                            break :outer;
                         },
                     }
 

@@ -206,12 +206,12 @@ const impl = struct {
 
         var state: State = .normal;
 
-        while (opt_arg) |*arg| : (opt_arg = args.next()) {
+        outer: while (opt_arg) |*arg| : (opt_arg = args.next()) {
             switch (arg.arg_type) {
                 .longhand => |longhand| {
                     if (state != .normal) {
                         @branchHint(.cold);
-                        break;
+                        break :outer;
                     }
 
                     if (std.mem.eql(u8, longhand, "zero")) {
@@ -230,13 +230,13 @@ const impl = struct {
                         state = .{
                             .invalid_argument = .{ .slice = longhand },
                         };
-                        break;
+                        break :outer;
                     }
                 },
                 .longhand_with_value => |longhand_with_value| {
                     if (state != .normal) {
                         @branchHint(.cold);
-                        break;
+                        break :outer;
                     }
 
                     if (std.mem.eql(u8, longhand_with_value.longhand, "suffix")) {
@@ -247,14 +247,14 @@ const impl = struct {
                         state = .{
                             .invalid_argument = .{ .slice = longhand_with_value.longhand },
                         };
-                        break;
+                        break :outer;
                     }
                 },
                 .shorthand => |*shorthand| {
                     while (shorthand.next()) |char| {
                         if (state != .normal) {
                             @branchHint(.cold);
-                            break;
+                            break :outer;
                         }
 
                         if (char == 'z') {
@@ -273,7 +273,7 @@ const impl = struct {
                             state = .{
                                 .invalid_argument = .{ .character = char },
                             };
-                            break;
+                            break :outer;
                         }
                     }
                 },
@@ -288,7 +288,7 @@ const impl = struct {
                         },
                         else => {
                             @branchHint(.cold);
-                            break;
+                            break :outer;
                         },
                     }
 
