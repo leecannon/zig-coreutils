@@ -152,7 +152,9 @@ const impl = struct {
     }
 
     test "template fuzz" { // CHANGE THIS
-        try command.testFuzz(.{});
+        try command.testFuzz(.{
+            .expect_stdout_output_on_success = true, // CHANGE THIS IF NEEDED
+        });
     }
 };
 

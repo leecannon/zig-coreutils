@@ -374,7 +374,7 @@ pub fn testVersion(command: Command) !void {
 
 pub const TestFuzzOptions = struct {
     /// If true the command is expected to output something to stdout on success.
-    expect_stdout_output_on_success: bool = true,
+    expect_stdout_output_on_success: bool,
 
     /// If true the command is expected to output something to stderr on failure.
     expect_stderr_output_on_failure: bool = true,

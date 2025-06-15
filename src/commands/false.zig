@@ -76,7 +76,10 @@ const impl = struct {
     }
 
     test "false fuzz" {
-        try command.testFuzz(.{ .expect_stderr_output_on_failure = false });
+        try command.testFuzz(.{
+            .expect_stdout_output_on_success = true,
+            .expect_stderr_output_on_failure = false,
+        });
     }
 };
 

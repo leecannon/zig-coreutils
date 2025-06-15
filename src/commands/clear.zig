@@ -186,7 +186,9 @@ const impl = struct {
     }
 
     test "clear fuzz" {
-        try command.testFuzz(.{});
+        try command.testFuzz(.{
+            .expect_stdout_output_on_success = true,
+        });
     }
 };
 
