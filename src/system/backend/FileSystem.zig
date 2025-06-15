@@ -600,7 +600,7 @@ const Entry = struct {
     fn removeEntry(self: *Entry, entry: *Entry, current_time: i128) bool {
         std.debug.assert(self.subdata == .dir);
 
-        if (self.subdata.dir.entries.swapRemove(entry)) {
+        if (self.subdata.dir.entries.swapRemove(entry.name)) {
             self.ctime = current_time;
 
             if (entry.decrementReference()) {
