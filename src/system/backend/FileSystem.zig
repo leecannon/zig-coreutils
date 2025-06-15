@@ -96,13 +96,12 @@ pub const CWD: *anyopaque = @ptrFromInt(std.mem.alignBackward(
 ));
 
 pub const OpenFileError = error{
-    BadPath,
     FileNotFound,
     /// The path resolves to a directory.
     IsDirectory,
     /// The systems resources were exhausted.
     SystemResources,
-} || ResolveEntryError;
+} || PathError || ResolveEntryError;
 
 /// Opens a file relative to the directory without creating it.
 pub fn openFile(
@@ -371,12 +370,14 @@ inline fn toView(self: *FileSystem, ptr: *anyopaque) ?*View {
     return null;
 }
 
+const PathError = error{BadPath};
+
 /// Construct a `Path` from the given string and the possible parent.
 ///
 /// The `search_root` will be the root directory if the path is absolute, otherwise it will be the given parent.
 ///
 /// The possible parent must be a directory entry.
-fn toPath(self: *FileSystem, possible_parent: *Entry, str: []const u8) error{BadPath}!Path {
+fn toPath(self: *FileSystem, possible_parent: *Entry, str: []const u8) PathError!Path {
     std.debug.assert(possible_parent.subdata == .dir);
     if (str.len == 0) {
         @branchHint(.cold);
