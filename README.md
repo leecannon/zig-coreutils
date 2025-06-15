@@ -21,6 +21,7 @@ Any tools not in GNU coreutils are acceptable as well.
  * touch
  * true
  * uname
+ * unlink
  * whoami
  * yes
 
@@ -122,7 +123,6 @@ Any tools not in GNU coreutils are acceptable as well.
  * tty
  * unexpand
  * uniq
- * unlink
  * uptime
  * users
  * vdir

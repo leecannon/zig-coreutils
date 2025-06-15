@@ -12,6 +12,7 @@ pub const commands: []const type = &.{
     @import("touch.zig"),
     @import("true.zig"),
     @import("uname.zig"),
+    @import("unlink.zig"),
     @import("whoami.zig"),
     @import("yes.zig"),
 };
