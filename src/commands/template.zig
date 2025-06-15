@@ -7,6 +7,7 @@
 //  - Add the new command to `src/subcommands/listing.zig`
 //  - Implement the functionality
 //  - Add tests
+//  - Update the README
 //  - PROFIT
 
 /// Is this command enabled for the current target?
