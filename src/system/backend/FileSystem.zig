@@ -623,6 +623,7 @@ const Entry = struct {
         self.ref_count -= 1;
 
         if (self.ref_count == 0) {
+            _ = self.file_system.entries.remove(self);
             self.destroy();
             return true;
         }
