@@ -217,6 +217,33 @@ pub fn createFile(
     };
 }
 
+pub const UnlinkError = error{
+    FileNotFound,
+    /// The path resolves to a directory.
+    IsDirectory,
+} || PathError || ResolveEntryError;
+
+/// Unlinks the file at the given path.
+pub fn unlinkFile(self: *FileSystem, ptr: *anyopaque, sub_path: []const u8) UnlinkError!void {
+    const dir_entry = self.cwdOrEntry(ptr) orelse unreachable; // no such directory
+    std.debug.assert(dir_entry.subdata == .dir);
+
+    const path = try self.toPath(dir_entry, sub_path);
+
+    const entry = (try self.resolveEntry(path, null)) orelse {
+        @branchHint(.cold);
+        return error.FileNotFound;
+    };
+    if (entry.subdata != .file) {
+        @branchHint(.cold);
+        return error.IsDirectory;
+    }
+
+    const parent = entry.parent orelse @panic("resolved an entry without a parent");
+
+    _ = parent.removeEntry(entry, self.backend.time.nanoTimestamp());
+}
+
 /// Reads up to `buffer.len` bytes from the file into `buffer`.
 ///
 /// Returns the number of bytes read.

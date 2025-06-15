@@ -126,6 +126,14 @@ pub const Dir = struct {
         return .{ ._data = try self._data.createFile(sub_path, options.toStd()) };
     }
 
+    pub fn unlinkFile(self: *Dir, sub_path: []const u8) !void {
+        if (is_test) {
+            return try self._data.file_system.unlinkFile(self._data.ptr, sub_path);
+        }
+
+        return try std.posix.unlinkat(self._data.fd, sub_path, 0);
+    }
+
     const Data = if (is_test) struct {
         file_system: *TestBackend.FileSystem,
         ptr: *anyopaque,
