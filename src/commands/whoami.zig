@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 
-/// Is this command enabled for the current target?
 pub const enabled: bool = shared.target_os == .linux;
 
 pub const command: Command = .{

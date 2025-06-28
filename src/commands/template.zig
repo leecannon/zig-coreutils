@@ -10,7 +10,6 @@
 //  - Update the README
 //  - PROFIT
 
-/// Is this command enabled for the current target?
 pub const enabled: bool = true; // CHANGE THIS - USE `shared.target_os` TO DETERMINE IF THE COMMAND IS ENABLED FOR THE CURRENT TARGET
 
 pub const command: Command = .{

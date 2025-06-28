@@ -2,7 +2,6 @@
 // SPDX-FileCopyrightText: 2025 Lee Cannon <leecannon@leecannon.xyz>
 // SPDX-FileCopyrightText: 2024 Leon Henrik Plickat
 
-/// Is this command enabled for the current target?
 pub const enabled: bool = shared.target_os == .linux; // TODO: support other OSes
 
 pub const command: Command = .{
