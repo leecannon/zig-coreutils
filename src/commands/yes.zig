@@ -87,6 +87,51 @@ const impl = struct {
         try command.testVersion();
     }
 
+    test "yes no args" {
+        var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+        defer stdout.deinit();
+
+        try command.testExecute(&.{}, .{ .stdout = stdout.writer().any() });
+
+        const expected = blk: {
+            var expected: std.ArrayList(u8) = .init(std.testing.allocator);
+            errdefer expected.deinit();
+
+            for (0..10) |_| {
+                try expected.appendSlice("y\n");
+            }
+
+            break :blk try expected.toOwnedSlice();
+        };
+        defer std.testing.allocator.free(expected);
+
+        try std.testing.expectEqualStrings(expected, stdout.items);
+    }
+
+    test "yes with args" {
+        var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+        defer stdout.deinit();
+
+        try command.testExecute(
+            &.{ "arg1", "arg2" },
+            .{ .stdout = stdout.writer().any() },
+        );
+
+        const expected = blk: {
+            var expected: std.ArrayList(u8) = .init(std.testing.allocator);
+            errdefer expected.deinit();
+
+            for (0..10) |_| {
+                try expected.appendSlice("arg1 arg2\n");
+            }
+
+            break :blk try expected.toOwnedSlice();
+        };
+        defer std.testing.allocator.free(expected);
+
+        try std.testing.expectEqualStrings(expected, stdout.items);
+    }
+
     test "yes fuzz" {
         try command.testFuzz(.{
             .expect_stdout_output_on_success = true,
