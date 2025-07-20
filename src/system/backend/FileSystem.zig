@@ -117,7 +117,7 @@ pub fn openFile(
 
     if (options.mode != .read_only) {
         // TODO: Implement *not* read_only
-        std.debug.panic("file mode '{s}' is unimplemented", .{@tagName(options.mode)});
+        std.debug.panic("file mode '{t}' is unimplemented", .{options.mode});
     }
 
     const dir_entry = self.cwdOrEntry(ptr) orelse unreachable; // no such directory

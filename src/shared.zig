@@ -183,4 +183,3 @@ const log = std.log.scoped(.shared);
 const builtin = @import("builtin");
 const options = @import("options");
 const std = @import("std");
-const tracy = @import("tracy");

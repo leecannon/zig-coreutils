@@ -50,12 +50,8 @@ pub const Iterator = union(enum) {
     },
 
     pub fn nextRaw(self: *Iterator) ?[]const u8 {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "raw next arg" });
-        defer z.end();
-
         if (self.dispatchNext()) |arg| {
             @branchHint(.likely);
-            z.text(arg);
             return arg;
         }
 
@@ -63,15 +59,10 @@ pub const Iterator = union(enum) {
     }
 
     pub fn next(self: *Iterator) ?Arg {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg" });
-        defer z.end();
-
         const current_arg = self.dispatchNext() orelse {
             @branchHint(.unlikely);
             return null;
         };
-
-        z.text(current_arg);
 
         // the length checks in the below ifs allow '-' and '--' to fall through as positional arguments
         if (current_arg.len > 1 and current_arg[0] == '-') longhand_shorthand_blk: {
@@ -125,9 +116,6 @@ pub const Iterator = union(enum) {
         self: *Iterator,
         comptime include_shorthand: bool,
     ) error{ ShortHelp, FullHelp, Version }!?Arg {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "next arg with help/version" });
-        defer z.end();
-
         var arg = self.next() orelse return null;
 
         switch (arg.arg_type) {
@@ -174,4 +162,3 @@ const log = std.log.scoped(.arg);
 
 const builtin = @import("builtin");
 const std = @import("std");
-const tracy = @import("tracy");

@@ -30,9 +30,6 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         _ = exe_path;
 
         _ = try args.nextWithHelpOrVersion(true);
@@ -44,8 +41,8 @@ const impl = struct {
                 return command.printErrorAlloc(
                     allocator,
                     io,
-                    "unable to open '/etc/passwd': {s}",
-                    .{@errorName(err)},
+                    "unable to open '/etc/passwd': {t}",
+                    .{err},
                 );
             errdefer if (shared.free_on_close) passwd_file.close();
 
@@ -53,16 +50,16 @@ const impl = struct {
                 return command.printErrorAlloc(
                     allocator,
                     io,
-                    "unable to stat '/etc/passwd': {s}",
-                    .{@errorName(err)},
+                    "unable to stat '/etc/passwd': {t}",
+                    .{err},
                 );
 
             break :blk passwd_file.mapReadonly(stat.size) catch |err|
                 return command.printErrorAlloc(
                     allocator,
                     io,
-                    "unable to map '/etc/passwd': {s}",
-                    .{@errorName(err)},
+                    "unable to map '/etc/passwd': {t}",
+                    .{err},
                 );
         };
         defer if (shared.free_on_close) mapped_passwd_file.close();
@@ -119,11 +116,11 @@ const impl = struct {
         const etc_dir = try fs_description.root.addDirectory("etc");
         _ = try etc_dir.addFile("passwd", passwd_contents);
 
-        var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(&.{}, .{
-            .stdout = stdout.writer().any(),
+            .stdout = &stdout.writer,
             .system_description = .{
                 .file_system = fs_description,
                 .user_group = .{
@@ -132,7 +129,7 @@ const impl = struct {
             },
         });
 
-        try std.testing.expectEqualStrings("user\n", stdout.items);
+        try std.testing.expectEqualStrings("user\n", stdout.getWritten());
     }
 };
 
@@ -145,4 +142,3 @@ const System = @import("../system/System.zig");
 const log = std.log.scoped(.whoami);
 
 const std = @import("std");
-const tracy = @import("tracy");

@@ -6,19 +6,12 @@
 
     .version = "0.3.0",
 
-    .minimum_zig_version = "0.15.0-dev.784+4a02e080d",
+    .minimum_zig_version = "0.15.0-dev.1149+4e6a04929",
 
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
-    },
-
-    .dependencies = .{
-        .tracy = .{
-            .url = "git+https://github.com/Games-by-Mason/tracy_zig.git?ref=main#0cad4646be2791982f692a7a47716ec92b62eb2e",
-            .hash = "tracy-0.0.0-R7l8BdlCAQBFp6uysnan3Alaxap65HBF1mzGdabdKe8z",
-        },
     },
 
     .fingerprint = 0x3bcfe8c5bc4f06d3,

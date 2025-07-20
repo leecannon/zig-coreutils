@@ -3,9 +3,9 @@
 
 const IO = @This();
 
-_stderr: std.io.AnyWriter,
-_stdin: std.io.AnyReader,
-_stdout: std.io.AnyWriter,
+_stdin: *std.Io.Reader,
+_stdout: *std.Io.Writer,
+_stderr: *std.Io.Writer,
 
 pub inline fn stdoutWriteByte(io: IO, byte: u8) error{AlreadyHandled}!void {
     io._stdout.writeByte(byte) catch |err| {
@@ -58,4 +58,3 @@ pub fn unableToWriteTo(io: IO, destination: []const u8, err: anyerror) error{Alr
 }
 
 const std = @import("std");
-const tracy = @import("tracy");
