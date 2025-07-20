@@ -43,22 +43,14 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         _ = system;
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("{}", .{options});
+        log.debug("{f}", .{options});
     }
 
     const TemplateOptions = struct { // CHANGE THIS - IF NO OPTIONS ARE NEEDED DELETE THIS
-        pub fn format(
-            options: TemplateOptions,
-            comptime _: []const u8,
-            _: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
+        pub fn format(options: TemplateOptions, writer: *std.Io.Writer) !void {
             _ = options;
             try writer.writeAll("TemplateOptions {}");
         }
@@ -70,9 +62,6 @@ const impl = struct {
         args: *Arg.Iterator,
         exe_path: []const u8,
     ) !TemplateOptions {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
-        defer z.end();
-
         var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
 
         const options: TemplateOptions = .{};
@@ -167,4 +156,3 @@ const System = @import("../system/System.zig");
 const log = std.log.scoped(.template); // CHANGE THIS
 
 const std = @import("std");
-const tracy = @import("tracy");

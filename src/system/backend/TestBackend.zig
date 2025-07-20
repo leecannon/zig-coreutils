@@ -58,4 +58,3 @@ const log = std.log.scoped(.system_test_backend);
 const is_test = @import("builtin").is_test;
 const target_os = @import("target_os").target_os;
 const std = @import("std");
-const tracy = @import("tracy");

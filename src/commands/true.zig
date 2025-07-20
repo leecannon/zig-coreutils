@@ -30,9 +30,6 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         _ = io;
         _ = exe_path;
         _ = system;
@@ -49,17 +46,17 @@ const impl = struct {
     }
 
     test "true ignores args" {
-        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(
             &.{
                 "these", "arguments", "are", "ignored",
             },
-            .{ .stdout = stdout.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("", stdout.items);
+        try std.testing.expectEqualStrings("", stdout.getWritten());
     }
 
     test "true help" {
@@ -82,4 +79,3 @@ const shared = @import("../shared.zig");
 const System = @import("../system/System.zig");
 
 const std = @import("std");
-const tracy = @import("tracy");

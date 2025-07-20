@@ -30,9 +30,6 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         _ = exe_path;
         _ = system;
 
@@ -57,9 +54,6 @@ const impl = struct {
     }
 
     fn getString(allocator: std.mem.Allocator, args: *Arg.Iterator) !shared.MaybeAllocatedString {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "get string" });
-        defer z.end();
-
         var buffer = std.ArrayList(u8).init(allocator);
         defer if (shared.free_on_close) buffer.deinit();
 
@@ -88,10 +82,10 @@ const impl = struct {
     }
 
     test "yes no args" {
-        var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
-        try command.testExecute(&.{}, .{ .stdout = stdout.writer().any() });
+        try command.testExecute(&.{}, .{ .stdout = &stdout.writer });
 
         const expected = blk: {
             var expected: std.ArrayList(u8) = .init(std.testing.allocator);
@@ -105,16 +99,16 @@ const impl = struct {
         };
         defer std.testing.allocator.free(expected);
 
-        try std.testing.expectEqualStrings(expected, stdout.items);
+        try std.testing.expectEqualStrings(expected, stdout.getWritten());
     }
 
     test "yes with args" {
-        var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(
             &.{ "arg1", "arg2" },
-            .{ .stdout = stdout.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
         const expected = blk: {
@@ -129,7 +123,7 @@ const impl = struct {
         };
         defer std.testing.allocator.free(expected);
 
-        try std.testing.expectEqualStrings(expected, stdout.items);
+        try std.testing.expectEqualStrings(expected, stdout.getWritten());
     }
 
     test "yes fuzz" {
@@ -146,4 +140,3 @@ const shared = @import("../shared.zig");
 const System = @import("../system/System.zig");
 
 const std = @import("std");
-const tracy = @import("tracy");

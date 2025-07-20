@@ -7,8 +7,6 @@ pub fn build(b: *std.Build) !void {
         "Filter tests to run",
     ) orelse &.{};
 
-    const trace = b.option(bool, "trace", "enable tracy tracing") orelse false;
-
     const coverage = b.option(
         bool,
         "coverage",
@@ -21,7 +19,6 @@ pub fn build(b: *std.Build) !void {
         "version",
         try getVersionString(b, coreutils_version, b.build_root.path.?),
     );
-    options.addOption(bool, "trace", trace);
     const options_module = options.createModule();
 
     // exe
@@ -29,7 +26,7 @@ pub fn build(b: *std.Build) !void {
         const target = b.standardTargetOptions(.{});
 
         const coreutils_target = CoreutilsTarget.fromOsTag(target.result.os.tag) orelse {
-            std.debug.panic("unsupported target OS {s}", .{@tagName(target.result.os.tag)});
+            std.debug.panic("unsupported target OS {t}", .{target.result.os.tag});
         };
 
         const coreutils_exe = b.addExecutable(.{
@@ -38,7 +35,6 @@ pub fn build(b: *std.Build) !void {
                 b,
                 target,
                 optimize,
-                trace,
                 coreutils_target,
                 options_module,
             ),
@@ -79,7 +75,6 @@ pub fn build(b: *std.Build) !void {
                 b,
                 target,
                 optimize,
-                trace,
                 coreutils_target,
                 options_module,
                 target.result.os.tag == builtin.os.tag,
@@ -97,15 +92,9 @@ fn createRootModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    trace: bool,
     coreutils_target: CoreutilsTarget,
     options_module: *std.Build.Module,
 ) *std.Build.Module {
-    const tracy_dep = b.dependency("tracy", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
     const coreutils_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -113,13 +102,6 @@ fn createRootModule(
     });
 
     coreutils_module.addImport("options", options_module);
-    coreutils_module.addImport("tracy", tracy_dep.module("tracy"));
-
-    if (trace) {
-        coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_enabled"));
-    } else {
-        coreutils_module.addImport("tracy_impl", tracy_dep.module("tracy_impl_disabled"));
-    }
 
     const target_options = b.addOptions();
     target_options.addOption(CoreutilsTarget, "target_os", coreutils_target);
@@ -132,7 +114,6 @@ fn createTestAndCheckSteps(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    trace: bool,
     coreutils_target: CoreutilsTarget,
     options_module: *std.Build.Module,
     is_native_target: bool,
@@ -146,13 +127,12 @@ fn createTestAndCheckSteps(
         b,
         target,
         optimize,
-        trace,
         coreutils_target,
         options_module,
     );
 
     const coreutils_test = b.addTest(.{
-        .name = b.fmt("test_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
+        .name = b.fmt("test_zig-coreutils-{t}", .{target.result.os.tag}),
         .root_module = module,
         .filters = test_filters,
     });
@@ -178,8 +158,8 @@ fn createTestAndCheckSteps(
     }
 
     const target_test_step = b.step(
-        b.fmt("test_{s}", .{@tagName(target.result.os.tag)}),
-        b.fmt("Run the tests for {s}", .{@tagName(target.result.os.tag)}),
+        b.fmt("test_{t}", .{target.result.os.tag}),
+        b.fmt("Run the tests for {t}", .{target.result.os.tag}),
     );
 
     if (is_native_target or run_non_native_tests) {
@@ -197,7 +177,7 @@ fn createTestAndCheckSteps(
     }
 
     const build_exe = b.addExecutable(.{
-        .name = b.fmt("build_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
+        .name = b.fmt("build_zig-coreutils-{t}", .{target.result.os.tag}),
         .root_module = module,
     });
     target_test_step.dependOn(&build_exe.step);
@@ -206,23 +186,21 @@ fn createTestAndCheckSteps(
 
     {
         const coreutils_exe_check = b.addExecutable(.{
-            .name = b.fmt("check_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
+            .name = b.fmt("check_zig-coreutils-{t}", .{target.result.os.tag}),
             .root_module = createRootModule(
                 b,
                 target,
                 optimize,
-                trace,
                 coreutils_target,
                 options_module,
             ),
         });
         const coreutils_test_check = b.addTest(.{
-            .name = b.fmt("check_test_zig-coreutils-{s}", .{@tagName(target.result.os.tag)}),
+            .name = b.fmt("check_test_zig-coreutils-{t}", .{target.result.os.tag}),
             .root_module = createRootModule(
                 b,
                 target,
                 optimize,
-                trace,
                 coreutils_target,
                 options_module,
             ),
@@ -304,7 +282,7 @@ fn getVersionString(b: *std.Build, base_semantic_version: std.SemanticVersion, r
             const ancestor_version = try std.SemanticVersion.parse(tagged_ancestor_version_string);
             if (base_semantic_version.order(ancestor_version) != .gt) {
                 std.debug.print(
-                    "version '{}' must be greater than tagged ancestor '{}'\n",
+                    "version '{f}' must be greater than tagged ancestor '{f}'\n",
                     .{ base_semantic_version, ancestor_version },
                 );
                 std.process.exit(1);

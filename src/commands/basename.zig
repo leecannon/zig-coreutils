@@ -44,13 +44,10 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         _ = system;
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("{}", .{options});
+        log.debug("{f}", .{options});
 
         return switch (options.mode) {
             .single => singleArgument(allocator, io, args, exe_path, options),
@@ -65,16 +62,9 @@ const impl = struct {
         exe_path: []const u8,
         options: BasenameOptions,
     ) !void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "single argument" });
-        defer z.end();
-        z.text(options.first_arg);
-
         log.debug("singleArgument called", .{});
 
         const opt_suffix: ?[]const u8 = blk: {
-            const suffix_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "get suffix" });
-            defer suffix_zone.end();
-
             const arg = args.nextRaw() orelse break :blk null;
 
             if (args.nextRaw()) |additional_arg| {
@@ -86,8 +76,6 @@ const impl = struct {
                     .{additional_arg},
                 );
             }
-
-            suffix_zone.text(arg);
 
             break :blk arg;
         };
@@ -103,18 +91,11 @@ const impl = struct {
         args: *Arg.Iterator,
         options: BasenameOptions,
     ) !void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "multiple arguments" });
-        defer z.end();
-
         log.debug("multipleArguments called", .{});
 
         var opt_arg: ?[]const u8 = options.first_arg;
 
         while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
-            const argument_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
-            defer argument_zone.end();
-            argument_zone.text(arg);
-
             const basename = getBasename(arg, options.mode.multiple);
 
             try io.stdoutWriteAll(basename);
@@ -148,12 +129,7 @@ const impl = struct {
             multiple: ?[]const u8,
         };
 
-        pub fn format(
-            options: BasenameOptions,
-            comptime _: []const u8,
-            _: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
+        pub fn format(options: BasenameOptions, writer: *std.Io.Writer) !void {
             try writer.writeAll("BasenameOptions {");
 
             try writer.writeAll(comptime "\n" ++ shared.option_log_indentation ++ ".line_end = .");
@@ -185,9 +161,6 @@ const impl = struct {
         args: *Arg.Iterator,
         exe_path: []const u8,
     ) !BasenameOptions {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
-        defer z.end();
-
         var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
 
         var basename_options: BasenameOptions = .{};
@@ -336,19 +309,19 @@ const impl = struct {
     }
 
     test "basename single" {
-        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(
             &.{"hello/world"},
-            .{ .stdout = stdout.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("world\n", stdout.items);
+        try std.testing.expectEqualStrings("world\n", stdout.getWritten());
     }
 
     test "basename multiple" {
-        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(
@@ -358,7 +331,7 @@ const impl = struct {
                 "this/is/a/test",
                 "a/b/c/d",
             },
-            .{ .stdout = stdout.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
         try std.testing.expectEqualStrings(
@@ -366,7 +339,7 @@ const impl = struct {
             \\test
             \\d
             \\
-        , stdout.items);
+        , stdout.getWritten());
     }
 
     test "basename help" {
@@ -393,4 +366,3 @@ const System = @import("../system/System.zig");
 const log = std.log.scoped(.basename);
 
 const std = @import("std");
-const tracy = @import("tracy");

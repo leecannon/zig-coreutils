@@ -37,9 +37,6 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         var opt_arg: ?Arg = (try args.nextWithHelpOrVersion(true)) orelse
             return command.printInvalidUsage(
                 io,
@@ -52,17 +49,13 @@ const impl = struct {
         while (opt_arg) |file_arg| : (opt_arg = args.next()) {
             const file_path = file_arg.raw;
 
-            const file_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "unlink file" });
-            defer file_zone.end();
-            file_zone.text(file_path);
-
             log.debug("unlinking file '{s}'", .{file_path});
 
             cwd.unlinkFile(file_path) catch |err| return command.printErrorAlloc(
                 allocator,
                 io,
-                "failed to unlink '{s}': {s}",
-                .{ file_path, @errorName(err) },
+                "failed to unlink '{s}': {t}",
+                .{ file_path, err },
             );
         }
     }
@@ -255,4 +248,3 @@ const System = @import("../system/System.zig");
 const log = std.log.scoped(.unlink);
 
 const std = @import("std");
-const tracy = @import("tracy");

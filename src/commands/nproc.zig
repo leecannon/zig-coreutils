@@ -31,9 +31,6 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         _ = exe_path;
 
         _ = try args.nextWithHelpOrVersion(true);
@@ -47,8 +44,8 @@ const impl = struct {
                 return command.printErrorAlloc(
                     allocator,
                     io,
-                    "unable to open '{s}': {s}",
-                    .{ path, @errorName(err) },
+                    "unable to open '{s}': {t}",
+                    .{ path, err },
                 );
             defer if (shared.free_on_close) file.close();
 
@@ -56,8 +53,8 @@ const impl = struct {
                 return command.printErrorAlloc(
                     allocator,
                     io,
-                    "unable to read file '{s}': {s}",
-                    .{ path, @errorName(err) },
+                    "unable to read file '{s}': {t}",
+                    .{ path, err },
                 );
 
             break :blk buffer[0..read];
@@ -120,17 +117,17 @@ const impl = struct {
         const cpu_dir = try system_dir.addDirectory("cpu");
         _ = try cpu_dir.addFile("online", "0-15");
 
-        var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(&.{}, .{
-            .stdout = stdout.writer().any(),
+            .stdout = &stdout.writer,
             .system_description = .{
                 .file_system = fs_description,
             },
         });
 
-        try std.testing.expectEqualStrings("16\n", stdout.items);
+        try std.testing.expectEqualStrings("16\n", stdout.getWritten());
     }
 };
 
@@ -141,4 +138,3 @@ const shared = @import("../shared.zig");
 const System = @import("../system/System.zig");
 
 const std = @import("std");
-const tracy = @import("tracy");

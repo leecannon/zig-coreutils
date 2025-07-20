@@ -37,13 +37,10 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         _ = system;
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("{}", .{options});
+        log.debug("{f}", .{options});
 
         try io.stdoutWriteAll(
             if (options.clear_scrollback)
@@ -56,12 +53,7 @@ const impl = struct {
     const ClearOptions = struct {
         clear_scrollback: bool = true,
 
-        pub fn format(
-            options: ClearOptions,
-            comptime _: []const u8,
-            _: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
+        pub fn format(options: ClearOptions, writer: *std.Io.Writer) !void {
             try writer.writeAll("ClearOptions {");
             try writer.writeAll(comptime "\n" ++ shared.option_log_indentation ++ ".clear_scrollback = .");
             try writer.writeAll(if (options.clear_scrollback) "true" else "false");
@@ -75,9 +67,6 @@ const impl = struct {
         args: *Arg.Iterator,
         exe_path: []const u8,
     ) !ClearOptions {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
-        defer z.end();
-
         var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
 
         var clear_options: ClearOptions = .{};
@@ -153,27 +142,27 @@ const impl = struct {
     }
 
     test "clear no args" {
-        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(
             &.{},
-            .{ .stdout = stdout.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("\x1b[H\x1b[2J\x1b[3J", stdout.items);
+        try std.testing.expectEqualStrings("\x1b[H\x1b[2J\x1b[3J", stdout.getWritten());
     }
 
     test "clear - don't clear scrollback" {
-        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(
             &.{"-x"},
-            .{ .stdout = stdout.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("\x1b[H\x1b[2J", stdout.items);
+        try std.testing.expectEqualStrings("\x1b[H\x1b[2J", stdout.getWritten());
     }
 
     test "clear help" {
@@ -200,4 +189,3 @@ const System = @import("../system/System.zig");
 const log = std.log.scoped(.clear);
 
 const std = @import("std");
-const tracy = @import("tracy");

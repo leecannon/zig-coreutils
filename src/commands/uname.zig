@@ -41,11 +41,8 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("{}", .{options});
+        log.debug("{f}", .{options});
 
         return performUname(allocator, io, system, options);
     }
@@ -56,9 +53,6 @@ const impl = struct {
         system: System,
         options: UnameOptions,
     ) !void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform uname" });
-        defer z.end();
-
         _ = allocator;
 
         const uname = system.uname();
@@ -150,12 +144,7 @@ const impl = struct {
             non_empty,
         };
 
-        pub fn format(
-            options: UnameOptions,
-            comptime _: []const u8,
-            _: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
+        pub fn format(options: UnameOptions, writer: *std.Io.Writer) !void {
             try writer.writeAll("UnameOptions {");
 
             try writer.writeAll(comptime "\n" ++ shared.option_log_indentation ++ ".kernel_name = .");
@@ -195,9 +184,6 @@ const impl = struct {
         args: *Arg.Iterator,
         exe_path: []const u8,
     ) !UnameOptions {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
-        defer z.end();
-
         var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
 
         var options: UnameOptions = .{};
@@ -387,11 +373,11 @@ const impl = struct {
     }
 
     test "uname" {
-        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(&.{"-a"}, .{
-            .stdout = stdout.writer().any(),
+            .stdout = &stdout.writer,
             .system_description = .{
                 .uname = .{
                     .sysname = "sysname",
@@ -409,7 +395,7 @@ const impl = struct {
         else
             "sysname nodename release version machine sysname\n";
 
-        try std.testing.expectEqualStrings(expected, stdout.items);
+        try std.testing.expectEqualStrings(expected, stdout.getWritten());
     }
 };
 
@@ -422,4 +408,3 @@ const System = @import("../system/System.zig");
 const log = std.log.scoped(.uname);
 
 const std = @import("std");
-const tracy = @import("tracy");

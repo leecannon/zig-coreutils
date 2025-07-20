@@ -6,44 +6,26 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
         var debug_allocator: if (shared.is_debug_or_test) std.heap.DebugAllocator(.{}) else void =
             if (shared.is_debug_or_test) .init else {};
 
-        const gpa_allocator = if (shared.is_debug_or_test)
+        const allocator = if (shared.is_debug_or_test)
             debug_allocator.allocator()
         else
             std.heap.smp_allocator;
 
-        var tracy_allocator: if (options.trace) tracy.Allocator else void =
-            if (options.trace) .{ .parent = gpa_allocator } else {};
-
-        const allocator =
-            if (options.trace)
-                tracy_allocator.allocator()
-            else
-                gpa_allocator;
-
-        var std_in_buffered: std.io.BufferedReader(4096, std.fs.File.Reader) = .{
-            .unbuffered_reader = undefined,
-        };
-        var std_out_buffered: std.io.BufferedWriter(4096, std.fs.File.Writer) = .{
-            .unbuffered_writer = undefined,
-        };
+        var stdin_buffer: [4096]u8 = undefined;
+        var stdout_buffer: [4096]u8 = undefined;
     };
-
-    // this causes the frame to start with our main instead of `std.start`
-    tracy.frameMark(null);
-    const main_z: tracy.Zone = .begin(.{ .src = @src(), .name = "main" });
-    defer main_z.end();
-
     defer {
         if (shared.is_debug_or_test) _ = static.debug_allocator.deinit();
     }
 
-    static.std_in_buffered.unbuffered_reader = std.io.getStdIn().reader();
-    static.std_out_buffered.unbuffered_writer = std.io.getStdOut().writer();
+    var stdin = std.fs.File.stdin().reader(&static.stdin_buffer);
+    var stdout = std.fs.File.stdout().writer(&static.stdout_buffer);
+    var stderr = std.fs.File.stderr().writer(&.{});
 
     const io: IO = .{
-        ._stderr = std.io.getStdErr().writer().any(),
-        ._stdin = static.std_in_buffered.reader().any(),
-        ._stdout = static.std_out_buffered.writer().any(),
+        ._stdin = &stdin.interface,
+        ._stdout = &stdout.interface,
+        ._stderr = &stderr.interface,
     };
 
     var arg_iter = std.process.argsWithAllocator(static.allocator) catch |err| {
@@ -73,7 +55,7 @@ pub fn main() if (shared.is_debug_or_test) Command.ExposedError!u8 else u8 {
         return 1;
     };
 
-    static.std_out_buffered.flush() catch |err| {
+    stdout.interface.flush() catch |err| {
         io.unableToWriteTo("stdout", err) catch {};
         return 1;
     };
@@ -88,16 +70,12 @@ fn tryExecute(
     basename: []const u8,
     exe_path: []const u8,
 ) Command.ExposedError!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "tryExecute" });
-    defer z.end();
-
     var arg_iter: Arg.Iterator = .{ .args = os_arg_iter };
 
     const system: System = .{};
 
     // attempt to match the basename to a command
     if (Command.enabled_command_lookup.get(basename)) |command| {
-        z.text(basename);
         log.debug("executing command '{s}' due to basename", .{command.name});
         return command.execute(
             allocator,
@@ -155,8 +133,6 @@ fn tryExecute(
         , .{ exe_path, possible_command }) catch {};
         return error.AlreadyHandled;
     };
-
-    z.text(possible_command);
 
     const exe_path_with_command = try std.fmt.allocPrint(allocator, "{s} {s}", .{
         exe_path,
@@ -244,12 +220,6 @@ const log = std.log.scoped(.main);
 const builtin = @import("builtin");
 const options = @import("options");
 const std = @import("std");
-const tracy = @import("tracy");
-
-pub const tracy_options: tracy.Options = .{
-    .default_callstack_depth = 10,
-};
-pub const tracy_impl = @import("tracy_impl");
 
 comptime {
     if (builtin.is_test) {

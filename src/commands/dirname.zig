@@ -39,13 +39,10 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         _ = system;
 
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("{}", .{options});
+        log.debug("{f}", .{options});
 
         return performDirname(io, args, options);
     }
@@ -59,12 +56,7 @@ const impl = struct {
             zero = 0,
         };
 
-        pub fn format(
-            options: DirnameOptions,
-            comptime _: []const u8,
-            _: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
+        pub fn format(options: DirnameOptions, writer: *std.Io.Writer) !void {
             try writer.writeAll("DirnameOptions {");
 
             try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".line_end = .");
@@ -81,16 +73,9 @@ const impl = struct {
         args: *Arg.Iterator,
         options: DirnameOptions,
     ) !void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform dirname" });
-        defer z.end();
-
         var opt_arg: ?[]const u8 = options.first_arg;
 
         while (opt_arg) |arg| : (opt_arg = args.nextRaw()) {
-            const argument_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process arg" });
-            defer argument_zone.end();
-            argument_zone.text(arg);
-
             const dirname = if (std.fs.path.dirname(arg)) |dir|
                 dir
             else
@@ -107,9 +92,6 @@ const impl = struct {
         args: *Arg.Iterator,
         exe_path: []const u8,
     ) !DirnameOptions {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
-        defer z.end();
-
         var opt_arg: ?Arg = try args.nextWithHelpOrVersion(true);
 
         var dir_options: DirnameOptions = .{};
@@ -199,21 +181,21 @@ const impl = struct {
     }
 
     test "dirname single" {
-        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(
             &.{
                 "hello/world",
             },
-            .{ .stdout = stdout.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("hello\n", stdout.items);
+        try std.testing.expectEqualStrings("hello\n", stdout.getWritten());
     }
 
     test "dirname multiple" {
-        var stdout = std.ArrayList(u8).init(std.testing.allocator);
+        var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
 
         try command.testExecute(
@@ -222,7 +204,7 @@ const impl = struct {
                 "this/is/a/test",
                 "a/b/c/d",
             },
-            .{ .stdout = stdout.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
         try std.testing.expectEqualStrings(
@@ -230,7 +212,7 @@ const impl = struct {
             \\this/is/a
             \\a/b/c
             \\
-        , stdout.items);
+        , stdout.getWritten());
     }
 
     test "dirname help" {
@@ -257,4 +239,3 @@ const System = @import("../system/System.zig");
 const log = std.log.scoped(.dirname);
 
 const std = @import("std");
-const tracy = @import("tracy");

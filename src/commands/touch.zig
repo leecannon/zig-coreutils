@@ -50,11 +50,8 @@ const impl = struct {
         system: System,
         exe_path: []const u8,
     ) Command.Error!void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = command.name });
-        defer z.end();
-
         const options = try parseArguments(allocator, io, args, exe_path);
-        log.debug("{}", .{options});
+        log.debug("{f}", .{options});
 
         return performTouch(allocator, io, args, options, system);
     }
@@ -66,9 +63,6 @@ const impl = struct {
         options: TouchOptions,
         system: System,
     ) !void {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "perform touch" });
-        defer z.end();
-
         const cwd = system.cwd();
 
         const times = try getTimes(allocator, io, options.time_to_use, cwd);
@@ -77,10 +71,6 @@ const impl = struct {
         var opt_file_path: ?[]const u8 = options.first_file_path;
 
         argument_loop: while (opt_file_path) |file_path| : (opt_file_path = args.nextRaw()) {
-            const file_zone: tracy.Zone = .begin(.{ .src = @src(), .name = "process file" });
-            defer file_zone.end();
-            file_zone.text(file_path);
-
             const file: System.File = blk: {
                 const file_or_error = switch (options.create) {
                     true => cwd.createFile(file_path, .{ .truncate = false }),
@@ -94,8 +84,8 @@ const impl = struct {
                     return command.printErrorAlloc(
                         allocator,
                         io,
-                        "failed to open '{s}': {s}",
-                        .{ file_path, @errorName(err) },
+                        "failed to open '{s}': {t}",
+                        .{ file_path, err },
                     );
                 };
             };
@@ -108,8 +98,8 @@ const impl = struct {
                     return command.printErrorAlloc(
                         allocator,
                         io,
-                        "failed to stat '{s}': {s}",
-                        .{ file_path, @errorName(err) },
+                        "failed to stat '{s}': {t}",
+                        .{ file_path, err },
                     );
 
                 break :blk switch (options.update) {
@@ -123,8 +113,8 @@ const impl = struct {
                 return command.printErrorAlloc(
                     allocator,
                     io,
-                    "failed to update times on '{s}': {s}",
-                    .{ file_path, @errorName(err) },
+                    "failed to update times on '{s}': {t}",
+                    .{ file_path, err },
                 );
         }
     }
@@ -148,8 +138,8 @@ const impl = struct {
                     return command.printErrorAlloc(
                         allocator,
                         io,
-                        "unable to open '{s}': {s}",
-                        .{ reference_file_path, @errorName(err) },
+                        "unable to open '{s}': {t}",
+                        .{ reference_file_path, err },
                     );
                 defer reference_file.close();
 
@@ -157,8 +147,8 @@ const impl = struct {
                     return command.printErrorAlloc(
                         allocator,
                         io,
-                        "unable to stat '{s}': {s}",
-                        .{ reference_file_path, @errorName(err) },
+                        "unable to stat '{s}': {t}",
+                        .{ reference_file_path, err },
                     );
 
                 return .{
@@ -192,29 +182,24 @@ const impl = struct {
             reference_file: []const u8,
         };
 
-        pub fn format(
-            value: TouchOptions,
-            comptime fmt: []const u8,
-            options: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
-            _ = options;
-            _ = fmt;
-
+        pub fn format(options: TouchOptions, writer: *std.Io.Writer) !void {
             try writer.writeAll("TouchOptions {");
 
             try writer.writeAll(comptime "\n" ++ shared.option_log_indentation ++ ".update = .");
-            try writer.writeAll(@tagName(value.update));
+            try writer.writeAll(@tagName(options.update));
 
             try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".create = ");
-            const create = if (value.create) "true" else "false";
+            const create = if (options.create) "true" else "false";
             try writer.writeAll(create);
 
             try writer.writeAll(comptime ",\n" ++ shared.option_log_indentation ++ ".time_to_use = ");
 
-            switch (value.time_to_use) {
+            switch (options.time_to_use) {
                 .current_time => try writer.writeAll(".current_time"),
-                inline else => |val| try writer.print(".{{ .{s} = \"{s}\" }}", .{ @tagName(value.time_to_use), val }),
+                inline else => |val| try writer.print(
+                    ".{{ .{t} = \"{s}\" }}",
+                    .{ options.time_to_use, val },
+                ),
             }
 
             try writer.writeAll(",\n}");
@@ -227,9 +212,6 @@ const impl = struct {
         args: *Arg.Iterator,
         exe_path: []const u8,
     ) !TouchOptions {
-        const z: tracy.Zone = .begin(.{ .src = @src(), .name = "parse arguments" });
-        defer z.end();
-
         // `-h` not supported to allow for future no dereference shorthand
         var opt_arg: ?Arg = try args.nextWithHelpOrVersion(false);
 
@@ -498,4 +480,3 @@ const System = @import("../system/System.zig");
 const log = std.log.scoped(.touch);
 
 const std = @import("std");
-const tracy = @import("tracy");

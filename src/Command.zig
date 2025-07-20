@@ -55,9 +55,6 @@ pub fn narrowError(
 }
 
 fn printShortHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print short help" });
-    defer z.end();
-
     std.debug.assert(command.short_help.len != 0); // short help should not be empty
     std.debug.assert(command.short_help[command.short_help.len - 1] == '\n'); // short help should end with a newline
 
@@ -70,9 +67,6 @@ fn printShortHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyH
 }
 
 fn printFullHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHandled}!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print full help" });
-    defer z.end();
-
     std.debug.assert(command.short_help.len != 0); // short help should not be empty
     std.debug.assert(command.short_help[command.short_help.len - 1] == '\n'); // short help should end with a newline
 
@@ -97,9 +91,6 @@ fn printFullHelp(command: Command, io: IO, exe_path: []const u8) error{AlreadyHa
 }
 
 fn printVersion(command: Command, io: IO) error{AlreadyHandled}!void {
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print version" });
-    defer z.end();
-
     var iter: NameReplacementIterator = .{ .slice = shared.version_string };
 
     while (iter.next()) |result| {
@@ -110,10 +101,6 @@ fn printVersion(command: Command, io: IO) error{AlreadyHandled}!void {
 
 pub fn printError(command: Command, io: IO, error_message: []const u8) error{AlreadyHandled} {
     @branchHint(.cold);
-
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error" });
-    defer z.end();
-    z.text(error_message);
 
     output: {
         io._stderr.writeAll(command.name) catch break :output;
@@ -134,9 +121,6 @@ pub fn printErrorAlloc(
 ) error{ OutOfMemory, AlreadyHandled } {
     @branchHint(.cold);
 
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print error alloc" });
-    defer z.end();
-
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
     defer if (shared.free_on_close) allocator.free(error_message);
 
@@ -150,10 +134,6 @@ pub fn printInvalidUsage(
     error_message: []const u8,
 ) error{AlreadyHandled} {
     @branchHint(.cold);
-
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage" });
-    defer z.end();
-    z.text(error_message);
 
     output: {
         io._stderr.writeAll(exe_path) catch break :output;
@@ -177,9 +157,6 @@ pub fn printInvalidUsageAlloc(
 ) error{ OutOfMemory, AlreadyHandled } {
     @branchHint(.cold);
 
-    const z: tracy.Zone = .begin(.{ .src = @src(), .name = "print invalid usage alloc" });
-    defer z.end();
-
     const error_message = try std.fmt.allocPrint(allocator, msg, args);
     defer if (shared.free_on_close) allocator.free(error_message);
 
@@ -187,9 +164,9 @@ pub fn printInvalidUsageAlloc(
 }
 
 pub const TestExecuteSettings = struct {
-    stdin: ?std.io.AnyReader = null,
-    stdout: ?std.io.AnyWriter = null,
-    stderr: ?std.io.AnyWriter = null,
+    stdin: ?*std.Io.Reader = null,
+    stdout: ?*std.Io.Writer = null,
+    stderr: ?*std.Io.Writer = null,
     system_description: System.TestBackend.Description = .{},
 
     test_backend_behaviour: TestBackendBehaviour = .free,
@@ -220,7 +197,7 @@ pub fn testExecute(
             std.testing.allocator,
             settings.system_description,
         ) catch |err| {
-            std.debug.panic("unable to create system backend: {s}", .{@errorName(err)});
+            std.debug.panic("unable to create system backend: {t}", .{err});
         },
     };
     defer switch (settings.test_backend_behaviour) {
@@ -231,9 +208,9 @@ pub fn testExecute(
     var arg_iter: Arg.Iterator = .{ .slice = .{ .slice = arguments } };
 
     const io: IO = .{
-        ._stderr = if (settings.stderr) |s| s else VoidWriter.writer().any(),
-        ._stdin = if (settings.stdin) |s| s else VoidReader.reader().any(),
-        ._stdout = if (settings.stdout) |s| s else VoidWriter.writer().any(),
+        ._stdin = if (settings.stdin) |s| s else void_reader,
+        ._stdout = if (settings.stdout) |s| s else void_writer,
+        ._stderr = if (settings.stderr) |s| s else void_writer,
     };
 
     return command.execute(
@@ -257,19 +234,19 @@ pub fn testError(
         @panic("`stderr` cannot be provided with `testError`");
     }
 
-    var stderr = std.ArrayList(u8).init(std.testing.allocator);
+    var stderr: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer stderr.deinit();
 
     var settings_copy = settings;
-    settings_copy.stderr = stderr.writer().any();
+    settings_copy.stderr = &stderr.writer;
 
     try std.testing.expectError(error.AlreadyHandled, command.testExecute(
         arguments,
         settings_copy,
     ));
 
-    std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_error) != null) catch |err| {
-        std.debug.print("\nEXPECTED: {s}\n\nACTUAL: {s}\n", .{ expected_error, stderr.items });
+    std.testing.expect(std.mem.indexOf(u8, stderr.getWritten(), expected_error) != null) catch |err| {
+        std.debug.print("\nEXPECTED: {s}\n\nACTUAL: {s}\n", .{ expected_error, stderr.getWritten() });
         return err;
     };
 }
@@ -300,15 +277,15 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
     };
     defer std.testing.allocator.free(full_expected_help);
 
-    var out = std.ArrayList(u8).init(std.testing.allocator);
-    defer out.deinit();
+    var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer stdout.deinit();
 
     try command.testExecute(
         &.{"--help"},
-        .{ .stdout = out.writer().any() },
+        .{ .stdout = &stdout.writer },
     );
 
-    try std.testing.expectEqualStrings(full_expected_help, out.items);
+    try std.testing.expectEqualStrings(full_expected_help, stdout.getWritten());
 
     if (include_shorthand) {
         const short_expected_help = blk: {
@@ -327,28 +304,28 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
         };
         defer std.testing.allocator.free(short_expected_help);
 
-        out.clearRetainingCapacity();
+        stdout.clearRetainingCapacity();
 
         try testExecute(
             command,
             &.{"-h"},
-            .{ .stdout = out.writer().any() },
+            .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings(short_expected_help, out.items);
+        try std.testing.expectEqualStrings(short_expected_help, stdout.getWritten());
     }
 }
 
 pub fn testVersion(command: Command) !void {
     std.debug.assert(builtin.is_test);
 
-    var out = std.ArrayList(u8).init(std.testing.allocator);
-    defer out.deinit();
+    var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer stdout.deinit();
 
     try command.testExecute(
         &.{"--version"},
         .{
-            .stdout = out.writer().any(),
+            .stdout = &stdout.writer,
         },
     );
 
@@ -366,10 +343,9 @@ pub fn testVersion(command: Command) !void {
 
         break :blk try sb.toOwnedSlice(std.testing.allocator);
     };
-
     defer std.testing.allocator.free(expected);
 
-    try std.testing.expectEqualStrings(expected, out.items);
+    try std.testing.expectEqualStrings(expected, stdout.getWritten());
 }
 
 pub const TestFuzzOptions = struct {
@@ -406,17 +382,17 @@ pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
             };
             defer std.testing.allocator.free(arguments);
 
-            var stdout: std.ArrayList(u8) = .init(std.testing.allocator);
+            var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
             defer stdout.deinit();
 
-            var stderr: std.ArrayList(u8) = .init(std.testing.allocator);
+            var stderr: std.Io.Writer.Allocating = .init(std.testing.allocator);
             defer stderr.deinit();
 
             context.inner_command.testExecute(
                 arguments,
                 .{
-                    .stdout = stdout.writer().any(),
-                    .stderr = stderr.writer().any(),
+                    .stdout = &stdout.writer,
+                    .stderr = &stderr.writer,
                     .system_description = context.options.system_description,
                 },
             ) catch |err| {
@@ -425,15 +401,15 @@ pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
                         // this error is output by main and some output may or not have been written to stderr
                     },
                     error.AlreadyHandled => if (context.options.expect_stderr_output_on_failure) {
-                        try std.testing.expect(stderr.items.len != 0);
+                        try std.testing.expect(stderr.getWritten().len != 0);
                     },
                 }
                 return;
             };
 
-            try std.testing.expect(stderr.items.len == 0);
+            try std.testing.expect(stderr.getWritten().len == 0);
             if (context.options.expect_stdout_output_on_success) {
-                try std.testing.expect(stdout.items.len != 0);
+                try std.testing.expect(stdout.getWritten().len != 0);
             }
         }
     };
@@ -449,27 +425,40 @@ pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
     );
 }
 
-const VoidReader = struct {
-    pub const Reader = std.io.Reader(void, error{}, read);
-    pub fn reader() Reader {
-        return .{ .context = {} };
-    }
+const void_reader: *std.Io.Reader = blk: {
+    const void_reader_inner: std.Io.Reader = .{
+        .vtable = &.{
+            .stream = struct {
+                fn stream(_: *std.Io.Reader, _: *std.Io.Writer, _: std.Io.Limit) !usize {
+                    return 0;
+                }
+            }.stream,
+        },
+        .buffer = &.{},
+        .seek = 0,
+        .end = 0,
+    };
 
-    fn read(_: void, buffer: []u8) error{}!usize {
-        _ = buffer;
-        return 0;
-    }
+    break :blk @constCast(&void_reader_inner);
 };
 
-const VoidWriter = struct {
-    pub const Writer = std.io.Writer(void, error{}, write);
-    pub fn writer() Writer {
-        return .{ .context = {} };
-    }
-
-    fn write(_: void, bytes: []const u8) error{}!usize {
-        return bytes.len;
-    }
+// TODO: replace with `std.Io.null_writer` once it is updated to use `std.Io.Writer`
+const void_writer: *std.Io.Writer = blk: {
+    const void_writer_inner: std.Io.Writer = .{
+        .vtable = &.{
+            .drain = struct {
+                fn drain(_: *std.Io.Writer, data: []const []const u8, _: usize) !usize {
+                    var len: usize = 0;
+                    for (data) |bytes| {
+                        len += bytes.len;
+                    }
+                    return len;
+                }
+            }.drain,
+        },
+        .buffer = &.{},
+    };
+    break :blk @constCast(&void_writer_inner);
 };
 
 const NameReplacementIterator = struct {
@@ -527,4 +516,3 @@ const System = @import("system/System.zig");
 
 const builtin = @import("builtin");
 const std = @import("std");
-const tracy = @import("tracy");
