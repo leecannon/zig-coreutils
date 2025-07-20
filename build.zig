@@ -137,10 +137,6 @@ fn createTestAndCheckSteps(
         .filters = test_filters,
     });
 
-    if (coreutils_target == .linux and target.result.cpu.arch == .x86_64) {
-        coreutils_test.use_llvm = true; // TODO: https://github.com/leecannon/zig-coreutils/issues/10
-    }
-
     if (is_native_target) {
         if (coverage) {
             coreutils_test.setExecCmd(&[_]?[]const u8{
