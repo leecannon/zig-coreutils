@@ -192,9 +192,11 @@ pub fn testExecute(
 ) ExposedError!void {
     std.debug.assert(builtin.is_test);
 
+    const allocator = std.testing.allocator;
+
     const system: System = .{
         ._backend = System.TestBackend.create(
-            std.testing.allocator,
+            allocator,
             settings.system_description,
         ) catch |err| {
             std.debug.panic("unable to create system backend: {t}", .{err});
@@ -214,7 +216,7 @@ pub fn testExecute(
     };
 
     return command.execute(
-        std.testing.allocator,
+        allocator,
         io,
         &arg_iter,
         system,
@@ -240,13 +242,13 @@ pub fn testError(
     var settings_copy = settings;
     settings_copy.stderr = &stderr.writer;
 
-    try std.testing.expectError(error.AlreadyHandled, command.testExecute(
-        arguments,
-        settings_copy,
-    ));
+    try std.testing.expectError(
+        error.AlreadyHandled,
+        command.testExecute(arguments, settings_copy),
+    );
 
-    std.testing.expect(std.mem.indexOf(u8, stderr.getWritten(), expected_error) != null) catch |err| {
-        std.debug.print("\nEXPECTED: {s}\n\nACTUAL: {s}\n", .{ expected_error, stderr.getWritten() });
+    std.testing.expect(std.mem.indexOf(u8, stderr.written(), expected_error) != null) catch |err| {
+        std.debug.print("\nEXPECTED: {s}\n\nACTUAL: {s}\n", .{ expected_error, stderr.written() });
         return err;
     };
 }
@@ -254,30 +256,32 @@ pub fn testError(
 pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
     std.debug.assert(builtin.is_test);
 
+    const allocator = std.testing.allocator;
+
     const full_expected_help = blk: {
         var sb: std.ArrayListUnmanaged(u8) = .empty;
-        errdefer sb.deinit(std.testing.allocator);
+        errdefer sb.deinit(allocator);
 
         var iter: NameReplacementIterator = .{ .slice = command.short_help };
         while (iter.next()) |result| {
-            try sb.appendSlice(std.testing.allocator, result.slice);
+            try sb.appendSlice(allocator, result.slice);
             if (result.output_name) {
-                try sb.appendSlice(std.testing.allocator, command.name);
+                try sb.appendSlice(allocator, command.name);
             }
         }
 
         if (!std.mem.eql(u8, command.name, "template")) { // template has an extended help but it is empty
             if (command.extended_help) |extended_help| {
-                try sb.append(std.testing.allocator, '\n');
-                try sb.appendSlice(std.testing.allocator, extended_help);
+                try sb.append(allocator, '\n');
+                try sb.appendSlice(allocator, extended_help);
             }
         }
 
-        break :blk try sb.toOwnedSlice(std.testing.allocator);
+        break :blk try sb.toOwnedSlice(allocator);
     };
-    defer std.testing.allocator.free(full_expected_help);
+    defer allocator.free(full_expected_help);
 
-    var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    var stdout: std.Io.Writer.Allocating = .init(allocator);
     defer stdout.deinit();
 
     try command.testExecute(
@@ -285,24 +289,24 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
         .{ .stdout = &stdout.writer },
     );
 
-    try std.testing.expectEqualStrings(full_expected_help, stdout.getWritten());
+    try std.testing.expectEqualStrings(full_expected_help, stdout.written());
 
     if (include_shorthand) {
         const short_expected_help = blk: {
             var sb: std.ArrayListUnmanaged(u8) = .empty;
-            errdefer sb.deinit(std.testing.allocator);
+            errdefer sb.deinit(allocator);
 
             var iter: NameReplacementIterator = .{ .slice = command.short_help };
             while (iter.next()) |result| {
-                try sb.appendSlice(std.testing.allocator, result.slice);
+                try sb.appendSlice(allocator, result.slice);
                 if (result.output_name) {
-                    try sb.appendSlice(std.testing.allocator, command.name);
+                    try sb.appendSlice(allocator, command.name);
                 }
             }
 
-            break :blk try sb.toOwnedSlice(std.testing.allocator);
+            break :blk try sb.toOwnedSlice(allocator);
         };
-        defer std.testing.allocator.free(short_expected_help);
+        defer allocator.free(short_expected_help);
 
         stdout.clearRetainingCapacity();
 
@@ -312,14 +316,16 @@ pub fn testHelp(command: Command, comptime include_shorthand: bool) !void {
             .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings(short_expected_help, stdout.getWritten());
+        try std.testing.expectEqualStrings(short_expected_help, stdout.written());
     }
 }
 
 pub fn testVersion(command: Command) !void {
     std.debug.assert(builtin.is_test);
 
-    var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    const allocator = std.testing.allocator;
+
+    var stdout: std.Io.Writer.Allocating = .init(allocator);
     defer stdout.deinit();
 
     try command.testExecute(
@@ -331,21 +337,21 @@ pub fn testVersion(command: Command) !void {
 
     const expected = blk: {
         var sb: std.ArrayListUnmanaged(u8) = .empty;
-        errdefer sb.deinit(std.testing.allocator);
+        errdefer sb.deinit(allocator);
 
         var iter: NameReplacementIterator = .{ .slice = shared.version_string };
         while (iter.next()) |result| {
-            try sb.appendSlice(std.testing.allocator, result.slice);
+            try sb.appendSlice(allocator, result.slice);
             if (result.output_name) {
-                try sb.appendSlice(std.testing.allocator, command.name);
+                try sb.appendSlice(allocator, command.name);
             }
         }
 
-        break :blk try sb.toOwnedSlice(std.testing.allocator);
+        break :blk try sb.toOwnedSlice(allocator);
     };
-    defer std.testing.allocator.free(expected);
+    defer allocator.free(expected);
 
-    try std.testing.expectEqualStrings(expected, stdout.getWritten());
+    try std.testing.expectEqualStrings(expected, stdout.written());
 }
 
 pub const TestFuzzOptions = struct {
@@ -368,24 +374,26 @@ pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
         options: TestFuzzOptions,
 
         fn testOne(context: @This(), input: []const u8) anyerror!void {
+            const allocator = std.testing.allocator;
+
             const arguments = blk: {
-                var arguments: std.ArrayList([]const u8) = .init(std.testing.allocator);
-                errdefer arguments.deinit();
+                var arguments: std.ArrayList([]const u8) = .empty;
+                errdefer arguments.deinit(allocator);
 
                 var iter = std.mem.splitScalar(u8, input, ' ');
 
                 while (iter.next()) |arg| {
-                    try arguments.append(arg);
+                    try arguments.append(allocator, arg);
                 }
 
-                break :blk try arguments.toOwnedSlice();
+                break :blk try arguments.toOwnedSlice(allocator);
             };
-            defer std.testing.allocator.free(arguments);
+            defer allocator.free(arguments);
 
-            var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
+            var stdout: std.Io.Writer.Allocating = .init(allocator);
             defer stdout.deinit();
 
-            var stderr: std.Io.Writer.Allocating = .init(std.testing.allocator);
+            var stderr: std.Io.Writer.Allocating = .init(allocator);
             defer stderr.deinit();
 
             context.inner_command.testExecute(
@@ -401,15 +409,15 @@ pub fn testFuzz(command: Command, options: TestFuzzOptions) !void {
                         // this error is output by main and some output may or not have been written to stderr
                     },
                     error.AlreadyHandled => if (context.options.expect_stderr_output_on_failure) {
-                        try std.testing.expect(stderr.getWritten().len != 0);
+                        try std.testing.expect(stderr.written().len != 0);
                     },
                 }
                 return;
             };
 
-            try std.testing.expect(stderr.getWritten().len == 0);
+            try std.testing.expect(stderr.written().len == 0);
             if (context.options.expect_stdout_output_on_success) {
-                try std.testing.expect(stdout.getWritten().len != 0);
+                try std.testing.expect(stdout.written().len != 0);
             }
         }
     };

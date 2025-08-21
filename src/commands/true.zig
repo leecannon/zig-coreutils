@@ -56,7 +56,7 @@ const impl = struct {
             .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("", stdout.getWritten());
+        try std.testing.expectEqualStrings("", stdout.written());
     }
 
     test "true help" {

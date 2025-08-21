@@ -191,7 +191,7 @@ const impl = struct {
             .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("hello\n", stdout.getWritten());
+        try std.testing.expectEqualStrings("hello\n", stdout.written());
     }
 
     test "dirname multiple" {
@@ -212,7 +212,7 @@ const impl = struct {
             \\this/is/a
             \\a/b/c
             \\
-        , stdout.getWritten());
+        , stdout.written());
     }
 
     test "dirname help" {

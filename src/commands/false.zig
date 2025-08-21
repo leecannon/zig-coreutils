@@ -60,7 +60,7 @@ const impl = struct {
             ),
         );
 
-        try std.testing.expectEqualStrings("", stdout.getWritten());
+        try std.testing.expectEqualStrings("", stdout.written());
     }
 
     test "false help" {

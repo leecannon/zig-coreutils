@@ -150,7 +150,7 @@ const impl = struct {
             .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("\x1b[H\x1b[2J\x1b[3J", stdout.getWritten());
+        try std.testing.expectEqualStrings("\x1b[H\x1b[2J\x1b[3J", stdout.written());
     }
 
     test "clear - don't clear scrollback" {
@@ -162,7 +162,7 @@ const impl = struct {
             .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("\x1b[H\x1b[2J", stdout.getWritten());
+        try std.testing.expectEqualStrings("\x1b[H\x1b[2J", stdout.written());
     }
 
     test "clear help" {

@@ -317,7 +317,7 @@ const impl = struct {
             .{ .stdout = &stdout.writer },
         );
 
-        try std.testing.expectEqualStrings("world\n", stdout.getWritten());
+        try std.testing.expectEqualStrings("world\n", stdout.written());
     }
 
     test "basename multiple" {
@@ -339,7 +339,7 @@ const impl = struct {
             \\test
             \\d
             \\
-        , stdout.getWritten());
+        , stdout.written());
     }
 
     test "basename help" {

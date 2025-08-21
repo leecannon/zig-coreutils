@@ -127,7 +127,7 @@ const impl = struct {
             },
         });
 
-        try std.testing.expectEqualStrings("16\n", stdout.getWritten());
+        try std.testing.expectEqualStrings("16\n", stdout.written());
     }
 };
 

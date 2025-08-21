@@ -129,7 +129,7 @@ const impl = struct {
             },
         });
 
-        try std.testing.expectEqualStrings("user\n", stdout.getWritten());
+        try std.testing.expectEqualStrings("user\n", stdout.written());
     }
 };
 

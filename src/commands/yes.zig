@@ -54,23 +54,25 @@ const impl = struct {
     }
 
     fn getString(allocator: std.mem.Allocator, args: *Arg.Iterator) !shared.MaybeAllocatedString {
-        var buffer = std.ArrayList(u8).init(allocator);
+        var buffer: std.Io.Writer.Allocating = .init(allocator);
         defer if (shared.free_on_close) buffer.deinit();
 
+        const writer = &buffer.writer;
+
         if (try args.nextWithHelpOrVersion(true)) |arg| {
-            try buffer.appendSlice(arg.raw);
+            writer.writeAll(arg.raw) catch return error.OutOfMemory;
         } else {
             return .not_allocated("y\n");
         }
 
         while (args.nextRaw()) |arg| {
-            try buffer.append(' ');
-            try buffer.appendSlice(arg);
+            writer.writeByte(' ') catch return error.OutOfMemory;
+            writer.writeAll(arg) catch return error.OutOfMemory;
         }
 
-        try buffer.append('\n');
+        writer.writeByte('\n') catch return error.OutOfMemory;
 
-        return .allocated(try buffer.toOwnedSlice());
+        return .allocated(buffer.toOwnedSlice() catch return error.OutOfMemory);
     }
 
     test "yes help" {
@@ -81,6 +83,8 @@ const impl = struct {
         try command.testVersion();
     }
 
+    const lines_to_output_during_tests = 10;
+
     test "yes no args" {
         var stdout: std.Io.Writer.Allocating = .init(std.testing.allocator);
         defer stdout.deinit();
@@ -88,18 +92,21 @@ const impl = struct {
         try command.testExecute(&.{}, .{ .stdout = &stdout.writer });
 
         const expected = blk: {
-            var expected: std.ArrayList(u8) = .init(std.testing.allocator);
+            const line = "y\n";
+
+            var expected: std.Io.Writer.Allocating = try .initCapacity(
+                std.testing.allocator,
+                lines_to_output_during_tests * line.len,
+            );
             errdefer expected.deinit();
 
-            for (0..10) |_| {
-                try expected.appendSlice("y\n");
-            }
+            try expected.writer.splatBytesAll(line, lines_to_output_during_tests);
 
             break :blk try expected.toOwnedSlice();
         };
         defer std.testing.allocator.free(expected);
 
-        try std.testing.expectEqualStrings(expected, stdout.getWritten());
+        try std.testing.expectEqualStrings(expected, stdout.written());
     }
 
     test "yes with args" {
@@ -112,18 +119,21 @@ const impl = struct {
         );
 
         const expected = blk: {
-            var expected: std.ArrayList(u8) = .init(std.testing.allocator);
+            const line = "arg1 arg2\n";
+
+            var expected: std.Io.Writer.Allocating = try .initCapacity(
+                std.testing.allocator,
+                lines_to_output_during_tests * line.len,
+            );
             errdefer expected.deinit();
 
-            for (0..10) |_| {
-                try expected.appendSlice("arg1 arg2\n");
-            }
+            try expected.writer.splatBytesAll(line, lines_to_output_during_tests);
 
             break :blk try expected.toOwnedSlice();
         };
         defer std.testing.allocator.free(expected);
 
-        try std.testing.expectEqualStrings(expected, stdout.getWritten());
+        try std.testing.expectEqualStrings(expected, stdout.written());
     }
 
     test "yes fuzz" {

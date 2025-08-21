@@ -6,7 +6,7 @@
 
     .version = "0.3.0",
 
-    .minimum_zig_version = "0.15.0-dev.1149+4e6a04929",
+    .minimum_zig_version = "0.15.1",
 
     .paths = .{
         "build.zig",

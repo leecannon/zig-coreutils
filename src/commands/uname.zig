@@ -395,7 +395,7 @@ const impl = struct {
         else
             "sysname nodename release version machine sysname\n";
 
-        try std.testing.expectEqualStrings(expected, stdout.getWritten());
+        try std.testing.expectEqualStrings(expected, stdout.written());
     }
 };
 

@@ -291,7 +291,7 @@ const impl = struct {
             },
         });
 
-        try std.testing.expectEqualStrings("sys user wheel\n", stdout.getWritten());
+        try std.testing.expectEqualStrings("sys user wheel\n", stdout.written());
     }
 };
 
